@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
 import { PropertyCard } from "@/components/PropertyCard";
-// TODO(preview): volver a "@/lib/listings" cuando Supabase esté conectado.
-import { getFeaturedListings, getFilterOptions } from "@/lib/listings.preview";
+import { getFeaturedListings, getFilterOptions } from "@/lib/listings";
 
 export default async function HomePage() {
   const [featured, filterOptions] = await Promise.all([getFeaturedListings(), getFilterOptions()]);

@@ -69,7 +69,7 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
 
       <button
         type="submit"
-        className="col-span-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground sm:col-span-1 lg:col-span-6"
+        className="col-span-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-strong sm:col-span-1 lg:col-span-6"
       >
         Buscar
       </button>

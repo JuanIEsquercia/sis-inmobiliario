@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { Gallery } from "@/components/Gallery";
-// TODO(preview): volver a "@/lib/listings" cuando Supabase esté conectado.
-import { getListingById } from "@/lib/listings.preview";
+import { getListingById } from "@/lib/listings";
 import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
 
 interface PageProps {

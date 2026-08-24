@@ -1,12 +1,14 @@
 @import "tailwindcss";
 
 :root {
+  /* Paleta de marca Garcia Propiedades, tomada del isotipo (skyline rojo + wordmark negro). */
   --background: #ffffff;
-  --foreground: #1c2226;
-  --muted: #667079;
-  --border: #e2e5e2;
-  --surface: #f7f6f2;
-  --accent: #2c5f72;
+  --foreground: #141414;
+  --muted: #6b6461;
+  --border: #e6e1df;
+  --surface: #f7f4f3;
+  --accent: #d6272b;
+  --accent-strong: #7a1f24;
   --accent-foreground: #ffffff;
 }
 
@@ -17,6 +19,7 @@
   --color-border: var(--border);
   --color-surface: var(--surface);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-foreground: var(--accent-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

@@ -1,22 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parseFeed } from "@/lib/feed";
+import { withRetry } from "@/lib/db-retry";
 import type { Prisma } from "@/generated/prisma/client";
-
-// La conexión a la región del proveedor de DB puede tener cortes
-// intermitentes en corridas largas; reintentar con backoff es más barato
-// que hacer que un sync nocturno falle entero por un blip de red.
-async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
-  let lastErr: unknown;
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      if (attempt < retries) await new Promise((r) => setTimeout(r, attempt * 1000));
-    }
-  }
-  throw lastErr;
-}
 
 export interface SyncResult {
   skippedUnchanged: boolean;

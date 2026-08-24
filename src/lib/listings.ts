@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { withRetry } from "@/lib/db-retry";
 import type { Prisma } from "@/generated/prisma/client";
 
 const PAGE_SIZE = 12;
@@ -58,16 +59,18 @@ export async function getListings(filters: ListingFilters) {
   const where = buildWhere(filters);
   const page = Math.max(1, filters.page ?? 1);
 
-  const [total, items] = await Promise.all([
-    prisma.listing.count({ where }),
-    prisma.listing.findMany({
-      where,
-      select: listingCardSelect,
-      orderBy: { sourceUpdatedAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-  ]);
+  const [total, items] = await withRetry(() =>
+    Promise.all([
+      prisma.listing.count({ where }),
+      prisma.listing.findMany({
+        where,
+        select: listingCardSelect,
+        orderBy: { sourceUpdatedAt: "desc" },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+    ])
+  );
 
   return {
     items,
@@ -79,40 +82,46 @@ export async function getListings(filters: ListingFilters) {
 }
 
 export async function getFeaturedListings(take = 6) {
-  return prisma.listing.findMany({
-    where: { isActive: true },
-    select: listingCardSelect,
-    orderBy: { sourceUpdatedAt: "desc" },
-    take,
-  });
+  return withRetry(() =>
+    prisma.listing.findMany({
+      where: { isActive: true },
+      select: listingCardSelect,
+      orderBy: { sourceUpdatedAt: "desc" },
+      take,
+    })
+  );
 }
 
 export async function getListingById(id: number) {
-  return prisma.listing.findFirst({
-    where: { id, isActive: true },
-    include: {
-      images: { orderBy: { sortOrder: "asc" } },
-      videos: true,
-      agency: true,
-    },
-  });
+  return withRetry(() =>
+    prisma.listing.findFirst({
+      where: { id, isActive: true },
+      include: {
+        images: { orderBy: { sortOrder: "asc" } },
+        videos: true,
+        agency: true,
+      },
+    })
+  );
 }
 
 export async function getFilterOptions() {
-  const [cities, propertyTypes] = await Promise.all([
-    prisma.listing.findMany({
-      where: { isActive: true, city: { not: null } },
-      select: { city: true },
-      distinct: ["city"],
-      orderBy: { city: "asc" },
-    }),
-    prisma.listing.findMany({
-      where: { isActive: true },
-      select: { propertyType: true },
-      distinct: ["propertyType"],
-      orderBy: { propertyType: "asc" },
-    }),
-  ]);
+  const [cities, propertyTypes] = await withRetry(() =>
+    Promise.all([
+      prisma.listing.findMany({
+        where: { isActive: true, city: { not: null } },
+        select: { city: true },
+        distinct: ["city"],
+        orderBy: { city: "asc" },
+      }),
+      prisma.listing.findMany({
+        where: { isActive: true },
+        select: { propertyType: true },
+        distinct: ["propertyType"],
+        orderBy: { propertyType: "asc" },
+      }),
+    ])
+  );
 
   return {
     cities: cities.map((c) => c.city).filter((c): c is string => !!c),

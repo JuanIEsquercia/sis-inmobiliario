@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
 import { PropertyCard } from "@/components/PropertyCard";
-// TODO(preview): volver a "@/lib/listings" cuando Supabase esté conectado.
-import { getFilterOptions, getListings } from "@/lib/listings.preview";
+import { getFilterOptions, getListings } from "@/lib/listings";
 
 interface PageProps {
   searchParams: Promise<{
