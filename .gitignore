@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# Claude Code local state
+.claude/
 
 # vercel
 .vercel
@@ -39,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# datos temporales de preview (ver scripts/fetch-preview-data.ts)
+/src/lib/preview-data.json

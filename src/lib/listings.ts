@@ -1,0 +1,121 @@
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
+
+const PAGE_SIZE = 12;
+
+export interface ListingFilters {
+  operationType?: string;
+  propertyType?: string;
+  city?: string;
+  priceMin?: number;
+  priceMax?: number;
+  rooms?: number;
+  page?: number;
+}
+
+function buildWhere(filters: ListingFilters): Prisma.ListingWhereInput {
+  const where: Prisma.ListingWhereInput = { isActive: true };
+
+  if (filters.operationType) where.operationType = filters.operationType;
+  if (filters.propertyType) where.propertyType = filters.propertyType;
+  if (filters.city) where.city = filters.city;
+  if (filters.rooms) where.rooms = { gte: filters.rooms };
+  if (filters.priceMin || filters.priceMax) {
+    where.priceAmount = {
+      ...(filters.priceMin ? { gte: filters.priceMin } : {}),
+      ...(filters.priceMax ? { lte: filters.priceMax } : {}),
+    };
+  }
+
+  return where;
+}
+
+const listingCardSelect = {
+  id: true,
+  externalId: true,
+  title: true,
+  operationType: true,
+  propertyType: true,
+  priceAmount: true,
+  priceCurrency: true,
+  priceRaw: true,
+  city: true,
+  region: true,
+  rooms: true,
+  bathrooms: true,
+  plotArea: true,
+  floorArea: true,
+  images: {
+    where: { isFeatured: true },
+    take: 1,
+    select: { url: true },
+  },
+} satisfies Prisma.ListingSelect;
+
+export type ListingCard = Prisma.ListingGetPayload<{ select: typeof listingCardSelect }>;
+
+export async function getListings(filters: ListingFilters) {
+  const where = buildWhere(filters);
+  const page = Math.max(1, filters.page ?? 1);
+
+  const [total, items] = await Promise.all([
+    prisma.listing.count({ where }),
+    prisma.listing.findMany({
+      where,
+      select: listingCardSelect,
+      orderBy: { sourceUpdatedAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+  ]);
+
+  return {
+    items,
+    total,
+    page,
+    pageSize: PAGE_SIZE,
+    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+  };
+}
+
+export async function getFeaturedListings(take = 6) {
+  return prisma.listing.findMany({
+    where: { isActive: true },
+    select: listingCardSelect,
+    orderBy: { sourceUpdatedAt: "desc" },
+    take,
+  });
+}
+
+export async function getListingById(id: number) {
+  return prisma.listing.findFirst({
+    where: { id, isActive: true },
+    include: {
+      images: { orderBy: { sortOrder: "asc" } },
+      videos: true,
+      agency: true,
+    },
+  });
+}
+
+export async function getFilterOptions() {
+  const [cities, propertyTypes] = await Promise.all([
+    prisma.listing.findMany({
+      where: { isActive: true, city: { not: null } },
+      select: { city: true },
+      distinct: ["city"],
+      orderBy: { city: "asc" },
+    }),
+    prisma.listing.findMany({
+      where: { isActive: true },
+      select: { propertyType: true },
+      distinct: ["propertyType"],
+      orderBy: { propertyType: "asc" },
+    }),
+  ]);
+
+  return {
+    cities: cities.map((c) => c.city).filter((c): c is string => !!c),
+    propertyTypes: propertyTypes.map((p) => p.propertyType),
+  };
+}

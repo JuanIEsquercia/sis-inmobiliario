@@ -1,0 +1,137 @@
+// Prisma schema — sitio público + sincronización del feed Adinco.
+// `Listing` es el caché del feed público: se sobreescribe en cada sync y
+// no está pensado para cargar el peso del futuro sistema de gestión
+// (contratos, inquilinos, pagos), que vivirá en tablas separadas y podrá
+// referenciar un Listing sin acoplarse a su ciclo de vida.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Agency {
+  id            Int      @id @default(autoincrement())
+  externalId    String   @unique // real_estate_id
+  name          String
+  logoUrl       String?
+  officeAddress String?
+  officeZipCode String?
+  phones        String[]
+
+  listings  Listing[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Listing {
+  id         Int     @id @default(autoincrement())
+  externalId String  @unique // <id> del aviso en Adinco
+  sourceUrl  String?
+
+  title        String
+  contentTitle String?
+  description  String? @db.Text
+
+  operationType String // "For Sale" | "For Rent"
+  propertyType  String // Casa, Departamento, Campo, Terreno...
+
+  priceAmount     Decimal? @db.Decimal(14, 2)
+  priceCurrency   String?
+  priceRaw        String? // ej. "Consultar precio"
+  pricePerHectare Decimal? @db.Decimal(14, 2)
+  expenses        Decimal? @db.Decimal(14, 2)
+
+  address          String?
+  addressName      String?
+  addressNumber    String?
+  addressFloor     String?
+  addressApartment String?
+  country          String?
+  region           String?
+  city             String?
+  neighborhood     String?
+  postcode         String?
+  latitude         Decimal? @db.Decimal(11, 8)
+  longitude        Decimal? @db.Decimal(11, 8)
+  orientation      String?
+
+  floorArea             Decimal? @db.Decimal(10, 2)
+  plotArea              Decimal? @db.Decimal(10, 2)
+  landArea              Decimal? @db.Decimal(10, 2)
+  rooms                 Int?
+  bathrooms             Int?
+  condition             String?
+  year                  Int?
+  isNew                 Boolean?
+  buildingFloors        Int?
+  buildingMainElevators Int?
+  buildingType          String?
+  buildingCategory      String?
+  coveredGarages        Int?
+  aptoCredito           Boolean?
+
+  fieldLength      Decimal? @db.Decimal(10, 2)
+  fieldWidth       Decimal? @db.Decimal(10, 2)
+  accessDetail     String?
+  distancePavement Decimal? @db.Decimal(10, 2)
+  countryType      String?
+
+  services  String[]
+  otherData String[]
+
+  sellerName  String?
+  sellerEmail String?
+
+  sourceUpdatedAt DateTime? // <date> del aviso en el feed
+  isActive        Boolean   @default(true) // false = desapareció del feed (delisted)
+  rawData         Json // <ad> completo tal cual vino, sin perder campos
+
+  agencyId Int?
+  agency   Agency? @relation(fields: [agencyId], references: [id])
+
+  images ListingImage[]
+  videos ListingVideo[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([operationType])
+  @@index([propertyType])
+  @@index([city])
+  @@index([isActive])
+}
+
+model ListingImage {
+  id         Int     @id @default(autoincrement())
+  listingId  Int
+  listing    Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url        String
+  isFeatured Boolean @default(false)
+  sortOrder  Int     @default(0)
+
+  @@index([listingId])
+}
+
+model ListingVideo {
+  id        Int     @id @default(autoincrement())
+  listingId Int
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url       String
+
+  @@index([listingId])
+}
+
+// Fila única (id fijo = 1) que guarda el último Last-Modified/ETag HTTP
+// visto, para saltear el reprocesamiento del feed si no cambió.
+model SyncState {
+  id           Int       @id @default(1)
+  lastModified String?
+  etag         String?
+  lastSyncedAt DateTime?
+}
