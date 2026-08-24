@@ -17,7 +17,7 @@ export function Logo() {
       width={4550}
       height={3371}
       priority
-      className="h-10 w-auto"
+      className="h-16 w-auto"
     />
   );
 }
