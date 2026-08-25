@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getPaymentById, paymentTotal } from "@/lib/alquileres";
+import { getPaymentById, paymentBreakdown } from "@/lib/alquileres";
 import { requirePermission } from "@/lib/auth";
 import { guardarLiquidacion, marcarLiquidacionPagada } from "../../../actions";
 
@@ -32,6 +32,10 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
 
   const canEdit = profile.permissions.includes("administraciones.pagos");
   const isPaid = payment.status === "PAGADO";
+  const { total, managementFee, netForOwner } = paymentBreakdown(
+    payment.items,
+    payment.contract.managementFeePercent
+  );
 
   return (
     <div className="max-w-xl">
@@ -77,19 +81,35 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
           </div>
         ))}
 
-        <div className="flex items-center justify-between border-t border-border pt-3">
-          <span className="text-sm font-medium text-foreground">
-            Total: {payment.currency} {paymentTotal(payment.items).toLocaleString("es-AR")}
-          </span>
-          {canEdit && !isPaid && (
-            <button
-              type="submit"
-              className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface"
-            >
-              Guardar montos
-            </button>
-          )}
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted">Total cobrado</span>
+            <span className="font-medium text-foreground">
+              {payment.currency} {total.toLocaleString("es-AR")}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted">Comisión administración ({payment.contract.managementFeePercent.toString()}%)</span>
+            <span className="text-accent">
+              − {payment.currency} {managementFee.toLocaleString("es-AR")}
+            </span>
+          </div>
+          <div className="flex items-center justify-between border-t border-border pt-1.5">
+            <span className="font-medium text-foreground">Neto propietario</span>
+            <span className="font-semibold text-foreground">
+              {payment.currency} {netForOwner.toLocaleString("es-AR")}
+            </span>
+          </div>
         </div>
+
+        {canEdit && !isPaid && (
+          <button
+            type="submit"
+            className="w-fit rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface"
+          >
+            Guardar montos
+          </button>
+        )}
       </form>
 
       {canEdit && !isPaid && (

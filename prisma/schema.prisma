@@ -351,6 +351,10 @@ model Contract {
   currency   String
   status     ContractStatus @default(ACTIVO)
 
+  // % que se descuenta del alquiler en cada liquidación como comisión
+  // de administración inmobiliaria (nunca sobre expensas/agua/etc).
+  managementFeePercent Decimal @db.Decimal(5, 2)
+
   indexationFrequencyMonths Int?
   indexTypeId               Int?
   indexType                 IndexType? @relation(fields: [indexTypeId], references: [id])

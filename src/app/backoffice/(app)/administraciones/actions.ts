@@ -52,6 +52,7 @@ export async function createContract(formData: FormData) {
 
   const rentAmount = requiredDecimal(formData.get("rentAmount"), "Monto del alquiler");
   const currency = requiredStr(formData.get("currency"), "Moneda");
+  const managementFeePercent = requiredDecimal(formData.get("managementFeePercent"), "Comisión de administración");
   const indexationFrequencyMonths = optionalInt(formData.get("indexationFrequencyMonths"));
   const indexTypeId = optionalInt(formData.get("indexTypeId"));
   const conceptIds = formData
@@ -104,6 +105,7 @@ export async function createContract(formData: FormData) {
           endDate,
           rentAmount,
           currency,
+          managementFeePercent,
           indexationFrequencyMonths,
           indexTypeId,
           nextIndexationDueAt: indexationFrequencyMonths ? addMonths(startDate, indexationFrequencyMonths) : null,

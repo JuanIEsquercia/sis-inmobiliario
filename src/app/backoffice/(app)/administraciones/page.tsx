@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getContracts } from "@/lib/alquileres";
 import { requirePermission } from "@/lib/auth";
+import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -14,8 +15,9 @@ export default async function AdministracionesPage() {
 
   return (
     <div>
+      <AdministracionesTabs active="contratos" />
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Administraciones</h1>
+        <h1 className="text-xl font-semibold text-foreground">Contratos</h1>
         {profile.permissions.includes("administraciones.crear") && (
           <Link
             href="/backoffice/administraciones/nuevo"

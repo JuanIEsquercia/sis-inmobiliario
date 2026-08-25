@@ -80,7 +80,7 @@ export async function getPaymentById(id: number) {
     prisma.payment.findUnique({
       where: { id },
       include: {
-        contract: { include: { unit: true, tenant: true } },
+        contract: { include: { unit: true, tenant: true, owner: true } },
         items: { include: { concept: true }, orderBy: { id: "asc" } },
       },
     })
@@ -89,6 +89,60 @@ export async function getPaymentById(id: number) {
 
 export function paymentTotal(items: { amount: unknown }[]): number {
   return items.reduce((sum, item) => sum + (item.amount ? Number(item.amount) : 0), 0);
+}
+
+export interface PaymentBreakdown {
+  total: number;
+  managementFee: number;
+  netForOwner: number;
+}
+
+// La comisión de administración se calcula solo sobre el ítem de
+// Alquiler (concept.isSystem), nunca sobre expensas/agua/etc.
+export function paymentBreakdown(
+  items: { amount: unknown; concept: { isSystem: boolean } }[],
+  feePercent: unknown
+): PaymentBreakdown {
+  const total = paymentTotal(items);
+  const rentItem = items.find((i) => i.concept.isSystem);
+  const rentAmount = rentItem?.amount ? Number(rentItem.amount) : 0;
+  const managementFee = rentAmount * (Number(feePercent) / 100);
+  return { total, managementFee, netForOwner: total - managementFee };
+}
+
+// Contratos activos cuya próxima indexación cae dentro de los próximos
+// `withinDays` días (por defecto 30), ordenados por fecha más próxima.
+export async function getContractsDueForIndexation(withinDays = 30) {
+  // Arranca del inicio del día de hoy, no de la hora exacta actual — una
+  // actualización que vence "hoy" no puede quedar afuera solo porque ya
+  // pasó la medianoche.
+  const now = new Date();
+  const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const limit = new Date(startOfToday);
+  limit.setUTCDate(limit.getUTCDate() + withinDays);
+
+  return withRetry(() =>
+    prisma.contract.findMany({
+      where: { status: "ACTIVO", nextIndexationDueAt: { gte: startOfToday, lte: limit } },
+      include: { unit: true, tenant: true, owner: true, indexType: true },
+      orderBy: { nextIndexationDueAt: "asc" },
+    })
+  );
+}
+
+// Todas las liquidaciones de un período (mes/año), cruzando todos los
+// contratos — para la vista mensual de Liquidaciones.
+export async function getPaymentsForPeriod(periodMonth: number, periodYear: number) {
+  return withRetry(() =>
+    prisma.payment.findMany({
+      where: { periodMonth, periodYear },
+      include: {
+        items: { include: { concept: true } },
+        contract: { include: { unit: true, owner: true } },
+      },
+      orderBy: { contractId: "asc" },
+    })
+  );
 }
 
 export async function getConcepts() {

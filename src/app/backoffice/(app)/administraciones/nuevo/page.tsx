@@ -76,6 +76,22 @@ export default async function NuevoContratoPage() {
             <option value="USD">USD</option>
           </select>
           <div className="flex flex-col gap-1.5">
+            <label htmlFor="managementFeePercent" className="text-xs text-muted">
+              Comisión administración (%)*
+            </label>
+            <input
+              id="managementFeePercent"
+              name="managementFeePercent"
+              type="number"
+              step="0.01"
+              min={0}
+              max={100}
+              required
+              className="field"
+              placeholder="8"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="indexationFrequencyMonths" className="text-xs text-muted">
               Actualiza cada (meses)
             </label>

@@ -73,6 +73,10 @@ export default async function ContractDetailPage({ params }: PageProps) {
           </dd>
         </div>
         <div>
+          <dt className="text-muted">Comisión administración</dt>
+          <dd className="text-foreground">{contract.managementFeePercent.toString()}%</dd>
+        </div>
+        <div>
           <dt className="text-muted">Vigencia</dt>
           <dd className="text-foreground">
             {fmtDate.format(contract.startDate)} — {fmtDate.format(contract.endDate)} ({contract.durationMonths} meses)
