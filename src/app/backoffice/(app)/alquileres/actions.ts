@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { buildPaymentSchedule } from "@/lib/alquileres";
 import {
   optionalInt,
@@ -21,7 +21,7 @@ function addMonths(date: Date, months: number): Date {
 }
 
 export async function createContract(formData: FormData) {
-  const profile = await requireProfile();
+  const profile = await requirePermission("alquileres.crear");
 
   const startDate = requiredDate(formData.get("startDate"), "Fecha de inicio");
   const endDate = requiredDate(formData.get("endDate"), "Fecha de fin");
@@ -90,7 +90,7 @@ export async function createContract(formData: FormData) {
 }
 
 export async function registrarPago(paymentId: number, contractId: number) {
-  await requireProfile();
+  await requirePermission("alquileres.pagos");
 
   const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
 
@@ -105,7 +105,7 @@ export async function registrarPago(paymentId: number, contractId: number) {
 }
 
 export async function aplicarIndexacion(contractId: number, formData: FormData) {
-  await requireProfile();
+  await requirePermission("alquileres.indexacion");
 
   const newAmount = requiredDecimal(formData.get("newAmount"), "Nuevo monto");
   const index = optionalStr(formData.get("index"));

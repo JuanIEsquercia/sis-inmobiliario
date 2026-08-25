@@ -25,8 +25,8 @@ export async function requireProfile(): Promise<Profile> {
   return profile;
 }
 
-export async function requireAdmin(): Promise<Profile> {
+export async function requirePermission(key: string): Promise<Profile> {
   const profile = await requireProfile();
-  if (profile.role !== "ADMIN") redirect("/backoffice");
+  if (!profile.permissions.includes(key)) redirect("/backoffice");
   return profile;
 }

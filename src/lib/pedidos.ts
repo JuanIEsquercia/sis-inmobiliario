@@ -6,7 +6,7 @@ export async function getPedidos(estado?: PedidoEstado) {
   return withRetry(() =>
     prisma.pedido.findMany({
       where: estado ? { estado } : undefined,
-      include: { creadoPor: { select: { fullName: true, email: true } } },
+      include: { creadoPor: { select: { username: true } } },
       orderBy: { createdAt: "desc" },
     })
   );
@@ -17,7 +17,7 @@ export async function getPedidoById(id: number) {
     prisma.pedido.findUnique({
       where: { id },
       include: {
-        creadoPor: { select: { fullName: true, email: true } },
+        creadoPor: { select: { username: true } },
         matchedListing: { select: { id: true, title: true } },
       },
     })

@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { optionalDecimal, optionalInt, optionalStr, requiredStr } from "@/lib/form-utils";
 import type { PedidoEstado } from "@/generated/prisma/client";
 
 export async function createPedido(formData: FormData) {
-  const profile = await requireProfile();
+  const profile = await requirePermission("pedidos.crear");
 
   const pedido = await withRetry(() =>
     prisma.pedido.create({
@@ -35,7 +35,7 @@ export async function createPedido(formData: FormData) {
 }
 
 export async function updatePedidoEstado(id: number, estado: PedidoEstado) {
-  await requireProfile();
+  await requirePermission("pedidos.estado");
   await withRetry(() => prisma.pedido.update({ where: { id }, data: { estado } }));
   revalidatePath(`/backoffice/pedidos/${id}`);
   revalidatePath("/backoffice/pedidos");

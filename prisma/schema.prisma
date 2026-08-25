@@ -156,11 +156,17 @@ enum StaffRole {
 // trigger de Postgres (handle_new_user) cuando un admin da de alta el
 // login en el dashboard de Supabase.
 model Profile {
-  id       String    @id @db.Uuid
-  email    String    @unique
-  fullName String?
-  role     StaffRole @default(AGENTE)
-  isActive Boolean   @default(true)
+  id        String    @id @db.Uuid
+  email     String    @unique
+  username  String    @unique
+  firstName String?
+  lastName  String?
+  role      StaffRole @default(AGENTE)
+  // Claves del catálogo en src/lib/permissions.ts. El rol carga un set
+  // por defecto al crear el usuario, pero lo que se chequea en cada
+  // accion es esto, no el rol.
+  permissions String[] @default([])
+  isActive    Boolean  @default(true)
 
   pedidosCreados   Pedido[]   @relation("PedidoCreadoPor")
   contratosCreados Contract[] @relation("ContractCreadoPor")

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getContractById } from "@/lib/alquileres";
+import { requirePermission } from "@/lib/auth";
 import { registrarPago, aplicarIndexacion } from "../actions";
 
 const statusLabels: Record<string, string> = {
@@ -26,6 +27,7 @@ interface PageProps {
 }
 
 export default async function ContractDetailPage({ params }: PageProps) {
+  const profile = await requirePermission("alquileres.ver");
   const { id } = await params;
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
@@ -107,7 +109,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   </td>
                   <td className="px-4 py-2.5 text-muted">{paymentStatusLabels[p.status]}</td>
                   <td className="px-4 py-2.5">
-                    {p.status !== "PAGADO" && (
+                    {p.status !== "PAGADO" && profile.permissions.includes("alquileres.pagos") && (
                       <form action={registrarPago.bind(null, p.id, contract.id)}>
                         <button type="submit" className="rounded-full border border-border px-3 py-1 text-xs hover:bg-surface">
                           Marcar pagado
@@ -137,32 +139,34 @@ export default async function ContractDetailPage({ params }: PageProps) {
           </ul>
         )}
 
-        <form action={aplicarIndexacion.bind(null, contract.id)} className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="newAmount" className="text-xs text-muted">
-              Nuevo monto
-            </label>
-            <input id="newAmount" name="newAmount" type="number" step="0.01" required className="field w-32" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="index" className="text-xs text-muted">
-              Índice usado
-            </label>
-            <input id="index" name="index" placeholder="Ej. ICL agosto 2026" className="field" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="idxNotes" className="text-xs text-muted">
-              Notas
-            </label>
-            <input id="idxNotes" name="notes" className="field" />
-          </div>
-          <button
-            type="submit"
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
-          >
-            Aplicar actualización
-          </button>
-        </form>
+        {profile.permissions.includes("alquileres.indexacion") && (
+          <form action={aplicarIndexacion.bind(null, contract.id)} className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="newAmount" className="text-xs text-muted">
+                Nuevo monto
+              </label>
+              <input id="newAmount" name="newAmount" type="number" step="0.01" required className="field w-32" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="index" className="text-xs text-muted">
+                Índice usado
+              </label>
+              <input id="index" name="index" placeholder="Ej. ICL agosto 2026" className="field" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="idxNotes" className="text-xs text-muted">
+                Notas
+              </label>
+              <input id="idxNotes" name="notes" className="field" />
+            </div>
+            <button
+              type="submit"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
+            >
+              Aplicar actualización
+            </button>
+          </form>
+        )}
       </section>
     </div>
   );

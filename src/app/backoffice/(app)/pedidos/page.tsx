@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPedidos } from "@/lib/pedidos";
 import { PedidoEstadoBadge } from "@/components/backoffice/PedidoEstadoBadge";
+import { requirePermission } from "@/lib/auth";
 import type { PedidoEstado } from "@/generated/prisma/client";
 
 const estados: { value: PedidoEstado | undefined; label: string }[] = [
@@ -16,6 +17,7 @@ interface PageProps {
 }
 
 export default async function PedidosPage({ searchParams }: PageProps) {
+  const profile = await requirePermission("pedidos.ver");
   const sp = await searchParams;
   const estadoFiltro = sp.estado as PedidoEstado | undefined;
   const pedidos = await getPedidos(estadoFiltro);
@@ -24,12 +26,14 @@ export default async function PedidosPage({ searchParams }: PageProps) {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Pedidos</h1>
-        <Link
-          href="/backoffice/pedidos/nuevo"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
-        >
-          Nuevo pedido
-        </Link>
+        {profile.permissions.includes("pedidos.crear") && (
+          <Link
+            href="/backoffice/pedidos/nuevo"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
+          >
+            Nuevo pedido
+          </Link>
+        )}
       </div>
 
       <div className="mb-5 flex gap-2 text-sm">
@@ -75,7 +79,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                     {p.propertyType ? ` · ${p.propertyType}` : ""}
                   </td>
                   <td className="px-4 py-3 text-muted">{p.zona ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted">{p.creadoPor.fullName ?? p.creadoPor.email}</td>
+                  <td className="px-4 py-3 text-muted">@{p.creadoPor.username}</td>
                   <td className="px-4 py-3">
                     <PedidoEstadoBadge estado={p.estado} />
                   </td>

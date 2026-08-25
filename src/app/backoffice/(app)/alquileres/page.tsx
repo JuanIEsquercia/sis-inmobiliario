@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getContracts } from "@/lib/alquileres";
+import { requirePermission } from "@/lib/auth";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -8,18 +9,21 @@ const statusLabels: Record<string, string> = {
 };
 
 export default async function AlquileresPage() {
+  const profile = await requirePermission("alquileres.ver");
   const contracts = await getContracts();
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Alquileres</h1>
-        <Link
-          href="/backoffice/alquileres/nuevo"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
-        >
-          Nuevo contrato
-        </Link>
+        {profile.permissions.includes("alquileres.crear") && (
+          <Link
+            href="/backoffice/alquileres/nuevo"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
+          >
+            Nuevo contrato
+          </Link>
+        )}
       </div>
 
       {contracts.length === 0 ? (

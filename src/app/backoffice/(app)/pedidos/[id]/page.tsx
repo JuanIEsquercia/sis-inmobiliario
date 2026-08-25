@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPedidoById } from "@/lib/pedidos";
 import { PedidoEstadoBadge } from "@/components/backoffice/PedidoEstadoBadge";
+import { requirePermission } from "@/lib/auth";
 import { updatePedidoEstado } from "../actions";
 import type { PedidoEstado } from "@/generated/prisma/client";
 
@@ -16,6 +17,7 @@ interface PageProps {
 }
 
 export default async function PedidoDetailPage({ params }: PageProps) {
+  const profile = await requirePermission("pedidos.ver");
   const { id } = await params;
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
@@ -28,9 +30,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">{pedido.clienteNombre}</h1>
-          <p className="text-sm text-muted">
-            Cargado por {pedido.creadoPor.fullName ?? pedido.creadoPor.email}
-          </p>
+          <p className="text-sm text-muted">Cargado por @{pedido.creadoPor.username}</p>
         </div>
         <PedidoEstadoBadge estado={pedido.estado} />
       </div>
@@ -79,23 +79,25 @@ export default async function PedidoDetailPage({ params }: PageProps) {
         )}
       </dl>
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-foreground">Cambiar estado</p>
-        <div className="flex flex-wrap gap-2">
-          {estadosDisponibles
-            .filter((e) => e.value !== pedido.estado)
-            .map((e) => (
-              <form key={e.value} action={updatePedidoEstado.bind(null, pedido.id, e.value)}>
-                <button
-                  type="submit"
-                  className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-surface"
-                >
-                  {e.label}
-                </button>
-              </form>
-            ))}
+      {profile.permissions.includes("pedidos.estado") && (
+        <div>
+          <p className="mb-2 text-sm font-medium text-foreground">Cambiar estado</p>
+          <div className="flex flex-wrap gap-2">
+            {estadosDisponibles
+              .filter((e) => e.value !== pedido.estado)
+              .map((e) => (
+                <form key={e.value} action={updatePedidoEstado.bind(null, pedido.id, e.value)}>
+                  <button
+                    type="submit"
+                    className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-surface"
+                  >
+                    {e.label}
+                  </button>
+                </form>
+              ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

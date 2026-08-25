@@ -12,14 +12,14 @@ export default async function BackofficeLayout({ children }: { children: React.R
         <div className="text-sm font-medium text-foreground">Backoffice — Garcia Propiedades</div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted">
-            {profile.fullName ?? profile.email} · {profile.role === "ADMIN" ? "Admin" : "Agente"}
+            @{profile.username} · {profile.role === "ADMIN" ? "Admin" : "Agente"}
           </span>
           <ThemeToggle />
           <LogoutButton />
         </div>
       </header>
       <div className="flex flex-1">
-        <Sidebar role={profile.role} />
+        <Sidebar permissions={profile.permissions} />
         <main className="flex-1 px-8 py-6">{children}</main>
       </div>
     </div>

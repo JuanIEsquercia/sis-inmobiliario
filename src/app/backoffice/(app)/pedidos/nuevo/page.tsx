@@ -1,6 +1,8 @@
+import { requirePermission } from "@/lib/auth";
 import { createPedido } from "../actions";
 
-export default function NuevoPedidoPage() {
+export default async function NuevoPedidoPage() {
+  await requirePermission("pedidos.crear");
   return (
     <div className="max-w-2xl">
       <h1 className="mb-6 text-xl font-semibold text-foreground">Nuevo pedido</h1>

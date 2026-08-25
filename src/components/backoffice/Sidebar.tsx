@@ -1,18 +1,17 @@
 import Link from "next/link";
-import type { StaffRole } from "@/generated/prisma/client";
 
 const links = [
-  { href: "/backoffice", label: "Panel", adminOnly: false },
-  { href: "/backoffice/pedidos", label: "Pedidos", adminOnly: false },
-  { href: "/backoffice/alquileres", label: "Alquileres", adminOnly: false },
-  { href: "/backoffice/usuarios", label: "Usuarios", adminOnly: true },
+  { href: "/backoffice", label: "Panel", permission: null as string | null },
+  { href: "/backoffice/pedidos", label: "Pedidos", permission: "pedidos.ver" },
+  { href: "/backoffice/alquileres", label: "Alquileres", permission: "alquileres.ver" },
+  { href: "/backoffice/usuarios", label: "Usuarios", permission: "usuarios.ver" },
 ];
 
-export function Sidebar({ role }: { role: StaffRole }) {
+export function Sidebar({ permissions }: { permissions: string[] }) {
   return (
     <nav className="flex w-52 flex-none flex-col gap-1 border-r border-border px-3 py-6">
       {links
-        .filter((link) => !link.adminOnly || role === "ADMIN")
+        .filter((link) => !link.permission || permissions.includes(link.permission))
         .map((link) => (
           <Link
             key={link.href}

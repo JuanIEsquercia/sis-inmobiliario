@@ -1,6 +1,8 @@
+import { requirePermission } from "@/lib/auth";
 import { createContract } from "../actions";
 
-export default function NuevoContratoPage() {
+export default async function NuevoContratoPage() {
+  await requirePermission("alquileres.crear");
   return (
     <div className="max-w-2xl">
       <h1 className="mb-6 text-xl font-semibold text-foreground">Nuevo contrato</h1>
