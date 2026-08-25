@@ -98,6 +98,11 @@ model Listing {
   images ListingImage[]
   videos ListingVideo[]
 
+  // Fase 2 (backoffice): un Listing puede estar bajo gestión (Unit) y/o
+  // haber resuelto pedidos de demanda, sin que Listing dependa de ellos.
+  unit          Unit?
+  matchedPedidos Pedido[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -134,4 +139,211 @@ model SyncState {
   lastModified String?
   etag         String?
   lastSyncedAt DateTime?
+}
+
+// ============================================================
+// Backoffice (fase 2): usuarios/roles, pedidos y alquileres.
+// Todo lo de acá abajo vive separado del caché del feed público
+// de arriba — solo se referencia opcionalmente vía Unit <-> Listing.
+// ============================================================
+
+enum StaffRole {
+  ADMIN
+  AGENTE
+}
+
+// Espeja auth.users de Supabase (mismo id). La fila se crea sola por un
+// trigger de Postgres (handle_new_user) cuando un admin da de alta el
+// login en el dashboard de Supabase.
+model Profile {
+  id       String    @id @db.Uuid
+  email    String    @unique
+  fullName String?
+  role     StaffRole @default(AGENTE)
+  isActive Boolean   @default(true)
+
+  pedidosCreados   Pedido[]   @relation("PedidoCreadoPor")
+  contratosCreados Contract[] @relation("ContractCreadoPor")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum PedidoEstado {
+  ABIERTO
+  EN_BUSQUEDA
+  CONSEGUIDO
+  DESCARTADO
+}
+
+// Tablero de demanda: un cliente pide algo que hoy no está en stock: el
+// agente lo carga acá para que cualquiera de la agencia pueda ofrecer un
+// match desde su propia red, no solo desde los Listing existentes.
+model Pedido {
+  id Int @id @default(autoincrement())
+
+  clienteNombre   String
+  clienteTelefono String?
+  clienteEmail    String?
+
+  operationType String // "Venta" | "Alquiler"
+  propertyType  String?
+  zona          String?
+  precioMin     Decimal? @db.Decimal(14, 2)
+  precioMax     Decimal? @db.Decimal(14, 2)
+  moneda        String?
+  ambientesMin  Int?
+  notas         String?  @db.Text
+
+  estado PedidoEstado @default(ABIERTO)
+
+  creadoPorId String  @db.Uuid
+  creadoPor   Profile @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id])
+
+  matchedListingId Int?
+  matchedListing   Listing? @relation(fields: [matchedListingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estado])
+}
+
+// La propiedad real bajo gestión. Puede o no estar publicada (Listing);
+// existe independiente de él para no perder historial de contratos si el
+// aviso se cae del feed.
+model Unit {
+  id           Int     @id @default(autoincrement())
+  address      String
+  city         String?
+  region       String?
+  propertyType String?
+  notes        String? @db.Text
+
+  listingId Int?     @unique
+  listing   Listing? @relation(fields: [listingId], references: [id])
+
+  contracts Contract[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Owner {
+  id       Int     @id @default(autoincrement())
+  fullName String
+  email    String?
+  phone    String?
+  docId    String?
+
+  contracts Contract[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Tenant {
+  id       Int     @id @default(autoincrement())
+  fullName String
+  email    String?
+  phone    String?
+  docId    String?
+
+  contracts Contract[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ContractStatus {
+  ACTIVO
+  FINALIZADO
+  RESCINDIDO
+}
+
+model Contract {
+  id Int @id @default(autoincrement())
+
+  unitId Int
+  unit   Unit @relation(fields: [unitId], references: [id])
+
+  ownerId Int
+  owner   Owner @relation(fields: [ownerId], references: [id])
+
+  tenantId Int
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime
+
+  rentAmount Decimal        @db.Decimal(14, 2)
+  currency   String
+  status     ContractStatus @default(ACTIVO)
+
+  indexationFrequencyMonths Int?
+  indexationType            String?
+  lastIndexedAt             DateTime?
+  nextIndexationDueAt       DateTime?
+
+  notes String? @db.Text
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("ContractCreadoPor", fields: [createdById], references: [id])
+
+  payments    Payment[]
+  indexations Indexation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([unitId])
+}
+
+enum PaymentStatus {
+  PENDIENTE
+  PAGADO
+  ATRASADO
+}
+
+// Un registro por período: es a la vez el historial de pagos y, filtrado
+// por contrato, la liquidación.
+model Payment {
+  id Int @id @default(autoincrement())
+
+  contractId Int
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  periodMonth Int
+  periodYear  Int
+  dueDate     DateTime
+
+  amount     Decimal       @db.Decimal(14, 2)
+  currency   String
+  status     PaymentStatus @default(PENDIENTE)
+  paidAt     DateTime?
+  paidAmount Decimal?      @db.Decimal(14, 2)
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractId, periodYear, periodMonth])
+  @@index([status])
+}
+
+// Historial de actualizaciones de precio del contrato.
+model Indexation {
+  id Int @id @default(autoincrement())
+
+  contractId Int
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  appliedAt      DateTime @default(now())
+  previousAmount Decimal  @db.Decimal(14, 2)
+  newAmount      Decimal  @db.Decimal(14, 2)
+  index          String?
+  notes          String?
+
+  createdAt DateTime @default(now())
 }
