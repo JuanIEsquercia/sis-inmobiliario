@@ -57,6 +57,14 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
         </span>
       </div>
 
+      {(payment.contract.paymentAlias || payment.contract.paymentCBU) && (
+        <p className="mb-4 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
+          {payment.contract.paymentAlias && <>Alias: {payment.contract.paymentAlias}</>}
+          {payment.contract.paymentAlias && payment.contract.paymentCBU && " · "}
+          {payment.contract.paymentCBU && <>CBU: {payment.contract.paymentCBU}</>}
+        </p>
+      )}
+
       <form action={guardarLiquidacion.bind(null, payment.id)} className="mb-4 flex flex-col gap-3 rounded-xl border border-border p-4">
         {payment.items.map((item) => (
           <div key={item.id} className="grid grid-cols-[1fr_140px_1fr] items-center gap-3">

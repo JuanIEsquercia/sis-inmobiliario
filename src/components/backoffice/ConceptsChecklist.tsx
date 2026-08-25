@@ -8,9 +8,15 @@ interface ConceptOption {
   name: string;
 }
 
-export function ConceptsChecklist({ initialConcepts }: { initialConcepts: ConceptOption[] }) {
+export function ConceptsChecklist({
+  initialConcepts,
+  defaultCheckedIds = [],
+}: {
+  initialConcepts: ConceptOption[];
+  defaultCheckedIds?: number[];
+}) {
   const [concepts, setConcepts] = useState(initialConcepts);
-  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set(defaultCheckedIds));
   const [newName, setNewName] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

@@ -61,7 +61,7 @@ export async function getContractById(id: number) {
         unit: true,
         owner: true,
         tenant: true,
-        guarantors: true,
+        guarantors: { include: { client: true } },
         indexType: true,
         concepts: { include: { concept: true } },
         documents: { include: { uploadedBy: { select: { username: true } } }, orderBy: { createdAt: "desc" } },
@@ -151,4 +151,108 @@ export async function getConcepts() {
 
 export async function getIndexTypes() {
   return withRetry(() => prisma.indexType.findMany({ orderBy: { code: "asc" } }));
+}
+
+export interface ContractPunctuality {
+  totalPayments: number;
+  paidOnTime: number;
+  paidLate: number;
+  overdue: number;
+  pending: number;
+}
+
+function summarizePunctuality(
+  payments: { status: string; dueDate: Date; paidAt: Date | null }[]
+): ContractPunctuality {
+  let paidOnTime = 0;
+  let paidLate = 0;
+  let overdue = 0;
+  let pending = 0;
+
+  for (const p of payments) {
+    if (p.status === "PAGADO") {
+      if (p.paidAt && p.paidAt <= p.dueDate) paidOnTime++;
+      else paidLate++;
+    } else if (p.status === "ATRASADO") {
+      overdue++;
+    } else {
+      pending++;
+    }
+  }
+
+  return { totalPayments: payments.length, paidOnTime, paidLate, overdue, pending };
+}
+
+export async function listClients(query?: string) {
+  const q = query?.trim();
+  return withRetry(() =>
+    prisma.client.findMany({
+      where: q
+        ? {
+            OR: [
+              { firstName: { contains: q, mode: "insensitive" } },
+              { lastName: { contains: q, mode: "insensitive" } },
+              { docId: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      take: 50,
+    })
+  );
+}
+
+// Ficha de cliente: tres bloques separados y sin cruzarse. La
+// puntualidad de "como inquilino" se calcula solo con los pagos de esos
+// contratos — nunca se guarda en Client ni se mezcla con su rol de
+// propietario/garante en otro contrato.
+export async function getClientById(id: number) {
+  const client = await withRetry(() =>
+    prisma.client.findUnique({
+      where: { id },
+      include: {
+        contractsAsTenant: {
+          include: {
+            unit: true,
+            owner: true,
+            payments: { select: { status: true, dueDate: true, paidAt: true } },
+          },
+          orderBy: { startDate: "desc" },
+        },
+        contractsAsOwner: {
+          include: { unit: true, tenant: true },
+          orderBy: { startDate: "desc" },
+        },
+        guarantorFor: {
+          include: { contract: { include: { unit: true, tenant: true, owner: true } } },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    })
+  );
+  if (!client) return null;
+
+  return {
+    ...client,
+    contractsAsTenant: client.contractsAsTenant.map((c) => ({
+      ...c,
+      punctuality: summarizePunctuality(c.payments),
+    })),
+  };
+}
+
+// Ficha de unidad: historial completo de contratos de esa propiedad
+// (mismo código Adinco), sin importar cuántas veces se haya reutilizado.
+export async function getUnitById(id: number) {
+  return withRetry(() =>
+    prisma.unit.findUnique({
+      where: { id },
+      include: {
+        contracts: {
+          include: { owner: true, tenant: true },
+          orderBy: { startDate: "desc" },
+        },
+      },
+    })
+  );
 }

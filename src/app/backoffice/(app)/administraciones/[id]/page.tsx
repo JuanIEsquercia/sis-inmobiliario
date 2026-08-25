@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getContractById, getIndexTypes, paymentTotal } from "@/lib/alquileres";
 import { getSignedDocumentUrl } from "@/lib/supabase/storage";
 import { requirePermission } from "@/lib/auth";
-import { subirDocumento, aplicarIndexacion } from "../actions";
+import { subirDocumento, aplicarIndexacion, finalizarContrato } from "../actions";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -56,13 +56,31 @@ export default async function ContractDetailPage({ params }: PageProps) {
         <div>
           <h1 className="text-xl font-semibold text-foreground">{contract.unit.address}</h1>
           <p className="text-sm text-muted">
-            Código {contract.unit.propertyCode} · {contract.tenant.firstName} {contract.tenant.lastName} (inquilino) ·{" "}
-            {contract.owner.firstName} {contract.owner.lastName} (propietario)
+            <Link href={`/backoffice/administraciones/unidades/${contract.unit.id}`} className="hover:underline">
+              Código {contract.unit.propertyCode}
+            </Link>{" "}
+            ·{" "}
+            <Link href={`/backoffice/clientes/${contract.tenant.id}`} className="hover:underline">
+              {contract.tenant.firstName} {contract.tenant.lastName}
+            </Link>{" "}
+            (inquilino) ·{" "}
+            <Link href={`/backoffice/clientes/${contract.owner.id}`} className="hover:underline">
+              {contract.owner.firstName} {contract.owner.lastName}
+            </Link>{" "}
+            (propietario)
           </p>
         </div>
-        <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-foreground">
-          {statusLabels[contract.status]}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-foreground">
+            {statusLabels[contract.status]}
+          </span>
+          <Link
+            href={`/backoffice/administraciones/nuevo?renovarDe=${contract.id}`}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface"
+          >
+            Renovar contrato
+          </Link>
+        </div>
       </div>
 
       <dl className="mb-8 grid grid-cols-2 gap-x-8 gap-y-3 rounded-xl border border-border p-5 text-sm sm:grid-cols-3">
@@ -96,6 +114,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
             <dd className="text-foreground">{fmtDate.format(contract.nextIndexationDueAt)}</dd>
           </div>
         )}
+        {(contract.paymentAlias || contract.paymentCBU) && (
+          <div className="col-span-2 sm:col-span-3">
+            <dt className="text-muted">Transferencias</dt>
+            <dd className="text-foreground">
+              {contract.paymentAlias && <>Alias: {contract.paymentAlias}</>}
+              {contract.paymentAlias && contract.paymentCBU && " · "}
+              {contract.paymentCBU && <>CBU: {contract.paymentCBU}</>}
+            </dd>
+          </div>
+        )}
         {contract.concepts.length > 0 && (
           <div className="col-span-2 sm:col-span-3">
             <dt className="text-muted">Conceptos recurrentes</dt>
@@ -108,6 +136,15 @@ export default async function ContractDetailPage({ params }: PageProps) {
             <dd className="whitespace-pre-line text-foreground">{contract.notes}</dd>
           </div>
         )}
+        {contract.terminatedAt && (
+          <div className="col-span-2 sm:col-span-3">
+            <dt className="text-muted">Finalizado</dt>
+            <dd className="text-foreground">
+              {fmtDate.format(contract.terminatedAt)}
+              {contract.terminationReason ? ` — ${contract.terminationReason}` : ""}
+            </dd>
+          </div>
+        )}
       </dl>
 
       {contract.guarantors.length > 0 && (
@@ -116,9 +153,11 @@ export default async function ContractDetailPage({ params }: PageProps) {
           <ul className="flex flex-col gap-1.5 text-sm">
             {contract.guarantors.map((g) => (
               <li key={g.id} className="text-foreground">
-                {g.firstName} {g.lastName}
-                {g.docId ? ` · DNI ${g.docId}` : ""}
-                {g.phone ? ` · ${g.phone}` : ""}
+                <Link href={`/backoffice/clientes/${g.client.id}`} className="hover:underline">
+                  {g.client.firstName} {g.client.lastName}
+                </Link>
+                {g.client.docId ? ` · DNI ${g.client.docId}` : ""}
+                {g.client.phone ? ` · ${g.client.phone}` : ""}
               </li>
             ))}
           </ul>
@@ -204,6 +243,35 @@ export default async function ContractDetailPage({ params }: PageProps) {
           </button>
         </form>
       </section>
+
+      {profile.permissions.includes("administraciones.crear") && contract.status === "ACTIVO" && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-foreground">Finalizar contrato</h2>
+          <form action={finalizarContrato.bind(null, contract.id)} className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="terminationStatus" className="text-xs text-muted">
+                Motivo
+              </label>
+              <select id="terminationStatus" name="status" defaultValue="FINALIZADO" className="field">
+                <option value="FINALIZADO">Finalizado (venció)</option>
+                <option value="RESCINDIDO">Rescindido</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="terminationReason" className="text-xs text-muted">
+                Notas
+              </label>
+              <input id="terminationReason" name="terminationReason" className="field" />
+            </div>
+            <button
+              type="submit"
+              className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface"
+            >
+              Finalizar contrato
+            </button>
+          </form>
+        </section>
+      )}
 
       {profile.permissions.includes("administraciones.indexacion") && (
         <section>

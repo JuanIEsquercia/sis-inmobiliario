@@ -14,32 +14,106 @@ import {
   requiredDecimal,
   requiredStr,
 } from "@/lib/form-utils";
-import type { DocumentType } from "@/generated/prisma/client";
+import type { DocumentType, Prisma } from "@/generated/prisma/client";
 
-interface GuarantorInput {
-  firstName: string;
-  lastName: string;
-  docId: string | null;
-  phone: string | null;
-  email: string | null;
+// Devuelve el id de un Client existente (si vino `${prefix}.clientId`
+// desde ClientPicker) o crea uno nuevo con los campos `${prefix}.*`.
+// Client es pura identidad/contacto — nunca guarda nada financiero, así
+// que crearlo acá no arriesga mezclar mora/deuda entre roles.
+async function resolveClient(
+  tx: Prisma.TransactionClient,
+  formData: FormData,
+  prefix: string,
+  roleLabel: string
+): Promise<number> {
+  const existingId = optionalInt(formData.get(`${prefix}.clientId`));
+  if (existingId) return existingId;
+
+  const birthDateRaw = optionalStr(formData.get(`${prefix}.birthDate`));
+
+  const client = await tx.client.create({
+    data: {
+      firstName: requiredStr(formData.get(`${prefix}.firstName`), `Nombre (${roleLabel})`),
+      lastName: requiredStr(formData.get(`${prefix}.lastName`), `Apellido (${roleLabel})`),
+      docId: optionalStr(formData.get(`${prefix}.docId`)),
+      phone: optionalStr(formData.get(`${prefix}.phone`)),
+      email: optionalStr(formData.get(`${prefix}.email`)),
+      birthDate: birthDateRaw ? new Date(birthDateRaw) : null,
+    },
+  });
+  return client.id;
 }
 
-function parseGuarantors(formData: FormData): GuarantorInput[] {
+// Mismo criterio que resolveClient, pero para Unit — con upsert por
+// propertyCode como red de seguridad si se tipeó a mano un código que
+// ya existe en vez de elegirlo con UnitPicker.
+async function resolveUnit(tx: Prisma.TransactionClient, formData: FormData): Promise<number> {
+  const existingId = optionalInt(formData.get("unit.id"));
+  if (existingId) return existingId;
+
+  const propertyCode = requiredStr(formData.get("unit.propertyCode"), "Código de propiedad");
+
+  const unit = await tx.unit.upsert({
+    where: { propertyCode },
+    create: {
+      propertyCode,
+      address: requiredStr(formData.get("unit.address"), "Dirección de la unidad"),
+      city: optionalStr(formData.get("unit.city")),
+      propertyType: optionalStr(formData.get("unit.propertyType")),
+    },
+    update: {},
+  });
+  return unit.id;
+}
+
+function guarantorIndices(formData: FormData): number[] {
   const indices = new Set<number>();
   for (const key of formData.keys()) {
     const match = key.match(/^guarantors\.(\d+)\./);
     if (match) indices.add(Number(match[1]));
   }
+  return [...indices].sort((a, b) => a - b);
+}
 
-  return [...indices]
-    .sort((a, b) => a - b)
-    .map((i) => ({
-      firstName: requiredStr(formData.get(`guarantors.${i}.firstName`), `Nombre del garante ${i + 1}`),
-      lastName: requiredStr(formData.get(`guarantors.${i}.lastName`), `Apellido del garante ${i + 1}`),
-      docId: optionalStr(formData.get(`guarantors.${i}.docId`)),
-      phone: optionalStr(formData.get(`guarantors.${i}.phone`)),
-      email: optionalStr(formData.get(`guarantors.${i}.email`)),
-    }));
+export async function buscarClientes(query: string) {
+  await requirePermission("administraciones.crear");
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  return withRetry(() =>
+    prisma.client.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { docId: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, firstName: true, lastName: true, docId: true },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      take: 8,
+    })
+  );
+}
+
+export async function buscarUnidades(query: string) {
+  await requirePermission("administraciones.crear");
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  return withRetry(() =>
+    prisma.unit.findMany({
+      where: {
+        OR: [
+          { propertyCode: { contains: q, mode: "insensitive" } },
+          { address: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, propertyCode: true, address: true, city: true, propertyType: true },
+      orderBy: { propertyCode: "asc" },
+      take: 8,
+    })
+  );
 }
 
 export async function createContract(formData: FormData) {
@@ -59,48 +133,22 @@ export async function createContract(formData: FormData) {
     .getAll("concepts")
     .map((v) => Number(v))
     .filter((n) => Number.isFinite(n));
-  const guarantors = parseGuarantors(formData);
+  const guarantorIdxs = guarantorIndices(formData);
+  const renewedFromContractId = optionalInt(formData.get("renewedFromContractId"));
+  const paymentAlias = optionalStr(formData.get("paymentAlias"));
+  const paymentCBU = optionalStr(formData.get("paymentCBU"));
 
   const contract = await withRetry(() =>
     prisma.$transaction(async (tx) => {
-      const owner = await tx.owner.create({
-        data: {
-          firstName: requiredStr(formData.get("ownerFirstName"), "Nombre del propietario"),
-          lastName: requiredStr(formData.get("ownerLastName"), "Apellido del propietario"),
-          email: optionalStr(formData.get("ownerEmail")),
-          phone: optionalStr(formData.get("ownerPhone")),
-          docId: optionalStr(formData.get("ownerDoc")),
-        },
-      });
-
-      const tenant = await tx.tenant.create({
-        data: {
-          firstName: requiredStr(formData.get("tenantFirstName"), "Nombre del inquilino"),
-          lastName: requiredStr(formData.get("tenantLastName"), "Apellido del inquilino"),
-          docId: requiredStr(formData.get("tenantDoc"), "DNI del inquilino"),
-          birthDate: (() => {
-            const s = optionalStr(formData.get("tenantBirthDate"));
-            return s ? new Date(s) : null;
-          })(),
-          email: optionalStr(formData.get("tenantEmail")),
-          phone: optionalStr(formData.get("tenantPhone")),
-        },
-      });
-
-      const unit = await tx.unit.create({
-        data: {
-          propertyCode: requiredStr(formData.get("propertyCode"), "Código de propiedad"),
-          address: requiredStr(formData.get("unitAddress"), "Dirección de la unidad"),
-          city: optionalStr(formData.get("unitCity")),
-          propertyType: optionalStr(formData.get("unitPropertyType")),
-        },
-      });
+      const ownerId = await resolveClient(tx, formData, "owner", "Propietario");
+      const tenantId = await resolveClient(tx, formData, "tenant", "Inquilino");
+      const unitId = await resolveUnit(tx, formData);
 
       const createdContract = await tx.contract.create({
         data: {
-          unitId: unit.id,
-          ownerId: owner.id,
-          tenantId: tenant.id,
+          unitId,
+          ownerId,
+          tenantId,
           startDate,
           durationMonths,
           endDate,
@@ -111,13 +159,21 @@ export async function createContract(formData: FormData) {
           indexTypeId,
           nextIndexationDueAt: indexationFrequencyMonths ? addMonths(startDate, indexationFrequencyMonths) : null,
           notes: optionalStr(formData.get("notes")),
+          paymentAlias,
+          paymentCBU,
+          renewedFromContractId,
           createdById: profile.id,
         },
       });
 
-      if (guarantors.length > 0) {
-        await tx.guarantor.createMany({
-          data: guarantors.map((g) => ({ ...g, contractId: createdContract.id })),
+      if (guarantorIdxs.length > 0) {
+        const guarantorClientIds = [];
+        for (const i of guarantorIdxs) {
+          guarantorClientIds.push(await resolveClient(tx, formData, `guarantors.${i}`, `Garante ${i + 1}`));
+        }
+        await tx.contractGuarantor.createMany({
+          data: guarantorClientIds.map((clientId) => ({ contractId: createdContract.id, clientId })),
+          skipDuplicates: true,
         });
       }
 
@@ -331,4 +387,24 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
   );
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
+}
+
+export async function finalizarContrato(contractId: number, formData: FormData) {
+  await requirePermission("administraciones.crear");
+
+  const status = requiredStr(formData.get("status"), "Estado") as "FINALIZADO" | "RESCINDIDO";
+  if (status !== "FINALIZADO" && status !== "RESCINDIDO") {
+    throw new Error("Estado inválido");
+  }
+  const terminationReason = optionalStr(formData.get("terminationReason"));
+
+  await withRetry(() =>
+    prisma.contract.update({
+      where: { id: contractId },
+      data: { status, terminatedAt: new Date(), terminationReason },
+    })
+  );
+
+  revalidatePath(`/backoffice/administraciones/${contractId}`);
+  revalidatePath("/backoffice/administraciones");
 }

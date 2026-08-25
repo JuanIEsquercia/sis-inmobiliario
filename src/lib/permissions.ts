@@ -32,6 +32,14 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     ],
   },
   {
+    key: "clientes",
+    label: "Clientes",
+    children: [
+      { key: "clientes.ver", label: "Ver clientes" },
+      { key: "clientes.gestionar", label: "Editar datos de contacto" },
+    ],
+  },
+  {
     key: "usuarios",
     label: "Usuarios",
     children: [
@@ -54,5 +62,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     "administraciones.ver",
     "administraciones.crear",
     "administraciones.pagos",
+    "clientes.ver",
   ],
 };

@@ -222,8 +222,9 @@ model Pedido {
 model Unit {
   id           Int     @id @default(autoincrement())
   // Código interno de referencia (convención Adinco) — la inmobiliaria
-  // referencia todas sus propiedades así, esté o no publicada.
-  propertyCode String
+  // referencia todas sus propiedades así, esté o no publicada. Único:
+  // es la clave real para buscar/reutilizar una unidad entre contratos.
+  propertyCode String  @unique
   address      String
   city         String?
   region       String?
@@ -239,7 +240,12 @@ model Unit {
   updatedAt DateTime @updatedAt
 }
 
-model Owner {
+// Padrón único de personas (propietarios, inquilinos, garantes). Es
+// pura identidad/contacto — a propósito NO guarda nada financiero
+// (mora, deuda): eso siempre se calcula desde Contract/Payment,
+// filtrado por el rol que cumplió en cada contrato puntual, para que
+// una persona no "herede" mora de un rol que no cumplió.
+model Client {
   id        Int       @id @default(autoincrement())
   firstName String
   lastName  String
@@ -248,41 +254,33 @@ model Owner {
   email     String?
   phone     String?
 
-  contracts Contract[]
+  contractsAsTenant Contract[]          @relation("ContractTenant")
+  contractsAsOwner  Contract[]          @relation("ContractOwner")
+  guarantorFor      ContractGuarantor[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([docId])
+  @@index([lastName, firstName])
 }
 
-model Tenant {
-  id        Int       @id @default(autoincrement())
-  firstName String
-  lastName  String
-  docId     String
-  birthDate DateTime?
-  email     String?
-  phone     String?
-
-  contracts Contract[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Uno o más por contrato — mismo criterio que Owner/Tenant hoy: se crea
-// nuevo por contrato, sin reutilización entre contratos todavía.
-model Guarantor {
-  id        Int     @id @default(autoincrement())
-  firstName String
-  lastName  String
-  docId     String?
-  email     String?
-  phone     String?
+// Uno o más por contrato. A diferencia de Owner/Tenant en la v1
+// anterior, un mismo Client puede ser garante de varios contratos a lo
+// largo del tiempo — por eso es tabla puente, no una fila propia de
+// cada contrato.
+model ContractGuarantor {
+  id Int @id @default(autoincrement())
 
   contractId Int
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id])
+
   createdAt DateTime @default(now())
+
+  @@unique([contractId, clientId])
 }
 
 // Catálogo de índices de actualización (ICL, CAC, IPC...). El admin
@@ -339,10 +337,26 @@ model Contract {
   unit   Unit @relation(fields: [unitId], references: [id])
 
   ownerId Int
-  owner   Owner @relation(fields: [ownerId], references: [id])
+  owner   Client @relation("ContractOwner", fields: [ownerId], references: [id])
 
   tenantId Int
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Client @relation("ContractTenant", fields: [tenantId], references: [id])
+
+  // Transferencias — se cargan por contrato (no por cliente): cada
+  // contrato puede tener una cuenta de cobro distinta, y el agente que
+  // liquida necesita tenerla a mano en ese contrato puntual.
+  paymentAlias String?
+  paymentCBU   String?
+
+  // Renovación = contrato nuevo enlazado al anterior, nunca se estira
+  // la fecha de fin de uno existente (ya tiene su propio cronograma de
+  // liquidaciones/indexaciones generado).
+  renewedFromContractId Int?
+  renewedFrom           Contract?  @relation("ContractRenewal", fields: [renewedFromContractId], references: [id])
+  renewals              Contract[] @relation("ContractRenewal")
+
+  terminatedAt      DateTime?
+  terminationReason String?   @db.Text
 
   startDate      DateTime
   durationMonths Int
@@ -369,7 +383,7 @@ model Contract {
   createdById String  @db.Uuid
   createdBy   Profile @relation("ContractCreadoPor", fields: [createdById], references: [id])
 
-  guarantors  Guarantor[]
+  guarantors  ContractGuarantor[]
   concepts    ContractConcept[]
   payments    Payment[]
   indexations Indexation[]

@@ -4,6 +4,7 @@ const links = [
   { href: "/backoffice", label: "Panel", permission: null as string | null },
   { href: "/backoffice/pedidos", label: "Pedidos", permission: "pedidos.ver" },
   { href: "/backoffice/administraciones", label: "Administraciones", permission: "administraciones.ver" },
+  { href: "/backoffice/clientes", label: "Clientes", permission: "clientes.ver" },
   { href: "/backoffice/usuarios", label: "Usuarios", permission: "usuarios.ver" },
 ];
 
