@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { crearIndexType } from "@/app/backoffice/(app)/alquileres/actions";
+import { crearIndexType } from "@/app/backoffice/(app)/administraciones/actions";
 
 interface IndexTypeOption {
   id: number;

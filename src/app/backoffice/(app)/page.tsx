@@ -13,8 +13,8 @@ export default async function BackofficeDashboard() {
 
   const cards = [
     { label: "Pedidos abiertos", value: pedidosAbiertos, href: "/backoffice/pedidos" },
-    { label: "Contratos activos", value: contratosActivos, href: "/backoffice/alquileres" },
-    { label: "Pagos pendientes", value: pagosPendientes, href: "/backoffice/alquileres" },
+    { label: "Contratos activos", value: contratosActivos, href: "/backoffice/administraciones" },
+    { label: "Pagos pendientes", value: pagosPendientes, href: "/backoffice/administraciones" },
   ];
 
   return (

@@ -8,17 +8,17 @@ const statusLabels: Record<string, string> = {
   RESCINDIDO: "Rescindido",
 };
 
-export default async function AlquileresPage() {
-  const profile = await requirePermission("alquileres.ver");
+export default async function AdministracionesPage() {
+  const profile = await requirePermission("administraciones.ver");
   const contracts = await getContracts();
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Alquileres</h1>
-        {profile.permissions.includes("alquileres.crear") && (
+        <h1 className="text-xl font-semibold text-foreground">Administraciones</h1>
+        {profile.permissions.includes("administraciones.crear") && (
           <Link
-            href="/backoffice/alquileres/nuevo"
+            href="/backoffice/administraciones/nuevo"
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
           >
             Nuevo contrato
@@ -45,7 +45,7 @@ export default async function AlquileresPage() {
               {contracts.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface">
                   <td className="px-4 py-3">
-                    <Link href={`/backoffice/alquileres/${c.id}`} className="font-medium text-foreground hover:underline">
+                    <Link href={`/backoffice/administraciones/${c.id}`} className="font-medium text-foreground hover:underline">
                       {c.unit.address}
                     </Link>
                   </td>

@@ -22,13 +22,13 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     ],
   },
   {
-    key: "alquileres",
-    label: "Alquileres",
+    key: "administraciones",
+    label: "Administraciones",
     children: [
-      { key: "alquileres.ver", label: "Ver contratos" },
-      { key: "alquileres.crear", label: "Crear contratos" },
-      { key: "alquileres.pagos", label: "Registrar pagos" },
-      { key: "alquileres.indexacion", label: "Aplicar indexaciones" },
+      { key: "administraciones.ver", label: "Ver contratos" },
+      { key: "administraciones.crear", label: "Crear contratos" },
+      { key: "administraciones.pagos", label: "Registrar pagos" },
+      { key: "administraciones.indexacion", label: "Aplicar indexaciones" },
     ],
   },
   {
@@ -51,8 +51,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     "pedidos.ver",
     "pedidos.crear",
     "pedidos.estado",
-    "alquileres.ver",
-    "alquileres.crear",
-    "alquileres.pagos",
+    "administraciones.ver",
+    "administraciones.crear",
+    "administraciones.pagos",
   ],
 };

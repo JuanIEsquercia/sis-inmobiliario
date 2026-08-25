@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { crearConcepto } from "@/app/backoffice/(app)/alquileres/actions";
+import { crearConcepto } from "@/app/backoffice/(app)/administraciones/actions";
 
 interface ConceptOption {
   id: number;

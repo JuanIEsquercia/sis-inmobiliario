@@ -43,7 +43,7 @@ function parseGuarantors(formData: FormData): GuarantorInput[] {
 }
 
 export async function createContract(formData: FormData) {
-  const profile = await requirePermission("alquileres.crear");
+  const profile = await requirePermission("administraciones.crear");
 
   const startDate = requiredDate(formData.get("startDate"), "Fecha de inicio");
   const durationMonths = optionalInt(formData.get("durationMonths"));
@@ -159,36 +159,36 @@ export async function createContract(formData: FormData) {
     )
   );
 
-  revalidatePath("/backoffice/alquileres");
-  redirect(`/backoffice/alquileres/${contract.id}`);
+  revalidatePath("/backoffice/administraciones");
+  redirect(`/backoffice/administraciones/${contract.id}`);
 }
 
 export async function crearConcepto(name: string) {
-  await requirePermission("alquileres.crear");
+  await requirePermission("administraciones.crear");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("El nombre del concepto no puede estar vacío");
 
   const concept = await withRetry(() =>
     prisma.concept.upsert({ where: { name: trimmed }, create: { name: trimmed }, update: {} })
   );
-  revalidatePath("/backoffice/alquileres/nuevo");
+  revalidatePath("/backoffice/administraciones/nuevo");
   return concept;
 }
 
 export async function crearIndexType(code: string) {
-  await requirePermission("alquileres.crear");
+  await requirePermission("administraciones.crear");
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) throw new Error("El código del índice no puede estar vacío");
 
   const indexType = await withRetry(() =>
     prisma.indexType.upsert({ where: { code: trimmed }, create: { code: trimmed }, update: {} })
   );
-  revalidatePath("/backoffice/alquileres/nuevo");
+  revalidatePath("/backoffice/administraciones/nuevo");
   return indexType;
 }
 
 export async function subirDocumento(contractId: number, formData: FormData) {
-  const profile = await requirePermission("alquileres.crear");
+  const profile = await requirePermission("administraciones.crear");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Elegí un archivo PDF");
@@ -202,11 +202,11 @@ export async function subirDocumento(contractId: number, formData: FormData) {
     })
   );
 
-  revalidatePath(`/backoffice/alquileres/${contractId}`);
+  revalidatePath(`/backoffice/administraciones/${contractId}`);
 }
 
 export async function guardarLiquidacion(paymentId: number, formData: FormData) {
-  await requirePermission("alquileres.pagos");
+  await requirePermission("administraciones.pagos");
 
   const itemIds = formData
     .getAll("itemId")
@@ -232,11 +232,11 @@ export async function guardarLiquidacion(paymentId: number, formData: FormData) 
   );
 
   const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
-  revalidatePath(`/backoffice/alquileres/${payment.contractId}/liquidaciones/${paymentId}`);
+  revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
 }
 
 export async function marcarLiquidacionPagada(paymentId: number) {
-  await requirePermission("alquileres.pagos");
+  await requirePermission("administraciones.pagos");
 
   const payment = await withRetry(() =>
     prisma.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { items: true } })
@@ -251,12 +251,12 @@ export async function marcarLiquidacionPagada(paymentId: number) {
     })
   );
 
-  revalidatePath(`/backoffice/alquileres/${payment.contractId}/liquidaciones/${paymentId}`);
-  revalidatePath(`/backoffice/alquileres/${payment.contractId}`);
+  revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
+  revalidatePath(`/backoffice/administraciones/${payment.contractId}`);
 }
 
 export async function aplicarIndexacion(contractId: number, formData: FormData) {
-  await requirePermission("alquileres.indexacion");
+  await requirePermission("administraciones.indexacion");
 
   const newAmount = requiredDecimal(formData.get("newAmount"), "Nuevo monto");
   const indexTypeId = optionalInt(formData.get("indexTypeId"));
@@ -301,5 +301,5 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
     })
   );
 
-  revalidatePath(`/backoffice/alquileres/${contractId}`);
+  revalidatePath(`/backoffice/administraciones/${contractId}`);
 }

@@ -6,7 +6,7 @@ import { IndexTypeSelect } from "@/components/backoffice/IndexTypeSelect";
 import { createContract } from "../actions";
 
 export default async function NuevoContratoPage() {
-  await requirePermission("alquileres.crear");
+  await requirePermission("administraciones.crear");
   const [concepts, indexTypes] = await Promise.all([getConcepts(), getIndexTypes()]);
   const extraConcepts = concepts.filter((c) => !c.isSystem);
 

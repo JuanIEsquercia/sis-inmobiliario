@@ -36,7 +36,7 @@ interface PageProps {
 }
 
 export default async function ContractDetailPage({ params }: PageProps) {
-  const profile = await requirePermission("alquileres.ver");
+  const profile = await requirePermission("administraciones.ver");
   const { id } = await params;
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
@@ -138,7 +138,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                 <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface">
                   <td className="px-4 py-2.5">
                     <Link
-                      href={`/backoffice/alquileres/${contract.id}/liquidaciones/${p.id}`}
+                      href={`/backoffice/administraciones/${contract.id}/liquidaciones/${p.id}`}
                       className="font-medium text-foreground hover:underline"
                     >
                       {monthNames[p.periodMonth - 1]} {p.periodYear}
@@ -201,7 +201,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
         </form>
       </section>
 
-      {profile.permissions.includes("alquileres.indexacion") && (
+      {profile.permissions.includes("administraciones.indexacion") && (
         <section>
           <h2 className="mb-3 text-lg font-semibold text-foreground">Indexación</h2>
 

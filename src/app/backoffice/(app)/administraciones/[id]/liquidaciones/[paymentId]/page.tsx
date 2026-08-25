@@ -22,7 +22,7 @@ interface PageProps {
 }
 
 export default async function LiquidacionDetailPage({ params }: PageProps) {
-  const profile = await requirePermission("alquileres.ver");
+  const profile = await requirePermission("administraciones.ver");
   const { id, paymentId } = await params;
   const numericPaymentId = Number(paymentId);
   if (!Number.isFinite(numericPaymentId)) notFound();
@@ -30,12 +30,12 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
   const payment = await getPaymentById(numericPaymentId);
   if (!payment || String(payment.contractId) !== id) notFound();
 
-  const canEdit = profile.permissions.includes("alquileres.pagos");
+  const canEdit = profile.permissions.includes("administraciones.pagos");
   const isPaid = payment.status === "PAGADO";
 
   return (
     <div className="max-w-xl">
-      <Link href={`/backoffice/alquileres/${id}`} className="mb-4 inline-block text-sm text-accent hover:underline">
+      <Link href={`/backoffice/administraciones/${id}`} className="mb-4 inline-block text-sm text-accent hover:underline">
         ← {payment.contract.unit.address}
       </Link>
 
