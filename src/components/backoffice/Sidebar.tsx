@@ -39,6 +39,18 @@ const links = [
     )
   },
   {
+    href: "/backoffice/caja",
+    label: "Caja",
+    permission: "caja.ver",
+    icon: (className: string) => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+        <rect x="2" y="6" width="20" height="12" rx="2" />
+        <circle cx="12" cy="12" r="2.5" />
+        <path strokeLinecap="round" d="M6 6v0M18 18v0" />
+      </svg>
+    )
+  },
+  {
     href: "/backoffice/clientes",
     label: "Clientes",
     permission: "clientes.ver",

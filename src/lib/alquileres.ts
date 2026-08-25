@@ -62,6 +62,7 @@ export async function getContractById(id: number) {
         owner: true,
         tenant: true,
         guarantors: { include: { client: true } },
+        rentalCommission: { include: { agent: true } },
         indexType: true,
         concepts: { include: { concept: true } },
         documents: { include: { uploadedBy: { select: { username: true } } }, orderBy: { createdAt: "desc" } },

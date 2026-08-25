@@ -32,6 +32,16 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     ],
   },
   {
+    key: "caja",
+    label: "Caja",
+    children: [
+      { key: "caja.ver", label: "Ver caja" },
+      { key: "caja.ventas.crear", label: "Cargar ventas" },
+      { key: "caja.tasaciones.crear", label: "Cargar tasaciones" },
+      { key: "caja.comisiones.crear", label: "Cargar comisiones de alquiler" },
+    ],
+  },
+  {
     key: "clientes",
     label: "Clientes",
     children: [
@@ -63,5 +73,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     "administraciones.crear",
     "administraciones.pagos",
     "clientes.ver",
+    "caja.ver",
+    "caja.ventas.crear",
+    "caja.tasaciones.crear",
+    "caja.comisiones.crear",
   ],
 };

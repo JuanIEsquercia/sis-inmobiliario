@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
-import { addMonths, buildPaymentSchedule, computeEndDate } from "@/lib/alquileres";
+import { addMonths, buildPaymentSchedule, computeEndDate, paymentBreakdown } from "@/lib/alquileres";
+import { resolveClient, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadContractDocument } from "@/lib/supabase/storage";
 import {
   optionalInt,
@@ -14,57 +15,7 @@ import {
   requiredDecimal,
   requiredStr,
 } from "@/lib/form-utils";
-import type { DocumentType, Prisma } from "@/generated/prisma/client";
-
-// Devuelve el id de un Client existente (si vino `${prefix}.clientId`
-// desde ClientPicker) o crea uno nuevo con los campos `${prefix}.*`.
-// Client es pura identidad/contacto — nunca guarda nada financiero, así
-// que crearlo acá no arriesga mezclar mora/deuda entre roles.
-async function resolveClient(
-  tx: Prisma.TransactionClient,
-  formData: FormData,
-  prefix: string,
-  roleLabel: string
-): Promise<number> {
-  const existingId = optionalInt(formData.get(`${prefix}.clientId`));
-  if (existingId) return existingId;
-
-  const birthDateRaw = optionalStr(formData.get(`${prefix}.birthDate`));
-
-  const client = await tx.client.create({
-    data: {
-      firstName: requiredStr(formData.get(`${prefix}.firstName`), `Nombre (${roleLabel})`),
-      lastName: requiredStr(formData.get(`${prefix}.lastName`), `Apellido (${roleLabel})`),
-      docId: optionalStr(formData.get(`${prefix}.docId`)),
-      phone: optionalStr(formData.get(`${prefix}.phone`)),
-      email: optionalStr(formData.get(`${prefix}.email`)),
-      birthDate: birthDateRaw ? new Date(birthDateRaw) : null,
-    },
-  });
-  return client.id;
-}
-
-// Mismo criterio que resolveClient, pero para Unit — con upsert por
-// propertyCode como red de seguridad si se tipeó a mano un código que
-// ya existe en vez de elegirlo con UnitPicker.
-async function resolveUnit(tx: Prisma.TransactionClient, formData: FormData): Promise<number> {
-  const existingId = optionalInt(formData.get("unit.id"));
-  if (existingId) return existingId;
-
-  const propertyCode = requiredStr(formData.get("unit.propertyCode"), "Código de propiedad");
-
-  const unit = await tx.unit.upsert({
-    where: { propertyCode },
-    create: {
-      propertyCode,
-      address: requiredStr(formData.get("unit.address"), "Dirección de la unidad"),
-      city: optionalStr(formData.get("unit.city")),
-      propertyType: optionalStr(formData.get("unit.propertyType")),
-    },
-    update: {},
-  });
-  return unit.id;
-}
+import type { DocumentType } from "@/generated/prisma/client";
 
 function guarantorIndices(formData: FormData): number[] {
   const indices = new Set<number>();
@@ -323,21 +274,39 @@ export async function guardarLiquidacion(paymentId: number, formData: FormData) 
 export async function marcarLiquidacionPagada(paymentId: number) {
   await requirePermission("administraciones.pagos");
 
-  const payment = await withRetry(() =>
-    prisma.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { items: true } })
-  );
-
-  const total = payment.items.reduce((sum, item) => sum + (item.amount ? Number(item.amount) : 0), 0);
-
   await withRetry(() =>
-    prisma.payment.update({
-      where: { id: paymentId },
-      data: { status: "PAGADO", paidAt: new Date(), paidAmount: total },
+    prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUniqueOrThrow({
+        where: { id: paymentId },
+        include: { items: { include: { concept: true } }, contract: { include: { unit: true } } },
+      });
+      if (payment.status === "PAGADO") return; // ya procesada, no duplicar el movimiento de caja
+
+      const { total, managementFee } = paymentBreakdown(payment.items, payment.contract.managementFeePercent);
+
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: { status: "PAGADO", paidAt: new Date(), paidAmount: total },
+      });
+
+      if (managementFee > 0) {
+        await tx.cashMovement.create({
+          data: {
+            source: "ADMINISTRACION",
+            description: `Administración — ${payment.contract.unit.propertyCode} (${payment.periodMonth}/${payment.periodYear})`,
+            amount: managementFee,
+            currency: payment.currency,
+            paymentId: payment.id,
+          },
+        });
+      }
     })
   );
 
+  const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
   revalidatePath(`/backoffice/administraciones/${payment.contractId}`);
+  revalidatePath("/backoffice/caja");
 }
 
 export async function aplicarIndexacion(contractId: number, formData: FormData) {

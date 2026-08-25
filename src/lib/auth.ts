@@ -30,3 +30,9 @@ export async function requirePermission(key: string): Promise<Profile> {
   if (!profile.permissions.includes(key)) redirect("/backoffice");
   return profile;
 }
+
+export async function requireAnyPermission(keys: string[]): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!keys.some((k) => profile.permissions.includes(k))) redirect("/backoffice");
+  return profile;
+}

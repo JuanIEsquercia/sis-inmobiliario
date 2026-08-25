@@ -15,7 +15,13 @@ export interface UnitOption {
 // Mismo patrón de "buscar o crear" que ClientPicker, pero para Unit —
 // el código de propiedad (Adinco) es la clave real de búsqueda, ya que
 // es @unique en el schema.
-export function UnitPicker({ initialSelected = null }: { initialSelected?: UnitOption | null }) {
+export function UnitPicker({
+  initialSelected = null,
+  search = buscarUnidades,
+}: {
+  initialSelected?: UnitOption | null;
+  search?: (query: string) => Promise<UnitOption[]>;
+}) {
   const [selected, setSelected] = useState<UnitOption | null>(initialSelected);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<UnitOption[]>([]);
@@ -28,14 +34,14 @@ export function UnitPicker({ initialSelected = null }: { initialSelected?: UnitO
     const handle = setTimeout(() => {
       startTransition(async () => {
         try {
-          setResults(await buscarUnidades(query));
+          setResults(await search(query));
         } catch (err) {
           setError(err instanceof Error ? err.message : "No se pudo buscar");
         }
       });
     }, 300);
     return () => clearTimeout(handle);
-  }, [query, selected]);
+  }, [query, selected, search]);
 
   if (selected) {
     return (

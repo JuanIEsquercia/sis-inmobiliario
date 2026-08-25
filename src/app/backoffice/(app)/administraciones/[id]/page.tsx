@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getContractById, getIndexTypes, paymentTotal } from "@/lib/alquileres";
+import { getAgents } from "@/lib/caja";
 import { getSignedDocumentUrl } from "@/lib/supabase/storage";
 import { requirePermission } from "@/lib/auth";
 import { subirDocumento, aplicarIndexacion, finalizarContrato } from "../actions";
+import { crearComisionAlquiler } from "../../caja/actions";
+import { AgentSelect } from "@/components/backoffice/AgentSelect";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -49,6 +52,9 @@ export default async function ContractDetailPage({ params }: PageProps) {
   const documentsWithUrls = await Promise.all(
     contract.documents.map(async (doc) => ({ ...doc, url: await getSignedDocumentUrl(doc.storagePath) }))
   );
+
+  const canCreateCommission = profile.permissions.includes("caja.comisiones.crear");
+  const agents = canCreateCommission && !contract.rentalCommission ? await getAgents() : [];
 
   return (
     <div className="max-w-3xl">
@@ -272,6 +278,48 @@ export default async function ContractDetailPage({ params }: PageProps) {
           </form>
         </section>
       )}
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-semibold text-foreground">Comisión de alquiler</h2>
+        {contract.rentalCommission ? (
+          <p className="text-sm text-foreground">
+            {contract.rentalCommission.currency} {contract.rentalCommission.amount.toString()} —{" "}
+            {contract.rentalCommission.agent.firstName} {contract.rentalCommission.agent.lastName} ·{" "}
+            {fmtDate.format(contract.rentalCommission.earnedAt)}
+          </p>
+        ) : canCreateCommission ? (
+          <form
+            action={crearComisionAlquiler.bind(null, contract.id)}
+            className="flex flex-wrap items-end gap-3"
+          >
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="commissionAmount" className="text-xs text-muted">
+                Monto
+              </label>
+              <input id="commissionAmount" name="amount" type="number" step="0.01" required className="field w-32" />
+            </div>
+            <select name="currency" defaultValue={contract.currency} className="field">
+              <option value="ARS">ARS</option>
+              <option value="USD">USD</option>
+            </select>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="earnedAt" className="text-xs text-muted">
+                Fecha
+              </label>
+              <input id="earnedAt" name="earnedAt" type="date" required className="field" />
+            </div>
+            <AgentSelect agents={agents} defaultValue={profile.id} />
+            <button
+              type="submit"
+              className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface"
+            >
+              Cargar comisión
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm text-muted">Sin comisión cargada.</p>
+        )}
+      </section>
 
       {profile.permissions.includes("administraciones.indexacion") && (
         <section>

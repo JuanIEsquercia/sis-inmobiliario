@@ -172,6 +172,13 @@ model Profile {
   contratosCreados  Contract[]         @relation("ContractCreadoPor")
   documentosSubidos ContractDocument[]
 
+  rentalCommissionsAsAgent RentalCommission[] @relation("RentalCommissionAgent")
+  rentalCommissionsCreadas RentalCommission[] @relation("RentalCommissionCreadoPor")
+  salesAsAgent             Sale[]             @relation("SaleAgent")
+  salesCreadas             Sale[]             @relation("SaleCreadoPor")
+  appraisalsAsAgent        Appraisal[]        @relation("AppraisalAgent")
+  appraisalsCreadas        Appraisal[]        @relation("AppraisalCreadoPor")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -234,7 +241,9 @@ model Unit {
   listingId Int?     @unique
   listing   Listing? @relation(fields: [listingId], references: [id])
 
-  contracts Contract[]
+  contracts  Contract[]
+  sales      Sale[]
+  appraisals Appraisal[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -383,11 +392,12 @@ model Contract {
   createdById String  @db.Uuid
   createdBy   Profile @relation("ContractCreadoPor", fields: [createdById], references: [id])
 
-  guarantors  ContractGuarantor[]
-  concepts    ContractConcept[]
-  payments    Payment[]
-  indexations Indexation[]
-  documents   ContractDocument[]
+  guarantors       ContractGuarantor[]
+  concepts         ContractConcept[]
+  payments         Payment[]
+  indexations      Indexation[]
+  documents        ContractDocument[]
+  rentalCommission RentalCommission?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -421,7 +431,8 @@ model Payment {
   paidAmount Decimal?      @db.Decimal(14, 2) // snapshot de la suma al momento de pagar
   notes      String?
 
-  items PaymentItem[]
+  items        PaymentItem[]
+  cashMovement CashMovement?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -490,4 +501,132 @@ model ContractDocument {
   uploadedBy   Profile @relation(fields: [uploadedById], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+enum CashMovementSource {
+  ADMINISTRACION
+  COMISION_ALQUILER
+  VENTA
+  TASACION
+}
+
+// Caja: flujo único de ingresos. Solo ingresos por ahora (sin egresos,
+// sin cuentas). Nunca se crea a mano — cada fuente (liquidación pagada,
+// alta de venta/tasación/comisión) genera su propio CashMovement en la
+// misma transacción que crea el hecho de origen. `description` se arma
+// en el momento de creación para que el listado no tenga que resolver
+// 4 joins distintos por fila. La invariante "exactamente un FK de
+// fuente seteado según `source`" se agrega a mano en la migración (no
+// hay @@check en el schema de este proyecto).
+model CashMovement {
+  id Int @id @default(autoincrement())
+
+  source      CashMovementSource
+  description String
+  amount      Decimal            @db.Decimal(14, 2)
+  currency    String
+  occurredAt  DateTime           @default(now())
+
+  paymentId Int?     @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  rentalCommissionId Int?              @unique
+  rentalCommission   RentalCommission? @relation(fields: [rentalCommissionId], references: [id])
+
+  saleId Int?  @unique
+  sale   Sale? @relation(fields: [saleId], references: [id])
+
+  appraisalId Int?       @unique
+  appraisal   Appraisal? @relation(fields: [appraisalId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([source])
+  @@index([occurredAt])
+}
+
+// Comisión de alquiler: hecho único al colocar un contrato nuevo
+// (distinto de la administración recurrente, que ya vive en
+// managementFeePercent + Payment). Uno por contrato — 1:1, sin
+// pipeline: se carga cuando la comisión ya está devengada.
+model RentalCommission {
+  id Int @id @default(autoincrement())
+
+  contractId Int      @unique
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  amount   Decimal  @db.Decimal(14, 2)
+  currency String
+  earnedAt DateTime @default(now())
+
+  agentId String  @db.Uuid
+  agent   Profile @relation("RentalCommissionAgent", fields: [agentId], references: [id])
+
+  notes String? @db.Text
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("RentalCommissionCreadoPor", fields: [createdById], references: [id])
+
+  cashMovement CashMovement?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Venta: hecho único, sin pipeline (sin reservada/escriturada/etc — se
+// carga cuando la operación ya cerró y la comisión ya está devengada).
+// Reutiliza Unit para que el historial de una propiedad (contratos +
+// ventas + tasaciones) quede bajo el mismo id.
+model Sale {
+  id Int @id @default(autoincrement())
+
+  unitId Int
+  unit   Unit @relation(fields: [unitId], references: [id])
+
+  saleAmount       Decimal? @db.Decimal(14, 2) // precio de venta, informativo — no impacta la Caja
+  commissionAmount Decimal  @db.Decimal(14, 2) // lo que efectivamente ingresa a la agencia
+  currency         String
+  closedAt         DateTime @default(now())
+
+  agentId String  @db.Uuid
+  agent   Profile @relation("SaleAgent", fields: [agentId], references: [id])
+
+  notes String? @db.Text
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("SaleCreadoPor", fields: [createdById], references: [id])
+
+  cashMovement CashMovement?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitId])
+}
+
+// Tasación: mismo criterio que Sale — hecho único, no pipeline.
+model Appraisal {
+  id Int @id @default(autoincrement())
+
+  unitId Int
+  unit   Unit @relation(fields: [unitId], references: [id])
+
+  amount      Decimal  @db.Decimal(14, 2)
+  currency    String
+  completedAt DateTime @default(now())
+
+  agentId String  @db.Uuid
+  agent   Profile @relation("AppraisalAgent", fields: [agentId], references: [id])
+
+  notes String? @db.Text
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("AppraisalCreadoPor", fields: [createdById], references: [id])
+
+  cashMovement CashMovement?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitId])
 }
