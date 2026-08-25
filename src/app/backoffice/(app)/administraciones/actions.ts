@@ -89,6 +89,7 @@ export async function createContract(formData: FormData) {
 
       const unit = await tx.unit.create({
         data: {
+          propertyCode: requiredStr(formData.get("propertyCode"), "Código de propiedad"),
           address: requiredStr(formData.get("unitAddress"), "Dirección de la unidad"),
           city: optionalStr(formData.get("unitCity")),
           propertyType: optionalStr(formData.get("unitPropertyType")),
@@ -160,6 +161,32 @@ export async function createContract(formData: FormData) {
     { timeout: 30000, maxWait: 15000 }
     )
   );
+
+  // Los documentos se suben después de que el contrato ya quedó guardado
+  // — un PDF que falla al subir nunca debe hacer perder el alta. Cada
+  // archivo es opcional e independiente de los demás.
+  const documentFields: { field: string; type: DocumentType }[] = [
+    { field: "contratoFile", type: "CONTRATO" },
+    { field: "dniInquilinoFile", type: "DNI_INQUILINO" },
+    { field: "dniGaranteFile", type: "DNI_GARANTE" },
+    { field: "otroFile", type: "OTRO" },
+  ];
+
+  for (const { field, type } of documentFields) {
+    const file = formData.get(field);
+    if (!(file instanceof File) || file.size === 0) continue;
+
+    try {
+      const { storagePath } = await uploadContractDocument(contract.id, file);
+      await withRetry(() =>
+        prisma.contractDocument.create({
+          data: { contractId: contract.id, type, fileName: file.name, storagePath, uploadedById: profile.id },
+        })
+      );
+    } catch (err) {
+      console.error(`No se pudo subir ${field} para el contrato ${contract.id}:`, err);
+    }
+  }
 
   revalidatePath("/backoffice/administraciones");
   redirect(`/backoffice/administraciones/${contract.id}`);

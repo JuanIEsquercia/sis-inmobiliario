@@ -56,8 +56,8 @@ export default async function ContractDetailPage({ params }: PageProps) {
         <div>
           <h1 className="text-xl font-semibold text-foreground">{contract.unit.address}</h1>
           <p className="text-sm text-muted">
-            {contract.tenant.firstName} {contract.tenant.lastName} (inquilino) · {contract.owner.firstName}{" "}
-            {contract.owner.lastName} (propietario)
+            Código {contract.unit.propertyCode} · {contract.tenant.firstName} {contract.tenant.lastName} (inquilino) ·{" "}
+            {contract.owner.firstName} {contract.owner.lastName} (propietario)
           </p>
         </div>
         <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-foreground">

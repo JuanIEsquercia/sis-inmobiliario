@@ -17,6 +17,7 @@ export default async function NuevoContratoPage() {
       <form action={createContract} className="flex flex-col gap-6">
         <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <legend className="col-span-full mb-1 text-sm font-medium text-foreground">Unidad</legend>
+          <input name="propertyCode" placeholder="Código de propiedad (Adinco)*" required className="field" />
           <input name="unitAddress" placeholder="Dirección*" required className="field sm:col-span-2" />
           <input name="unitCity" placeholder="Ciudad" className="field" />
           <input name="unitPropertyType" placeholder="Tipo (Departamento, Casa...)" className="field" />
@@ -113,6 +114,36 @@ export default async function NuevoContratoPage() {
           </label>
           <textarea id="notes" name="notes" rows={3} className="field" />
         </div>
+
+        <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <legend className="col-span-full mb-1 text-sm font-medium text-foreground">
+            Documentos <span className="font-normal text-muted">(opcional, en PDF — también se pueden subir después)</span>
+          </legend>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="contratoFile" className="text-xs text-muted">
+              Contrato
+            </label>
+            <input id="contratoFile" name="contratoFile" type="file" accept="application/pdf" className="field" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="dniInquilinoFile" className="text-xs text-muted">
+              DNI inquilino
+            </label>
+            <input id="dniInquilinoFile" name="dniInquilinoFile" type="file" accept="application/pdf" className="field" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="dniGaranteFile" className="text-xs text-muted">
+              DNI garante
+            </label>
+            <input id="dniGaranteFile" name="dniGaranteFile" type="file" accept="application/pdf" className="field" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="otroFile" className="text-xs text-muted">
+              Otro
+            </label>
+            <input id="otroFile" name="otroFile" type="file" accept="application/pdf" className="field" />
+          </div>
+        </fieldset>
 
         <button
           type="submit"

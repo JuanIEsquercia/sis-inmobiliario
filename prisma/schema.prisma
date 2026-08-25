@@ -221,6 +221,9 @@ model Pedido {
 // aviso se cae del feed.
 model Unit {
   id           Int     @id @default(autoincrement())
+  // Código interno de referencia (convención Adinco) — la inmobiliaria
+  // referencia todas sus propiedades así, esté o no publicada.
+  propertyCode String
   address      String
   city         String?
   region       String?

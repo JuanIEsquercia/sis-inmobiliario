@@ -61,6 +61,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Unidad</th>
                 <th className="px-4 py-3">Propietario</th>
                 <th className="px-4 py-3">Total</th>
@@ -77,6 +78,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                 );
                 return (
                   <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface">
+                    <td className="px-4 py-3 text-muted">{p.contract.unit.propertyCode}</td>
                     <td className="px-4 py-3">
                       <Link
                         href={`/backoffice/administraciones/${p.contractId}/liquidaciones/${p.id}`}

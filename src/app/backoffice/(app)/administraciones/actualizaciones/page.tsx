@@ -31,6 +31,7 @@ export default async function ActualizacionesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Unidad</th>
                 <th className="px-4 py-3">Inquilino</th>
                 <th className="px-4 py-3">Alquiler actual</th>
@@ -42,6 +43,7 @@ export default async function ActualizacionesPage() {
             <tbody>
               {contracts.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface">
+                  <td className="px-4 py-3 text-muted">{c.unit.propertyCode}</td>
                   <td className="px-4 py-3">
                     <Link href={`/backoffice/administraciones/${c.id}`} className="font-medium text-foreground hover:underline">
                       {c.unit.address}
