@@ -19,60 +19,93 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
     <form
       method="get"
       action={action}
-      className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-3 lg:grid-cols-6"
+      className="grid grid-cols-1 gap-4 rounded-2xl border border-border/60 bg-surface p-6 shadow-premium sm:grid-cols-2 lg:grid-cols-7 items-end"
     >
-      <select name="operacion" defaultValue={defaults.operacion ?? ""} className="field">
-        <option value="">Operación</option>
-        <option value="For Sale">{operationLabel("For Sale")}</option>
-        <option value="For Rent">{operationLabel("For Rent")}</option>
-      </select>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Operación</label>
+        <select name="operacion" defaultValue={defaults.operacion ?? ""} className="field w-full cursor-pointer">
+          <option value="">Cualquiera</option>
+          <option value="For Sale">{operationLabel("For Sale")}</option>
+          <option value="For Rent">{operationLabel("For Rent")}</option>
+        </select>
+      </div>
 
-      <select name="tipo" defaultValue={defaults.tipo ?? ""} className="field">
-        <option value="">Tipo</option>
-        {propertyTypes.map((type) => (
-          <option key={type} value={type}>
-            {type}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Tipo</label>
+        <select name="tipo" defaultValue={defaults.tipo ?? ""} className="field w-full cursor-pointer">
+          <option value="">Cualquiera</option>
+          {propertyTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      <select name="ciudad" defaultValue={defaults.ciudad ?? ""} className="field">
-        <option value="">Ciudad</option>
-        {cities.map((city) => (
-          <option key={city} value={city}>
-            {city}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Ciudad</label>
+        <select name="ciudad" defaultValue={defaults.ciudad ?? ""} className="field w-full cursor-pointer">
+          <option value="">Cualquiera</option>
+          {cities.map((city) => (
+            <option key={city} value={city}>
+              {city}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      <input
-        type="number"
-        name="precioMin"
-        placeholder="Precio mín."
-        defaultValue={defaults.precioMin ?? ""}
-        className="field"
-      />
-      <input
-        type="number"
-        name="precioMax"
-        placeholder="Precio máx."
-        defaultValue={defaults.precioMax ?? ""}
-        className="field"
-      />
-      <input
-        type="number"
-        name="ambientes"
-        placeholder="Ambientes mín."
-        defaultValue={defaults.ambientes ?? ""}
-        className="field"
-      />
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Precio Mín</label>
+        <input
+          type="number"
+          name="precioMin"
+          placeholder="Mín. USD / AR$"
+          defaultValue={defaults.precioMin ?? ""}
+          className="field w-full"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Precio Máx</label>
+        <input
+          type="number"
+          name="precioMax"
+          placeholder="Máx. USD / AR$"
+          defaultValue={defaults.precioMax ?? ""}
+          className="field w-full"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Ambientes</label>
+        <input
+          type="number"
+          name="ambientes"
+          placeholder="Cantidad mín."
+          defaultValue={defaults.ambientes ?? ""}
+          className="field w-full"
+        />
+      </div>
 
       <button
         type="submit"
-        className="col-span-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-strong sm:col-span-1 lg:col-span-6"
+        className="w-full rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all hover:bg-accent-strong hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 shadow-sm shadow-accent/10"
       >
-        Buscar
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          className="opacity-90"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path strokeLinecap="round" d="m21 21-4.3-4.3" />
+        </svg>
+        <span>Buscar</span>
       </button>
     </form>
   );
 }
+

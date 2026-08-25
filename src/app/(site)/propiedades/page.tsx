@@ -73,13 +73,15 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
       )}
 
       {totalPages > 1 && (
-        <nav className="mt-8 flex items-center justify-center gap-2 text-sm">
+        <nav className="mt-12 flex items-center justify-center gap-2 text-sm font-medium">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
             <Link
               key={p}
               href={buildPageHref(sp, p)}
-              className={`rounded-lg px-3 py-1.5 ${
-                p === page ? "bg-accent text-accent-foreground" : "border border-border text-foreground"
+              className={`rounded-xl px-4 py-2 transition-all duration-200 cursor-pointer ${
+                p === page
+                  ? "bg-accent text-accent-foreground shadow-md shadow-accent/10 scale-95"
+                  : "border border-border/60 bg-surface text-foreground hover:border-accent/40 hover:text-accent"
               }`}
             >
               {p}
@@ -90,3 +92,4 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
     </div>
   );
 }
+

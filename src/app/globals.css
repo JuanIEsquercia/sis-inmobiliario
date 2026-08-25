@@ -1,40 +1,52 @@
 @import "tailwindcss";
 
 :root {
-  /* Paleta de marca Garcia Propiedades, tomada del isotipo (skyline rojo + wordmark negro). */
-  --background: #ffffff;
-  --foreground: #141414;
-  --muted: #6b6461;
-  --border: #e6e1df;
-  --surface: #f7f4f3;
-  --accent: #d6272b;
-  --accent-strong: #7a1f24;
+  /* Paleta Premium Garcia Propiedades (Muted Crimson & Soft Warm Neutrals) */
+  --background: #faf9f8;
+  --foreground: #1c1817;
+  --muted: #7c7471;
+  --border: #e7e2e0;
+  --surface: #ffffff;
+  
+  --accent: #c52125;
+  --accent-strong: #8c1417;
+  --accent-soft: #fdf1f1;
   --accent-foreground: #ffffff;
+  
+  --shadow-premium: 0 12px 30px -10px rgba(28, 24, 23, 0.05), 0 4px 12px -5px rgba(28, 24, 23, 0.02);
 }
 
 /* Antes de que next-themes resuelva la preferencia (sin JS o pre-hidratación). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --background: #171313;
-    --foreground: #f3efec;
-    --muted: #a89f9c;
-    --border: #362f2e;
-    --surface: #201b1a;
-    --accent: #e5453b;
-    --accent-strong: #f2695f;
+    --background: #13100f;
+    --foreground: #f5f2f0;
+    --muted: #9c928e;
+    --border: #2e2624;
+    --surface: #1c1817;
+    
+    --accent: #e63940;
+    --accent-strong: #f85a61;
+    --accent-soft: #2e1314;
     --accent-foreground: #ffffff;
+    
+    --shadow-premium: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
   }
 }
 
 :root[data-theme="dark"] {
-  --background: #171313;
-  --foreground: #f3efec;
-  --muted: #a89f9c;
-  --border: #362f2e;
-  --surface: #201b1a;
-  --accent: #e5453b;
-  --accent-strong: #f2695f;
+  --background: #13100f;
+  --foreground: #f5f2f0;
+  --muted: #9c928e;
+  --border: #2e2624;
+  --surface: #1c1817;
+  
+  --accent: #e63940;
+  --accent-strong: #f85a61;
+  --accent-soft: #2e1314;
   --accent-foreground: #ffffff;
+  
+  --shadow-premium: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
 }
 
 @theme inline {
@@ -45,7 +57,9 @@
   --color-surface: var(--surface);
   --color-accent: var(--accent);
   --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
   --color-accent-foreground: var(--accent-foreground);
+  --shadow-premium: var(--shadow-premium);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -54,19 +68,29 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer components {
   .field {
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
     border: 1px solid var(--border);
-    background: var(--background);
-    padding: 0.5rem 0.75rem;
+    background: var(--surface);
+    padding: 0.625rem 0.875rem;
     font-size: 0.875rem;
     color: var(--foreground);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
   }
   .field:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+  .field::placeholder {
+    color: var(--muted);
+    opacity: 0.7;
   }
 }
+
