@@ -1,8 +1,15 @@
 import { requirePermission } from "@/lib/auth";
+import { getConcepts, getIndexTypes } from "@/lib/alquileres";
+import { GuarantorFields } from "@/components/backoffice/GuarantorFields";
+import { ConceptsChecklist } from "@/components/backoffice/ConceptsChecklist";
+import { IndexTypeSelect } from "@/components/backoffice/IndexTypeSelect";
 import { createContract } from "../actions";
 
 export default async function NuevoContratoPage() {
   await requirePermission("alquileres.crear");
+  const [concepts, indexTypes] = await Promise.all([getConcepts(), getIndexTypes()]);
+  const extraConcepts = concepts.filter((c) => !c.isSystem);
+
   return (
     <div className="max-w-2xl">
       <h1 className="mb-6 text-xl font-semibold text-foreground">Nuevo contrato</h1>
@@ -17,17 +24,32 @@ export default async function NuevoContratoPage() {
 
         <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <legend className="col-span-full mb-1 text-sm font-medium text-foreground">Propietario</legend>
-          <input name="ownerName" placeholder="Nombre*" required className="field" />
+          <input name="ownerFirstName" placeholder="Nombre*" required className="field" />
+          <input name="ownerLastName" placeholder="Apellido*" required className="field" />
+          <input name="ownerDoc" placeholder="DNI" className="field" />
           <input name="ownerPhone" placeholder="Teléfono" className="field" />
           <input name="ownerEmail" type="email" placeholder="Email" className="field" />
         </fieldset>
 
         <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <legend className="col-span-full mb-1 text-sm font-medium text-foreground">Inquilino</legend>
-          <input name="tenantName" placeholder="Nombre*" required className="field" />
+          <input name="tenantFirstName" placeholder="Nombre*" required className="field" />
+          <input name="tenantLastName" placeholder="Apellido*" required className="field" />
+          <input name="tenantDoc" placeholder="DNI*" required className="field" />
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="tenantBirthDate" className="text-xs text-muted">
+              Fecha de nacimiento
+            </label>
+            <input id="tenantBirthDate" name="tenantBirthDate" type="date" className="field" />
+          </div>
           <input name="tenantPhone" placeholder="Teléfono" className="field" />
           <input name="tenantEmail" type="email" placeholder="Email" className="field" />
         </fieldset>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-foreground">Garante(s)</p>
+          <GuarantorFields />
+        </div>
 
         <fieldset className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <legend className="col-span-full mb-1 text-sm font-medium text-foreground">Contrato</legend>
@@ -38,10 +60,10 @@ export default async function NuevoContratoPage() {
             <input id="startDate" name="startDate" type="date" required className="field" />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="endDate" className="text-xs text-muted">
-              Fecha de fin*
+            <label htmlFor="durationMonths" className="text-xs text-muted">
+              Duración (meses)*
             </label>
-            <input id="endDate" name="endDate" type="date" required className="field" />
+            <input id="durationMonths" name="durationMonths" type="number" min={1} required className="field" placeholder="12" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="rentAmount" className="text-xs text-muted">
@@ -57,10 +79,17 @@ export default async function NuevoContratoPage() {
             <label htmlFor="indexationFrequencyMonths" className="text-xs text-muted">
               Actualiza cada (meses)
             </label>
-            <input id="indexationFrequencyMonths" name="indexationFrequencyMonths" type="number" className="field" />
+            <input id="indexationFrequencyMonths" name="indexationFrequencyMonths" type="number" className="field" placeholder="3" />
           </div>
-          <input name="indexationType" placeholder="Índice (ICL, IPC...)" className="field" />
+          <IndexTypeSelect initialIndexTypes={indexTypes} />
         </fieldset>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-foreground">
+            Conceptos recurrentes <span className="font-normal text-muted">(el monto se carga mes a mes en cada liquidación)</span>
+          </p>
+          <ConceptsChecklist initialConcepts={extraConcepts} />
+        </div>
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="notes" className="text-sm font-medium text-foreground">

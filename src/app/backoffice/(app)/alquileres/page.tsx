@@ -49,8 +49,8 @@ export default async function AlquileresPage() {
                       {c.unit.address}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-muted">{c.tenant.fullName}</td>
-                  <td className="px-4 py-3 text-muted">{c.owner.fullName}</td>
+                  <td className="px-4 py-3 text-muted">{c.tenant.firstName} {c.tenant.lastName}</td>
+                  <td className="px-4 py-3 text-muted">{c.owner.firstName} {c.owner.lastName}</td>
                   <td className="px-4 py-3 text-foreground">
                     {c.currency} {c.rentAmount.toString()}
                   </td>

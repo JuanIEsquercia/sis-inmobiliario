@@ -100,7 +100,7 @@ model Listing {
 
   // Fase 2 (backoffice): un Listing puede estar bajo gestión (Unit) y/o
   // haber resuelto pedidos de demanda, sin que Listing dependa de ellos.
-  unit          Unit?
+  unit           Unit?
   matchedPedidos Pedido[]
 
   createdAt DateTime @default(now())
@@ -156,20 +156,21 @@ enum StaffRole {
 // trigger de Postgres (handle_new_user) cuando un admin da de alta el
 // login en el dashboard de Supabase.
 model Profile {
-  id        String    @id @db.Uuid
-  email     String    @unique
-  username  String    @unique
-  firstName String?
-  lastName  String?
-  role      StaffRole @default(AGENTE)
+  id          String    @id @db.Uuid
+  email       String    @unique
+  username    String    @unique
+  firstName   String?
+  lastName    String?
+  role        StaffRole @default(AGENTE)
   // Claves del catálogo en src/lib/permissions.ts. El rol carga un set
   // por defecto al crear el usuario, pero lo que se chequea en cada
   // accion es esto, no el rol.
-  permissions String[] @default([])
-  isActive    Boolean  @default(true)
+  permissions String[]  @default([])
+  isActive    Boolean   @default(true)
 
-  pedidosCreados   Pedido[]   @relation("PedidoCreadoPor")
-  contratosCreados Contract[] @relation("ContractCreadoPor")
+  pedidosCreados    Pedido[]           @relation("PedidoCreadoPor")
+  contratosCreados  Contract[]         @relation("ContractCreadoPor")
+  documentosSubidos ContractDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -236,11 +237,13 @@ model Unit {
 }
 
 model Owner {
-  id       Int     @id @default(autoincrement())
-  fullName String
-  email    String?
-  phone    String?
-  docId    String?
+  id        Int       @id @default(autoincrement())
+  firstName String
+  lastName  String
+  docId     String?
+  birthDate DateTime?
+  email     String?
+  phone     String?
 
   contracts Contract[]
 
@@ -249,16 +252,75 @@ model Owner {
 }
 
 model Tenant {
-  id       Int     @id @default(autoincrement())
-  fullName String
-  email    String?
-  phone    String?
-  docId    String?
+  id        Int       @id @default(autoincrement())
+  firstName String
+  lastName  String
+  docId     String
+  birthDate DateTime?
+  email     String?
+  phone     String?
 
   contracts Contract[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Uno o más por contrato — mismo criterio que Owner/Tenant hoy: se crea
+// nuevo por contrato, sin reutilización entre contratos todavía.
+model Guarantor {
+  id        Int     @id @default(autoincrement())
+  firstName String
+  lastName  String
+  docId     String?
+  email     String?
+  phone     String?
+
+  contractId Int
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// Catálogo de índices de actualización (ICL, CAC, IPC...). El admin
+// puede cargar nuevos desde el propio formulario de contrato.
+model IndexType {
+  id   Int     @id @default(autoincrement())
+  code String  @unique
+  name String?
+
+  contracts   Contract[]
+  indexations Indexation[]
+
+  createdAt DateTime @default(now())
+}
+
+// Catálogo de conceptos de liquidación (Alquiler, Expensas, Agua, Luz,
+// CSP, Mora...). "Alquiler" es isSystem: siempre existe, no se borra.
+model Concept {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  isSystem Boolean @default(false)
+
+  contractConcepts ContractConcept[]
+  paymentItems     PaymentItem[]
+
+  createdAt DateTime @default(now())
+}
+
+// Qué conceptos recurrentes tiene un contrato — sin monto: el monto se
+// carga liquidación por liquidación porque varía mes a mes (expensas,
+// agua...). "Alquiler" no pasa por acá, es implícito en cada Payment.
+model ContractConcept {
+  id Int @id @default(autoincrement())
+
+  contractId Int
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  conceptId Int
+  concept   Concept @relation(fields: [conceptId], references: [id])
+
+  @@unique([contractId, conceptId])
 }
 
 enum ContractStatus {
@@ -279,15 +341,19 @@ model Contract {
   tenantId Int
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  startDate DateTime
-  endDate   DateTime
+  startDate      DateTime
+  durationMonths Int
+  // Calculada (startDate + durationMonths) al crear/editar el contrato;
+  // se guarda igual para poder filtrar/ordenar por ella.
+  endDate        DateTime
 
   rentAmount Decimal        @db.Decimal(14, 2)
   currency   String
   status     ContractStatus @default(ACTIVO)
 
   indexationFrequencyMonths Int?
-  indexationType            String?
+  indexTypeId               Int?
+  indexType                 IndexType? @relation(fields: [indexTypeId], references: [id])
   lastIndexedAt             DateTime?
   nextIndexationDueAt       DateTime?
 
@@ -296,8 +362,11 @@ model Contract {
   createdById String  @db.Uuid
   createdBy   Profile @relation("ContractCreadoPor", fields: [createdById], references: [id])
 
+  guarantors  Guarantor[]
+  concepts    ContractConcept[]
   payments    Payment[]
   indexations Indexation[]
+  documents   ContractDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -312,8 +381,9 @@ enum PaymentStatus {
   ATRASADO
 }
 
-// Un registro por período: es a la vez el historial de pagos y, filtrado
-// por contrato, la liquidación.
+// Un registro por período: es la liquidación mensual. El monto total no
+// se guarda acá — se suma a partir de sus PaymentItem, para no tener un
+// total que se pueda desincronizar de las líneas reales.
 model Payment {
   id Int @id @default(autoincrement())
 
@@ -324,18 +394,37 @@ model Payment {
   periodYear  Int
   dueDate     DateTime
 
-  amount     Decimal       @db.Decimal(14, 2)
   currency   String
   status     PaymentStatus @default(PENDIENTE)
   paidAt     DateTime?
-  paidAmount Decimal?      @db.Decimal(14, 2)
+  paidAmount Decimal?      @db.Decimal(14, 2) // snapshot de la suma al momento de pagar
   notes      String?
+
+  items PaymentItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([contractId, periodYear, periodMonth])
   @@index([status])
+}
+
+// Una línea de la liquidación (Alquiler, Expensas, Agua...). El monto
+// nace en blanco salvo el de Alquiler — se completa liquidación por
+// liquidación porque varía mes a mes.
+model PaymentItem {
+  id Int @id @default(autoincrement())
+
+  paymentId Int
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  conceptId Int
+  concept   Concept @relation(fields: [conceptId], references: [id])
+
+  amount Decimal? @db.Decimal(14, 2)
+  notes  String?
+
+  @@index([paymentId])
 }
 
 // Historial de actualizaciones de precio del contrato.
@@ -348,8 +437,36 @@ model Indexation {
   appliedAt      DateTime @default(now())
   previousAmount Decimal  @db.Decimal(14, 2)
   newAmount      Decimal  @db.Decimal(14, 2)
-  index          String?
-  notes          String?
+
+  indexTypeId Int?
+  indexType   IndexType? @relation(fields: [indexTypeId], references: [id])
+  notes       String?
+
+  createdAt DateTime @default(now())
+}
+
+enum DocumentType {
+  CONTRATO
+  DNI_INQUILINO
+  DNI_GARANTE
+  OTRO
+}
+
+// Archivos en Supabase Storage (bucket privado "contract-documents");
+// acá solo se guarda la referencia. Se suben después de crear el
+// contrato, no forman parte de esa transacción.
+model ContractDocument {
+  id Int @id @default(autoincrement())
+
+  contractId Int
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  type        DocumentType
+  fileName    String
+  storagePath String
+
+  uploadedById String  @db.Uuid
+  uploadedBy   Profile @relation(fields: [uploadedById], references: [id])
 
   createdAt DateTime @default(now())
 }

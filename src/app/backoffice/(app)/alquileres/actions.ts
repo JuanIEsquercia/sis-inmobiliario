@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
-import { buildPaymentSchedule } from "@/lib/alquileres";
+import { addMonths, buildPaymentSchedule, computeEndDate } from "@/lib/alquileres";
+import { uploadContractDocument } from "@/lib/supabase/storage";
 import {
   optionalInt,
   optionalStr,
@@ -13,27 +14,58 @@ import {
   requiredDecimal,
   requiredStr,
 } from "@/lib/form-utils";
+import type { DocumentType } from "@/generated/prisma/client";
 
-function addMonths(date: Date, months: number): Date {
-  const d = new Date(date);
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return d;
+interface GuarantorInput {
+  firstName: string;
+  lastName: string;
+  docId: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+function parseGuarantors(formData: FormData): GuarantorInput[] {
+  const indices = new Set<number>();
+  for (const key of formData.keys()) {
+    const match = key.match(/^guarantors\.(\d+)\./);
+    if (match) indices.add(Number(match[1]));
+  }
+
+  return [...indices]
+    .sort((a, b) => a - b)
+    .map((i) => ({
+      firstName: requiredStr(formData.get(`guarantors.${i}.firstName`), `Nombre del garante ${i + 1}`),
+      lastName: requiredStr(formData.get(`guarantors.${i}.lastName`), `Apellido del garante ${i + 1}`),
+      docId: optionalStr(formData.get(`guarantors.${i}.docId`)),
+      phone: optionalStr(formData.get(`guarantors.${i}.phone`)),
+      email: optionalStr(formData.get(`guarantors.${i}.email`)),
+    }));
 }
 
 export async function createContract(formData: FormData) {
   const profile = await requirePermission("alquileres.crear");
 
   const startDate = requiredDate(formData.get("startDate"), "Fecha de inicio");
-  const endDate = requiredDate(formData.get("endDate"), "Fecha de fin");
+  const durationMonths = optionalInt(formData.get("durationMonths"));
+  if (!durationMonths || durationMonths <= 0) throw new Error("La duración debe ser un número de meses mayor a 0");
+  const endDate = computeEndDate(startDate, durationMonths);
+
   const rentAmount = requiredDecimal(formData.get("rentAmount"), "Monto del alquiler");
   const currency = requiredStr(formData.get("currency"), "Moneda");
   const indexationFrequencyMonths = optionalInt(formData.get("indexationFrequencyMonths"));
+  const indexTypeId = optionalInt(formData.get("indexTypeId"));
+  const conceptIds = formData
+    .getAll("concepts")
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n));
+  const guarantors = parseGuarantors(formData);
 
   const contract = await withRetry(() =>
     prisma.$transaction(async (tx) => {
       const owner = await tx.owner.create({
         data: {
-          fullName: requiredStr(formData.get("ownerName"), "Nombre del propietario"),
+          firstName: requiredStr(formData.get("ownerFirstName"), "Nombre del propietario"),
+          lastName: requiredStr(formData.get("ownerLastName"), "Apellido del propietario"),
           email: optionalStr(formData.get("ownerEmail")),
           phone: optionalStr(formData.get("ownerPhone")),
           docId: optionalStr(formData.get("ownerDoc")),
@@ -42,10 +74,15 @@ export async function createContract(formData: FormData) {
 
       const tenant = await tx.tenant.create({
         data: {
-          fullName: requiredStr(formData.get("tenantName"), "Nombre del inquilino"),
+          firstName: requiredStr(formData.get("tenantFirstName"), "Nombre del inquilino"),
+          lastName: requiredStr(formData.get("tenantLastName"), "Apellido del inquilino"),
+          docId: requiredStr(formData.get("tenantDoc"), "DNI del inquilino"),
+          birthDate: (() => {
+            const s = optionalStr(formData.get("tenantBirthDate"));
+            return s ? new Date(s) : null;
+          })(),
           email: optionalStr(formData.get("tenantEmail")),
           phone: optionalStr(formData.get("tenantPhone")),
-          docId: optionalStr(formData.get("tenantDoc")),
         },
       });
 
@@ -63,52 +100,166 @@ export async function createContract(formData: FormData) {
           ownerId: owner.id,
           tenantId: tenant.id,
           startDate,
+          durationMonths,
           endDate,
           rentAmount,
           currency,
           indexationFrequencyMonths,
-          indexationType: optionalStr(formData.get("indexationType")),
-          nextIndexationDueAt: indexationFrequencyMonths
-            ? addMonths(startDate, indexationFrequencyMonths)
-            : null,
+          indexTypeId,
+          nextIndexationDueAt: indexationFrequencyMonths ? addMonths(startDate, indexationFrequencyMonths) : null,
           notes: optionalStr(formData.get("notes")),
           createdById: profile.id,
         },
       });
 
-      const schedule = buildPaymentSchedule(startDate, endDate, rentAmount, currency);
+      if (guarantors.length > 0) {
+        await tx.guarantor.createMany({
+          data: guarantors.map((g) => ({ ...g, contractId: createdContract.id })),
+        });
+      }
+
+      if (conceptIds.length > 0) {
+        await tx.contractConcept.createMany({
+          data: conceptIds.map((conceptId) => ({ contractId: createdContract.id, conceptId })),
+        });
+      }
+
+      const alquilerConcept = await tx.concept.findFirstOrThrow({ where: { isSystem: true } });
+      const schedule = buildPaymentSchedule(startDate, durationMonths);
+
+      // Todo en bloque (createMany + un findMany para recuperar los ids)
+      // en vez de una fila a la vez: con contratos largos (24 meses x
+      // varios conceptos) ir fila por fila en una sola transacción supera
+      // el timeout dada la latencia que tiene esta conexión.
       await tx.payment.createMany({
-        data: schedule.map((entry) => ({ ...entry, contractId: createdContract.id })),
+        data: schedule.map((period) => ({ contractId: createdContract.id, ...period, currency })),
       });
 
+      const createdPayments = await tx.payment.findMany({
+        where: { contractId: createdContract.id },
+        select: { id: true, periodYear: true, periodMonth: true },
+      });
+      const paymentIdByPeriod = new Map(
+        createdPayments.map((p) => [`${p.periodYear}-${p.periodMonth}`, p.id])
+      );
+
+      const itemsData: { paymentId: number; conceptId: number; amount: string | null }[] = [];
+      for (const period of schedule) {
+        const paymentId = paymentIdByPeriod.get(`${period.periodYear}-${period.periodMonth}`)!;
+        itemsData.push({ paymentId, conceptId: alquilerConcept.id, amount: rentAmount });
+        for (const conceptId of conceptIds) {
+          itemsData.push({ paymentId, conceptId, amount: null });
+        }
+      }
+      await tx.paymentItem.createMany({ data: itemsData });
+
       return createdContract;
-    })
+    },
+    { timeout: 30000, maxWait: 15000 }
+    )
   );
 
   revalidatePath("/backoffice/alquileres");
   redirect(`/backoffice/alquileres/${contract.id}`);
 }
 
-export async function registrarPago(paymentId: number, contractId: number) {
-  await requirePermission("alquileres.pagos");
+export async function crearConcepto(name: string) {
+  await requirePermission("alquileres.crear");
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("El nombre del concepto no puede estar vacío");
 
-  const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
+  const concept = await withRetry(() =>
+    prisma.concept.upsert({ where: { name: trimmed }, create: { name: trimmed }, update: {} })
+  );
+  revalidatePath("/backoffice/alquileres/nuevo");
+  return concept;
+}
+
+export async function crearIndexType(code: string) {
+  await requirePermission("alquileres.crear");
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) throw new Error("El código del índice no puede estar vacío");
+
+  const indexType = await withRetry(() =>
+    prisma.indexType.upsert({ where: { code: trimmed }, create: { code: trimmed }, update: {} })
+  );
+  revalidatePath("/backoffice/alquileres/nuevo");
+  return indexType;
+}
+
+export async function subirDocumento(contractId: number, formData: FormData) {
+  const profile = await requirePermission("alquileres.crear");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Elegí un archivo PDF");
+  const type = requiredStr(formData.get("type"), "Tipo de documento") as DocumentType;
+
+  const { storagePath } = await uploadContractDocument(contractId, file);
 
   await withRetry(() =>
-    prisma.payment.update({
-      where: { id: paymentId },
-      data: { status: "PAGADO", paidAt: new Date(), paidAmount: payment.amount },
+    prisma.contractDocument.create({
+      data: { contractId, type, fileName: file.name, storagePath, uploadedById: profile.id },
     })
   );
 
   revalidatePath(`/backoffice/alquileres/${contractId}`);
 }
 
+export async function guardarLiquidacion(paymentId: number, formData: FormData) {
+  await requirePermission("alquileres.pagos");
+
+  const itemIds = formData
+    .getAll("itemId")
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n));
+
+  await withRetry(() =>
+    prisma.$transaction(
+      itemIds.map((itemId) =>
+        prisma.paymentItem.update({
+          where: { id: itemId },
+          data: {
+            amount: (() => {
+              const raw = formData.get(`amount.${itemId}`);
+              const s = typeof raw === "string" ? raw.trim() : "";
+              return s.length > 0 ? s : null;
+            })(),
+            notes: optionalStr(formData.get(`notes.${itemId}`)),
+          },
+        })
+      )
+    )
+  );
+
+  const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
+  revalidatePath(`/backoffice/alquileres/${payment.contractId}/liquidaciones/${paymentId}`);
+}
+
+export async function marcarLiquidacionPagada(paymentId: number) {
+  await requirePermission("alquileres.pagos");
+
+  const payment = await withRetry(() =>
+    prisma.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { items: true } })
+  );
+
+  const total = payment.items.reduce((sum, item) => sum + (item.amount ? Number(item.amount) : 0), 0);
+
+  await withRetry(() =>
+    prisma.payment.update({
+      where: { id: paymentId },
+      data: { status: "PAGADO", paidAt: new Date(), paidAmount: total },
+    })
+  );
+
+  revalidatePath(`/backoffice/alquileres/${payment.contractId}/liquidaciones/${paymentId}`);
+  revalidatePath(`/backoffice/alquileres/${payment.contractId}`);
+}
+
 export async function aplicarIndexacion(contractId: number, formData: FormData) {
   await requirePermission("alquileres.indexacion");
 
   const newAmount = requiredDecimal(formData.get("newAmount"), "Nuevo monto");
-  const index = optionalStr(formData.get("index"));
+  const indexTypeId = optionalInt(formData.get("indexTypeId"));
   const notes = optionalStr(formData.get("notes"));
 
   await withRetry(() =>
@@ -116,13 +267,7 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
       const contract = await tx.contract.findUniqueOrThrow({ where: { id: contractId } });
 
       await tx.indexation.create({
-        data: {
-          contractId,
-          previousAmount: contract.rentAmount,
-          newAmount,
-          index,
-          notes,
-        },
+        data: { contractId, previousAmount: contract.rentAmount, newAmount, indexTypeId, notes },
       });
 
       const now = new Date();
@@ -135,6 +280,23 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
             ? addMonths(now, contract.indexationFrequencyMonths)
             : null,
         },
+      });
+
+      const alquilerConcept = await tx.concept.findFirstOrThrow({ where: { isSystem: true } });
+
+      // Actualiza el monto de Alquiler solo en las liquidaciones futuras
+      // y todavia pendientes — no toca lo ya pagado ni lo vencido.
+      const futurePendingPayments = await tx.payment.findMany({
+        where: { contractId, status: "PENDIENTE", dueDate: { gt: now } },
+        select: { id: true },
+      });
+
+      await tx.paymentItem.updateMany({
+        where: {
+          conceptId: alquilerConcept.id,
+          paymentId: { in: futurePendingPayments.map((p) => p.id) },
+        },
+        data: { amount: newAmount },
       });
     })
   );
