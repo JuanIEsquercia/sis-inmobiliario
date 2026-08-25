@@ -1,5 +1,6 @@
 import { requirePermission } from "@/lib/auth";
 import { getConcepts, getIndexTypes } from "@/lib/alquileres";
+import { PROPERTY_TYPES } from "@/lib/property-types";
 import { GuarantorFields } from "@/components/backoffice/GuarantorFields";
 import { ConceptsChecklist } from "@/components/backoffice/ConceptsChecklist";
 import { IndexTypeSelect } from "@/components/backoffice/IndexTypeSelect";
@@ -20,7 +21,14 @@ export default async function NuevoContratoPage() {
           <input name="propertyCode" placeholder="Código de propiedad (Adinco)*" required className="field" />
           <input name="unitAddress" placeholder="Dirección*" required className="field sm:col-span-2" />
           <input name="unitCity" placeholder="Ciudad" className="field" />
-          <input name="unitPropertyType" placeholder="Tipo (Departamento, Casa...)" className="field" />
+          <select name="unitPropertyType" defaultValue="" className="field">
+            <option value="">Tipo</option>
+            {PROPERTY_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
         </fieldset>
 
         <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-3">

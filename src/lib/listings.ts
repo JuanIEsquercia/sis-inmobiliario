@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
+import { PROPERTY_TYPES } from "@/lib/property-types";
 import type { Prisma } from "@/generated/prisma/client";
 
 const PAGE_SIZE = 12;
@@ -106,25 +107,20 @@ export async function getListingById(id: number) {
 }
 
 export async function getFilterOptions() {
-  const [cities, propertyTypes] = await withRetry(() =>
-    Promise.all([
-      prisma.listing.findMany({
-        where: { isActive: true, city: { not: null } },
-        select: { city: true },
-        distinct: ["city"],
-        orderBy: { city: "asc" },
-      }),
-      prisma.listing.findMany({
-        where: { isActive: true },
-        select: { propertyType: true },
-        distinct: ["propertyType"],
-        orderBy: { propertyType: "asc" },
-      }),
-    ])
+  const cities = await withRetry(() =>
+    prisma.listing.findMany({
+      where: { isActive: true, city: { not: null } },
+      select: { city: true },
+      distinct: ["city"],
+      orderBy: { city: "asc" },
+    })
   );
 
   return {
     cities: cities.map((c) => c.city).filter((c): c is string => !!c),
-    propertyTypes: propertyTypes.map((p) => p.propertyType),
+    // Lista fija (categorías del feed de Adinco), no derivada de lo que
+    // haya publicado actualmente — así el filtro no "desaparece"
+    // opciones cuando no hay stock de ese tipo en un momento dado.
+    propertyTypes: PROPERTY_TYPES as unknown as string[],
   };
 }

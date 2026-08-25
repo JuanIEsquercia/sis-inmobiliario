@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { PROPERTY_TYPES } from "@/lib/property-types";
 import { createPedido } from "../actions";
 
 export default async function NuevoPedidoPage() {
@@ -21,7 +22,14 @@ export default async function NuevoPedidoPage() {
             <option value="Alquiler">Alquiler</option>
             <option value="Venta">Venta</option>
           </select>
-          <input name="propertyType" placeholder="Tipo (Departamento, Casa...)" className="field" />
+          <select name="propertyType" defaultValue="" className="field">
+            <option value="">Tipo (cualquiera)</option>
+            {PROPERTY_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
           <input name="zona" placeholder="Zona / barrio" className="field" />
           <input name="precioMin" type="number" placeholder="Precio mín." className="field" />
           <input name="precioMax" type="number" placeholder="Precio máx." className="field" />
