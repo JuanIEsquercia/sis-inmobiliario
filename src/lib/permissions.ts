@@ -79,6 +79,11 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       { key: "usuarios.gestionar", label: "Crear y editar usuarios" },
     ],
   },
+  {
+    key: "sitio",
+    label: "Sitio público",
+    children: [{ key: "sitio.gestionar", label: "Administrar logos de marcas del sitio público" }],
+  },
 ];
 
 export const ALL_PERMISSION_KEYS: string[] = PERMISSION_TREE.flatMap((g) =>

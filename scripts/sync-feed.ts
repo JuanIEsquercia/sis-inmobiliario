@@ -17,7 +17,7 @@ async function main() {
   }
 
   console.log(
-    `Sync completo en ${result.durationMs}ms — creados: ${result.created}, actualizados: ${result.updated}, dados de baja: ${result.delisted}`
+    `Sync completo en ${result.durationMs}ms — creados: ${result.created}, actualizados: ${result.updated}, sin cambios: ${result.unchanged}, dados de baja: ${result.delisted}`
   );
 
   if (result.parseErrors.length > 0) {

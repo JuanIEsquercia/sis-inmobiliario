@@ -1,43 +1,45 @@
 import Link from "next/link";
-import { FilterBar } from "@/components/FilterBar";
+import { Hero } from "@/components/Hero";
 import { PropertyCard } from "@/components/PropertyCard";
+import { ServiciosSection } from "@/components/ServiciosSection";
+import { PartnerLogosCarousel } from "@/components/PartnerLogosCarousel";
 import { getFeaturedListings, getFilterOptions } from "@/lib/listings";
+import { getActivePartnerLogos } from "@/lib/site";
 
 export default async function HomePage() {
-  const [featured, filterOptions] = await Promise.all([getFeaturedListings(), getFilterOptions()]);
+  const [featured, filterOptions, partnerLogos] = await Promise.all([
+    getFeaturedListings(),
+    getFilterOptions(),
+    getActivePartnerLogos(),
+  ]);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <section className="mb-10">
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">
-          Encontrá tu próxima propiedad en Corrientes
-        </h1>
-        <p className="mb-6 text-muted">Casas, departamentos, campos y terrenos en venta y alquiler.</p>
-        <FilterBar
-          action="/propiedades"
-          cities={filterOptions.cities}
-          propertyTypes={filterOptions.propertyTypes}
-          defaults={{}}
-        />
-      </section>
+    <div>
+      <Hero cities={filterOptions.cities} propertyTypes={filterOptions.propertyTypes} />
 
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Publicadas recientemente</h2>
-          <Link href="/propiedades" className="text-sm text-accent hover:underline">
-            Ver todas
-          </Link>
-        </div>
-        {featured.length === 0 ? (
-          <p className="text-sm text-muted">Todavía no hay propiedades sincronizadas.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {featured.map((listing) => (
-              <PropertyCard key={listing.id} listing={listing} />
-            ))}
+      <div className="mx-auto max-w-6xl px-6 py-16 flex flex-col gap-16">
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">Publicadas recientemente</h2>
+            <Link href="/propiedades" className="text-sm text-accent hover:underline">
+              Ver todas
+            </Link>
           </div>
-        )}
-      </section>
+          {featured.length === 0 ? (
+            <p className="text-sm text-muted">Todavía no hay propiedades sincronizadas.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {featured.map((listing) => (
+                <PropertyCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <ServiciosSection />
+
+        <PartnerLogosCarousel logos={partnerLogos} />
+      </div>
     </div>
   );
 }

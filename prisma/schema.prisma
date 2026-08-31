@@ -109,7 +109,12 @@ model Listing {
   @@index([operationType])
   @@index([propertyType])
   @@index([city])
-  @@index([isActive])
+  // Compuesto en vez de un @@index([isActive]) suelto: el listado
+  // público siempre filtra isActive Y ordena por sourceUpdatedAt, así
+  // que un solo índice cubre las dos cosas sin duplicar mantenimiento.
+  // Sigue sirviendo para consultas que solo filtran por isActive, al
+  // ser la primera columna.
+  @@index([isActive, sourceUpdatedAt])
 }
 
 model ListingImage {
@@ -168,6 +173,16 @@ model Profile {
   permissions String[]  @default([])
   isActive    Boolean   @default(true)
 
+  // Ficha pública opcional — para la página "Nuestro equipo" del sitio.
+  // No se publica sola: solo aparece si showOnPublicSite está en true Y
+  // tiene foto cargada (ver getPublicTeam). El teléfono es el de
+  // contacto público, no un dato interno.
+  phone            String?
+  bio              String? @db.Text
+  photoUrl         String?
+  photoStoragePath String?
+  showOnPublicSite Boolean @default(false)
+
   pedidosCreados      Pedido[]           @relation("PedidoCreadoPor")
   contratosCreados    Contract[]         @relation("ContractCreadoPor")
   contractsAsVendedor Contract[]         @relation("ContractVendedor")
@@ -190,6 +205,7 @@ model Profile {
   agentDebtPaymentsRecibidos  AgentDebtPayment[]     @relation("AgentDebtPaymentAgente")
   agentDebtPaymentsCreados    AgentDebtPayment[]     @relation("AgentDebtPaymentCreadoPor")
   expensesCreadas             Expense[]              @relation("ExpenseCreadoPor")
+  partnerLogosCreados         PartnerLogo[]          @relation("PartnerLogoCreadoPor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -586,6 +602,8 @@ model PaymentPartialPayment {
   notes  String?
 
   createdAt DateTime @default(now())
+
+  @@index([paymentId])
 }
 
 // Una línea de la liquidación (Alquiler, Expensas, Agua...). El monto
@@ -622,6 +640,8 @@ model Indexation {
   notes       String?
 
   createdAt DateTime @default(now())
+
+  @@index([contractId])
 }
 
 enum DocumentType {
@@ -648,6 +668,8 @@ model ContractDocument {
   uploadedBy   Profile @relation(fields: [uploadedById], references: [id])
 
   createdAt DateTime @default(now())
+
+  @@index([contractId])
 }
 
 enum CashMovementSource {
@@ -1079,4 +1101,29 @@ model ProjectionSettings {
   indexationCorrectionMaxPercent Decimal @default(10) @db.Decimal(5, 2)
 
   updatedAt DateTime @updatedAt
+}
+
+// Logos de marcas/servicios de terceros (Adinco, Argenprop...) para el
+// carrusel de confianza del sitio público — administrado desde el
+// backoffice, no viene del feed. El archivo vive en un bucket PÚBLICO
+// de Supabase Storage (a diferencia de "contract-documents", que es
+// privado): son imágenes de marketing, no hace falta URL firmada.
+model PartnerLogo {
+  id Int @id @default(autoincrement())
+
+  name        String // solo para referencia en el admin (alt del logo)
+  imageUrl    String // URL pública ya resuelta, lista para usar en <img>
+  storagePath String // para poder borrar el archivo del bucket
+  linkUrl     String?
+
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("PartnerLogoCreadoPor", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
 }

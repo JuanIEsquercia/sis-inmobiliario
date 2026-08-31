@@ -11,6 +11,7 @@ interface PageProps {
     precioMin?: string;
     precioMax?: string;
     ambientes?: string;
+    aptoCredito?: string;
     page?: string;
   }>;
 }
@@ -29,23 +30,30 @@ function buildPageHref(sp: Awaited<PageProps["searchParams"]>, page: number): st
   if (sp.precioMin) params.set("precioMin", sp.precioMin);
   if (sp.precioMax) params.set("precioMax", sp.precioMax);
   if (sp.ambientes) params.set("ambientes", sp.ambientes);
+  if (sp.aptoCredito) params.set("aptoCredito", sp.aptoCredito);
   params.set("page", String(page));
   return `/propiedades?${params.toString()}`;
 }
 
 export default async function PropiedadesPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const filterOptions = await getFilterOptions();
 
-  const { items, total, page, totalPages } = await getListings({
-    operationType: sp.operacion,
-    propertyType: sp.tipo,
-    city: sp.ciudad,
-    priceMin: toNumber(sp.precioMin),
-    priceMax: toNumber(sp.precioMax),
-    rooms: toNumber(sp.ambientes),
-    page: toNumber(sp.page),
-  });
+  // getFilterOptions (para las opciones del combo) no depende del
+  // resultado de getListings ni viceversa — misma idea que en la
+  // auditoría de rendimiento: independientes, se piden juntas.
+  const [filterOptions, { items, total, page, totalPages }] = await Promise.all([
+    getFilterOptions(),
+    getListings({
+      operationType: sp.operacion,
+      propertyType: sp.tipo,
+      city: sp.ciudad,
+      priceMin: toNumber(sp.precioMin),
+      priceMax: toNumber(sp.precioMax),
+      rooms: toNumber(sp.ambientes),
+      aptoCredito: sp.aptoCredito === "true" ? true : undefined,
+      page: toNumber(sp.page),
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">

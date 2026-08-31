@@ -43,3 +43,72 @@ export async function getSignedDocumentUrl(storagePath: string, expiresInSeconds
   if (error || !data) return null;
   return data.signedUrl;
 }
+
+// Buckets PÚBLICOS aparte del de documentos — son imágenes de marketing
+// (logos de marcas, fotos de personal para el sitio), no hace falta URL
+// firmada ni ocultarlas: al contrario, tienen que poder cachearse en el
+// navegador como cualquier <img> normal.
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
+async function ensurePublicBucketExists(admin: ReturnType<typeof createAdminClient>, bucket: string) {
+  const { data: existing } = await admin.storage.getBucket(bucket);
+  if (existing) return;
+  const { error } = await admin.storage.createBucket(bucket, { public: true });
+  // Puede fallar por una carrera si dos subidas llegan al mismo tiempo y
+  // ambas ven "no existe" — no es un problema real, el bucket ya está.
+  if (error && !error.message.toLowerCase().includes("already exists")) {
+    throw new Error(`No se pudo preparar el almacenamiento de imágenes: ${error.message}`);
+  }
+}
+
+async function uploadPublicImage(
+  bucket: string,
+  maxSize: number,
+  file: File
+): Promise<{ storagePath: string; imageUrl: string }> {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    throw new Error("Solo se aceptan imágenes PNG, JPG, WEBP o SVG");
+  }
+  if (file.size > maxSize) {
+    throw new Error(`El archivo no puede superar los ${Math.round(maxSize / (1024 * 1024))}MB`);
+  }
+
+  const admin = createAdminClient();
+  await ensurePublicBucketExists(admin, bucket);
+
+  const storagePath = `${crypto.randomUUID()}-${file.name}`;
+  const { error } = await admin.storage.from(bucket).upload(storagePath, file, {
+    contentType: file.type,
+  });
+  if (error) throw new Error(`No se pudo subir la imagen: ${error.message}`);
+
+  const { data } = admin.storage.from(bucket).getPublicUrl(storagePath);
+  return { storagePath, imageUrl: data.publicUrl };
+}
+
+async function deletePublicImage(bucket: string, storagePath: string): Promise<void> {
+  const admin = createAdminClient();
+  await admin.storage.from(bucket).remove([storagePath]);
+}
+
+const LOGOS_BUCKET = "partner-logos";
+const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB — son logos, no fotos de propiedades
+
+export async function uploadPartnerLogo(file: File) {
+  return uploadPublicImage(LOGOS_BUCKET, MAX_LOGO_SIZE, file);
+}
+
+export async function deletePartnerLogo(storagePath: string) {
+  return deletePublicImage(LOGOS_BUCKET, storagePath);
+}
+
+const STAFF_PHOTOS_BUCKET = "staff-photos";
+const MAX_STAFF_PHOTO_SIZE = 4 * 1024 * 1024; // 4MB
+
+export async function uploadStaffPhoto(file: File) {
+  return uploadPublicImage(STAFF_PHOTOS_BUCKET, MAX_STAFF_PHOTO_SIZE, file);
+}
+
+export async function deleteStaffPhoto(storagePath: string) {
+  return deletePublicImage(STAFF_PHOTOS_BUCKET, storagePath);
+}

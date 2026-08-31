@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +10,12 @@ import type { Profile } from "@/generated/prisma/client";
 // helpers asumen que corren dentro de /backoffice y solo resuelven el
 // Profile (rol) para las rutas/acciones que lo necesitan.
 
-export async function getCurrentProfile(): Promise<Profile | null> {
+// El layout de /backoffice ya llama a requireProfile, y casi toda página
+// hija vuelve a llamar a requirePermission — sin memoizar, cada una
+// repetía la llamada a Supabase Auth + la consulta a Profile en el mismo
+// render. cache() de React deduplica por request: sigue siendo una sola
+// llamada real aunque se invoque varias veces layout adentro.
+export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -25,7 +31,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   // cuando el catálogo en permissions.ts crece; el array guardado en la
   // fila solo importa para AGENTE, donde sí es granular por usuario.
   return profile.role === "ADMIN" ? { ...profile, permissions: ALL_PERMISSION_KEYS } : profile;
-}
+});
 
 export async function requireProfile(): Promise<Profile> {
   const profile = await getCurrentProfile();

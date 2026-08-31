@@ -11,6 +11,7 @@ interface FilterBarProps {
     precioMin?: string;
     precioMax?: string;
     ambientes?: string;
+    aptoCredito?: string;
   };
 }
 
@@ -19,7 +20,7 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
     <form
       method="get"
       action={action}
-      className="grid grid-cols-1 gap-4 rounded-2xl border border-border/60 bg-surface p-6 shadow-premium sm:grid-cols-2 lg:grid-cols-7 items-end"
+      className="grid grid-cols-1 gap-4 rounded-2xl border border-border/60 bg-surface p-6 shadow-premium sm:grid-cols-2 lg:grid-cols-8 items-end"
     >
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Operación</label>
@@ -85,6 +86,20 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
           defaultValue={defaults.ambientes ?? ""}
           className="field w-full"
         />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted px-1">Financiación</label>
+        <label className="field flex w-full cursor-pointer items-center gap-2 text-foreground">
+          <input
+            type="checkbox"
+            name="aptoCredito"
+            value="true"
+            defaultChecked={defaults.aptoCredito === "true"}
+            className="h-4 w-4 cursor-pointer accent-accent"
+          />
+          Apto crédito
+        </label>
       </div>
 
       <button

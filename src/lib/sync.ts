@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { parseFeed } from "@/lib/feed";
+import { parseFeed, type NormalizedAgency } from "@/lib/feed";
 import { withRetry } from "@/lib/db-retry";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -7,10 +7,20 @@ export interface SyncResult {
   skippedUnchanged: boolean;
   created: number;
   updated: number;
+  // Avisos del feed cuya fecha de actualización no cambió desde el
+  // último sync — se saltean sin tocar la base (ver comentario más
+  // abajo). Antes se reprocesaban igual que los que sí cambiaron.
+  unchanged: number;
   delisted: number;
   parseErrors: { index: number; reason: string }[];
   durationMs: number;
 }
+
+// Cuántos avisos se procesan en paralelo — uno por uno tardaba minutos
+// de más con centenares de avisos (cada uno son varios viajes de ida y
+// vuelta a la base, en fila); todos a la vez arriesga agotar el pool de
+// conexiones de Supabase. Este número es conservador a propósito.
+const CONCURRENCY = 10;
 
 export async function runSync(
   options: { force?: boolean; onProgress?: (done: number, total: number) => void } = {}
@@ -25,18 +35,19 @@ export async function runSync(
   const etag = head.headers.get("etag");
 
   const state = await withRetry(() => prisma.syncState.findUnique({ where: { id: 1 } }));
-  const unchanged =
+  const feedUnchanged =
     !options.force &&
     !!state &&
     lastModified !== null &&
     state.lastModified === lastModified &&
     state.etag === etag;
 
-  if (unchanged) {
+  if (feedUnchanged) {
     return {
       skippedUnchanged: true,
       created: 0,
       updated: 0,
+      unchanged: 0,
       delisted: 0,
       parseErrors: [],
       durationMs: Date.now() - start,
@@ -48,55 +59,70 @@ export async function runSync(
   const xml = await res.text();
 
   const { listings, skipped } = parseFeed(xml);
+  const total = listings.length;
+  const seenExternalIds = listings.map((l) => l.externalId);
+
+  // Trae de una sola vez lo que ya existe (id + fecha de actualización
+  // del feed) para poder saltear, sin tocar la base, los avisos que no
+  // cambiaron desde el último sync — antes se reprocesaban todos por
+  // igual (borrar + recrear fotos/videos) aunque el feed entero solo
+  // hubiera cambiado por un aviso.
+  const existingListings = await withRetry(() =>
+    prisma.listing.findMany({
+      where: { externalId: { in: seenExternalIds } },
+      select: { externalId: true, sourceUpdatedAt: true },
+    })
+  );
+  const existingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
+
+  // Las agencias se resuelven todas de una vez ANTES del loop principal
+  // (son pocas y se repiten entre avisos) — así el loop de abajo no
+  // upsertea la misma agencia una y otra vez, y se puede paralelizar sin
+  // que dos avisos con la misma agencia nueva compitan por crearla al
+  // mismo tiempo.
+  const uniqueAgencies = new Map<string, NormalizedAgency>();
+  for (const listing of listings) {
+    if (listing.agency) uniqueAgencies.set(listing.agency.externalId, listing.agency);
+  }
+  const agencyIdByExternalId = new Map<string, number>();
+  for (const agencyData of uniqueAgencies.values()) {
+    const agency = await withRetry(() =>
+      prisma.agency.upsert({
+        where: { externalId: agencyData.externalId },
+        create: { ...agencyData },
+        update: {
+          name: agencyData.name,
+          logoUrl: agencyData.logoUrl,
+          officeAddress: agencyData.officeAddress,
+          officeZipCode: agencyData.officeZipCode,
+          phones: agencyData.phones,
+        },
+      })
+    );
+    agencyIdByExternalId.set(agencyData.externalId, agency.id);
+  }
 
   let created = 0;
   let updated = 0;
-  const seenExternalIds = listings.map((l) => l.externalId);
-  const agencyIdByExternalId = new Map<string, number>();
-
-  const existingIds = new Set(
-    (
-      await withRetry(() =>
-        prisma.listing.findMany({
-          where: { externalId: { in: seenExternalIds } },
-          select: { externalId: true },
-        })
-      )
-    ).map((l) => l.externalId)
-  );
-
+  let unchanged = 0;
   let done = 0;
-  for (const listing of listings) {
-    let agencyId: number | undefined;
-    const agencyData = listing.agency;
-    if (agencyData) {
-      const cachedId = agencyIdByExternalId.get(agencyData.externalId);
-      if (cachedId) {
-        agencyId = cachedId;
-      } else {
-        const agency = await withRetry(() =>
-          prisma.agency.upsert({
-            where: { externalId: agencyData.externalId },
-            create: { ...agencyData },
-            update: {
-              name: agencyData.name,
-              logoUrl: agencyData.logoUrl,
-              officeAddress: agencyData.officeAddress,
-              officeZipCode: agencyData.officeZipCode,
-              phones: agencyData.phones,
-            },
-          })
-        );
-        agencyIdByExternalId.set(agencyData.externalId, agency.id);
-        agencyId = agency.id;
-      }
+
+  async function processListing(listing: (typeof listings)[number]) {
+    const existing = existingByExternalId.get(listing.externalId);
+
+    if (!options.force && existing && existing.sourceUpdatedAt?.getTime() === listing.sourceUpdatedAt?.getTime()) {
+      unchanged++;
+      done++;
+      options.onProgress?.(done, total);
+      return;
     }
 
+    const agencyId = listing.agency ? agencyIdByExternalId.get(listing.agency.externalId) : undefined;
     const { images, videos, agency: _agency, rawData, ...rest } = listing;
     void _agency;
     const data = { ...rest, rawData: rawData as Prisma.InputJsonValue };
 
-    if (existingIds.has(listing.externalId)) updated++;
+    if (existing) updated++;
     else created++;
 
     await withRetry(() =>
@@ -127,7 +153,14 @@ export async function runSync(
     );
 
     done++;
-    options.onProgress?.(done, listings.length);
+    options.onProgress?.(done, total);
+  }
+
+  // Tandas de a CONCURRENCY en paralelo, no todo junto — ver comentario
+  // en la constante.
+  for (let i = 0; i < listings.length; i += CONCURRENCY) {
+    const batch = listings.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(processListing));
   }
 
   const { count: delisted } = await withRetry(() =>
@@ -149,6 +182,7 @@ export async function runSync(
     skippedUnchanged: false,
     created,
     updated,
+    unchanged,
     delisted,
     parseErrors: skipped,
     durationMs: Date.now() - start,

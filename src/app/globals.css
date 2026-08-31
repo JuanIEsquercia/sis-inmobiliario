@@ -92,5 +92,29 @@ body {
     color: var(--muted);
     opacity: 0.7;
   }
+
+  /* Máscara con degradé en los bordes para que los logos del carrusel
+     no aparezcan/desaparezcan de golpe al entrar y salir. */
+  .marquee-mask {
+    mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  }
+  .marquee-track {
+    animation: marquee 30s linear infinite;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* La lista está duplicada (ver PartnerLogosCarousel) — correr el
+       50% del ancho total mueve exactamente una copia completa. */
+    transform: translateX(-50%);
+  }
 }
 

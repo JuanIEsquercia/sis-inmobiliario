@@ -12,6 +12,7 @@ export interface ListingFilters {
   priceMin?: number;
   priceMax?: number;
   rooms?: number;
+  aptoCredito?: boolean;
   page?: number;
 }
 
@@ -22,6 +23,9 @@ function buildWhere(filters: ListingFilters): Prisma.ListingWhereInput {
   if (filters.propertyType) where.propertyType = filters.propertyType;
   if (filters.city) where.city = filters.city;
   if (filters.rooms) where.rooms = { gte: filters.rooms };
+  // Sin marcar, no filtra (se ven aptas y no aptas) — marcado, solo las
+  // que el feed mandó explícitamente en true (no las que vinieron null).
+  if (filters.aptoCredito) where.aptoCredito = true;
   if (filters.priceMin || filters.priceMax) {
     where.priceAmount = {
       ...(filters.priceMin ? { gte: filters.priceMin } : {}),

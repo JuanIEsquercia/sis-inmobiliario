@@ -56,17 +56,17 @@ export default async function ContractDetailPage({ params }: PageProps) {
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
 
-  const contract = await getContractById(numericId, scope);
-  if (!contract) notFound();
-
+  // Ninguna de estas tres depende del resultado de las otras dos
+  // (canManageGroups solo necesita `profile`, ya disponible) — pedirlas
+  // en paralelo en vez de en cadena ahorra dos viajes de ida y vuelta a
+  // la base por carga de página.
   const canManageGroups = profile.permissions.includes("administraciones.grupos.gestionar");
-  const groups = canManageGroups ? await getContractGroups() : [];
-
-  const indexTypes = await getIndexTypes();
-
-  const documentsWithUrls = await Promise.all(
-    contract.documents.map(async (doc) => ({ ...doc, url: await getSignedDocumentUrl(doc.storagePath) }))
-  );
+  const [contract, groups, indexTypes] = await Promise.all([
+    getContractById(numericId, scope),
+    canManageGroups ? getContractGroups() : Promise.resolve([]),
+    getIndexTypes(),
+  ]);
+  if (!contract) notFound();
 
   // Colocar un inquilino nuevo y renovarle el contrato a uno que ya
   // estaba son unidades de negocio distintas para la comisión — ver
@@ -75,10 +75,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
   const canCreateCommission = profile.permissions.includes("caja.comisiones.crear");
   const canEditAgentes = profile.permissions.includes("administraciones.crear");
   const needsCommissionForm = canCreateCommission && !contract.rentalCommission;
-  const agents = needsCommissionForm || canEditAgentes ? await getAgents() : [];
-  const alquilerScheme = needsCommissionForm
-    ? await getActiveCommissionScheme(isRenewal ? "RENOVACION" : "ALQUILER")
-    : null;
+
+  // Estas tres sí dependen de `contract` (recién resuelto arriba), pero
+  // no dependen entre sí — misma idea, una sola tanda en paralelo.
+  const [documentsWithUrls, agents, alquilerScheme] = await Promise.all([
+    Promise.all(contract.documents.map(async (doc) => ({ ...doc, url: await getSignedDocumentUrl(doc.storagePath) }))),
+    needsCommissionForm || canEditAgentes ? getAgents() : Promise.resolve([]),
+    needsCommissionForm ? getActiveCommissionScheme(isRenewal ? "RENOVACION" : "ALQUILER") : Promise.resolve(null),
+  ]);
 
   // Solo se puede anular si todavía no movió plata — ver anularContrato.
   const yaMovioPlata =

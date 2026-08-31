@@ -20,11 +20,17 @@ export function Header() {
           >
             Inicio
           </Link>
-          <Link 
-            href="/propiedades" 
+          <Link
+            href="/propiedades"
             className="transition-colors hover:text-accent"
           >
             Propiedades
+          </Link>
+          <Link
+            href="/equipo"
+            className="transition-colors hover:text-accent"
+          >
+            Nuestro equipo
           </Link>
           <div className="pl-2 border-l border-border/60">
             <ThemeToggle />
