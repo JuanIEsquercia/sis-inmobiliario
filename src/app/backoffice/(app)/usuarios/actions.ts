@@ -66,6 +66,7 @@ export async function crearUsuario(formData: FormData) {
   );
 
   revalidatePath("/backoffice/usuarios");
+  revalidatePath("/equipo");
   redirect("/backoffice/usuarios");
 }
 
@@ -110,6 +111,7 @@ export async function actualizarUsuario(userId: string, formData: FormData) {
   );
 
   revalidatePath("/backoffice/usuarios");
+  revalidatePath("/equipo");
   redirect("/backoffice/usuarios");
 }
 
@@ -117,6 +119,7 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
   await requirePermission("usuarios.gestionar");
   await withRetry(() => prisma.profile.update({ where: { id: userId }, data: { isActive } }));
   revalidatePath("/backoffice/usuarios");
+  revalidatePath("/equipo");
 }
 
 export async function crearGrupoContratos(formData: FormData) {

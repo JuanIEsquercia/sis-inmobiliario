@@ -1,6 +1,13 @@
 import Image from "next/image";
 import { getPublicTeam } from "@/lib/site";
 
+// Sin fetch() de por medio (es una consulta directa a Prisma), Next no
+// tiene ninguna señal para tratar esta página como dinámica — sin esto
+// quedaría prerenderizada en el build y solo se actualizaría con un
+// revalidatePath("/equipo") explícito en cada acción de usuarios (ya
+// los agregué, pero es tráfico bajo: mejor no depender de acordarse).
+export const dynamic = "force-dynamic";
+
 export default async function EquipoPage() {
   const team = await getPublicTeam();
 

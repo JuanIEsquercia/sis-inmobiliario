@@ -187,7 +187,9 @@ export async function crearVenta(formData: FormData) {
       }
 
       return created;
-    })
+    },
+    { timeout: 30000, maxWait: 15000 }
+    )
   );
 
   revalidatePath("/backoffice/caja");
