@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
+import { UsuariosTabs } from "@/components/backoffice/UsuariosTabs";
 import { toggleUserActive } from "./actions";
 
 export default async function UsuariosPage() {
@@ -12,6 +13,10 @@ export default async function UsuariosPage() {
 
   return (
     <div>
+      <UsuariosTabs
+        active="usuarios"
+        showGrupos={profile.permissions.includes("administraciones.grupos.gestionar")}
+      />
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Usuarios</h1>
         {canManage && (

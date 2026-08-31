@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getPaymentsForPeriod, paymentBreakdown } from "@/lib/alquileres";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
+import { CobrarDialog } from "@/components/backoffice/CobrarDialog";
+import { PagarPropietarioDialog } from "@/components/backoffice/PagarPropietarioDialog";
+import { marcarLiquidacionEnviada } from "../actions";
 
 const monthNames = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -10,8 +13,9 @@ const monthNames = [
 
 const paymentStatusLabels: Record<string, string> = {
   PENDIENTE: "Pendiente",
+  ENVIADA: "Enviada",
+  PARCIAL: "Parcial",
   PAGADO: "Pagado",
-  ATRASADO: "Atrasado",
 };
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -21,14 +25,16 @@ interface PageProps {
 }
 
 export default async function LiquidacionesPage({ searchParams }: PageProps) {
-  await requirePermission("administraciones.ver");
+  const profile = await requirePermission("administraciones.ver");
+  const canEdit = profile.permissions.includes("administraciones.pagos");
+  const scope = await getContractGroupScope(profile);
   const sp = await searchParams;
 
   const now = new Date();
   const month = Number(sp.mes) || now.getUTCMonth() + 1;
   const year = Number(sp.anio) || now.getUTCFullYear();
 
-  const payments = await getPaymentsForPeriod(month, year);
+  const payments = await getPaymentsForPeriod(scope, month, year);
 
   function periodHref(m: number, y: number) {
     return `/backoffice/administraciones/liquidaciones?mes=${m}&anio=${y}`;
@@ -68,6 +74,8 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                 <th className="px-4 py-3">Comisión</th>
                 <th className="px-4 py-3">Neto propietario</th>
                 <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Saldo</th>
+                {canEdit && <th className="px-4 py-3">Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -76,6 +84,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                   p.items,
                   p.contract.managementFeePercent
                 );
+                const saldo = total - Number(p.paidAmount ?? 0);
                 return (
                   <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface">
                     <td className="px-4 py-3 text-muted">{p.contract.unit.propertyCode}</td>
@@ -100,6 +109,49 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                       {p.currency} {fmtMoney(netForOwner)}
                     </td>
                     <td className="px-4 py-3 text-muted">{paymentStatusLabels[p.status]}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {p.status === "PARCIAL" ? `${p.currency} ${fmtMoney(saldo)}` : "—"}
+                    </td>
+                    {canEdit && (
+                      <td className="px-4 py-3">
+                        {p.status === "PENDIENTE" && (
+                          <form action={marcarLiquidacionEnviada.bind(null, p.id)}>
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface"
+                            >
+                              Marcar enviada
+                            </button>
+                          </form>
+                        )}
+                        {(p.status === "ENVIADA" || p.status === "PARCIAL") && (
+                          <CobrarDialog
+                            paymentId={p.id}
+                            propertyCode={p.contract.unit.propertyCode}
+                            address={p.contract.unit.address}
+                            tenantName={`${p.contract.tenant.firstName} ${p.contract.tenant.lastName}`}
+                            periodLabel={`${monthNames[p.periodMonth - 1]} ${p.periodYear}`}
+                            currency={p.currency}
+                            total={total}
+                            saldo={saldo}
+                          />
+                        )}
+                        {p.status === "PAGADO" &&
+                          (p.ownerPaidAt ? (
+                            <span className="text-xs text-muted">✓ Propietario pagado</span>
+                          ) : (
+                            <PagarPropietarioDialog
+                              paymentId={p.id}
+                              propertyCode={p.contract.unit.propertyCode}
+                              address={p.contract.unit.address}
+                              ownerName={`${p.contract.owner.firstName} ${p.contract.owner.lastName}`}
+                              periodLabel={`${monthNames[p.periodMonth - 1]} ${p.periodYear}`}
+                              currency={p.currency}
+                              netAmount={netForOwner}
+                            />
+                          ))}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

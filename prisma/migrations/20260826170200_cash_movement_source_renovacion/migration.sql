@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "CashMovementSource" ADD VALUE 'COMISION_RENOVACION';

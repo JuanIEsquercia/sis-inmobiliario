@@ -168,16 +168,28 @@ model Profile {
   permissions String[]  @default([])
   isActive    Boolean   @default(true)
 
-  pedidosCreados    Pedido[]           @relation("PedidoCreadoPor")
-  contratosCreados  Contract[]         @relation("ContractCreadoPor")
-  documentosSubidos ContractDocument[]
+  pedidosCreados      Pedido[]           @relation("PedidoCreadoPor")
+  contratosCreados    Contract[]         @relation("ContractCreadoPor")
+  contractsAsVendedor Contract[]         @relation("ContractVendedor")
+  contractsAsCaptador Contract[]         @relation("ContractCaptador")
+  documentosSubidos   ContractDocument[]
 
-  rentalCommissionsAsAgent RentalCommission[] @relation("RentalCommissionAgent")
-  rentalCommissionsCreadas RentalCommission[] @relation("RentalCommissionCreadoPor")
-  salesAsAgent             Sale[]             @relation("SaleAgent")
-  salesCreadas             Sale[]             @relation("SaleCreadoPor")
-  appraisalsAsAgent        Appraisal[]        @relation("AppraisalAgent")
-  appraisalsCreadas        Appraisal[]        @relation("AppraisalCreadoPor")
+  rentalCommissionsAsVendedor RentalCommission[]     @relation("RentalCommissionVendedor")
+  rentalCommissionsAsCaptador RentalCommission[]     @relation("RentalCommissionCaptador")
+  rentalCommissionsCreadas    RentalCommission[]     @relation("RentalCommissionCreadoPor")
+  salesAsVendedor             Sale[]                 @relation("SaleVendedor")
+  salesAsCaptador             Sale[]                 @relation("SaleCaptador")
+  salesCreadas                Sale[]                 @relation("SaleCreadoPor")
+  appraisalsAsAgent           Appraisal[]            @relation("AppraisalAgent")
+  appraisalsCreadas           Appraisal[]            @relation("AppraisalCreadoPor")
+  appraisalReportsSubidos     Appraisal[]            @relation("AppraisalReportUploadedBy")
+  commissionSchemesAsFijo     CommissionScheme[]     @relation("CommissionSchemeAgenteFijo")
+  commissionSchemesCreadas    CommissionScheme[]     @relation("CommissionSchemeCreadoPor")
+  contractGroupsCreadas       ContractGroup[]        @relation("ContractGroupCreadoPor")
+  contractGroupMemberships    ProfileContractGroup[]
+  agentDebtPaymentsRecibidos  AgentDebtPayment[]     @relation("AgentDebtPaymentAgente")
+  agentDebtPaymentsCreados    AgentDebtPayment[]     @relation("AgentDebtPaymentCreadoPor")
+  expensesCreadas             Expense[]              @relation("ExpenseCreadoPor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -266,6 +278,8 @@ model Client {
   contractsAsTenant Contract[]          @relation("ContractTenant")
   contractsAsOwner  Contract[]          @relation("ContractOwner")
   guarantorFor      ContractGuarantor[]
+  salesAsSeller     Sale[]              @relation("SaleSeller")
+  salesAsBuyer      Sale[]              @relation("SaleBuyer")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -333,10 +347,17 @@ model ContractConcept {
   @@unique([contractId, conceptId])
 }
 
+// ANULADO: se cargó mal y nunca debió existir — a diferencia de
+// FINALIZADO/RESCINDIDO (el alquiler pasó de verdad), acá se borran las
+// liquidaciones que todavía no se habían cobrado/cargado (ver
+// anularContrato) porque no representan nada real. Solo se puede anular
+// si no movió plata todavía (sin RentalCommission y sin liquidaciones
+// Cargadas/Pagadas) — si ya movió plata, corresponde finalizarlo.
 enum ContractStatus {
   ACTIVO
   FINALIZADO
   RESCINDIDO
+  ANULADO
 }
 
 model Contract {
@@ -344,6 +365,12 @@ model Contract {
 
   unitId Int
   unit   Unit @relation(fields: [unitId], references: [id])
+
+  // Cartera operativa a la que pertenece — determina quién lo puede ver
+  // y gestionar (ver ContractGroup). Null = sin asignar todavía, solo
+  // visible para quien tenga administraciones.ver_todos.
+  groupId Int?
+  group   ContractGroup? @relation(fields: [groupId], references: [id])
 
   ownerId Int
   owner   Client @relation("ContractOwner", fields: [ownerId], references: [id])
@@ -364,6 +391,14 @@ model Contract {
   renewedFrom           Contract?  @relation("ContractRenewal", fields: [renewedFromContractId], references: [id])
   renewals              Contract[] @relation("ContractRenewal")
 
+  // Si al vencer y renovarse este contrato se espera cobrar la comisión
+  // de renovación — no todas las renovaciones la cobran, es un acuerdo
+  // caso a caso. null = todavía no se sabe ("a confirmar"): se puede
+  // marcar en cualquier momento, no recién cerca del vencimiento. Solo
+  // `true` entra a la proyección financiera (ver getProjection); tanto
+  // `false` como null quedan afuera del cálculo.
+  renewalCommissionExpected Boolean?
+
   terminatedAt      DateTime?
   terminationReason String?   @db.Text
 
@@ -377,9 +412,15 @@ model Contract {
   currency   String
   status     ContractStatus @default(ACTIVO)
 
+  // Si es false, este contrato es solo "el alquiler que cerramos" — sin
+  // liquidaciones mensuales ni indexación propias (las administra otro,
+  // o directamente el propietario). managementFeePercent queda null.
+  isAdministered Boolean @default(true)
+
   // % que se descuenta del alquiler en cada liquidación como comisión
   // de administración inmobiliaria (nunca sobre expensas/agua/etc).
-  managementFeePercent Decimal @db.Decimal(5, 2)
+  // Null cuando isAdministered es false.
+  managementFeePercent Decimal? @db.Decimal(5, 2)
 
   indexationFrequencyMonths Int?
   indexTypeId               Int?
@@ -391,6 +432,16 @@ model Contract {
 
   createdById String  @db.Uuid
   createdBy   Profile @relation("ContractCreadoPor", fields: [createdById], references: [id])
+
+  // Quién colocó este alquiler, cargado siempre al alta del contrato —
+  // independiente de si en ese momento se cobra o no una comisión de
+  // colocación. RentalCommission tiene su propio vendedor/captador
+  // (precargados desde acá pero editables) porque la comisión puede
+  // cargarse después y, en ese caso puntual, con otro agente.
+  vendedorAgentId String?  @db.Uuid
+  vendedorAgent   Profile? @relation("ContractVendedor", fields: [vendedorAgentId], references: [id])
+  captadorAgentId String?  @db.Uuid
+  captadorAgent   Profile? @relation("ContractCaptador", fields: [captadorAgentId], references: [id])
 
   guarantors       ContractGuarantor[]
   concepts         ContractConcept[]
@@ -404,10 +455,68 @@ model Contract {
 
   @@index([status])
   @@index([unitId])
+  @@index([groupId])
 }
 
+// Cartera operativa: agrupa contratos de administración para asignarle
+// la gestión a una persona específica — por acuerdo comercial/operativo
+// con cada propietario (a veces ni siquiera coincide con el agente que
+// colocó el alquiler), no por ningún atributo del contrato en sí. Se
+// arma después del alta, seleccionando contratos ya existentes (ver
+// asignarContratosAGrupo) — no hace falta decidir el grupo al cargar el
+// contrato.
+model ContractGroup {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String? @db.Text
+
+  contracts Contract[]
+  members   ProfileContractGroup[]
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("ContractGroupCreadoPor", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Quién puede ver/gestionar los contratos de cada grupo. Un perfil
+// puede estar en más de un grupo (ej. alguien que supervisa dos
+// carteras) — alguien con administraciones.ver_todos no necesita estar
+// en ninguno, ya ve todo sin pasar por acá.
+model ProfileContractGroup {
+  id Int @id @default(autoincrement())
+
+  profileId String  @db.Uuid
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  groupId Int
+  group   ContractGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([profileId, groupId])
+}
+
+// Cómo llegó (o llega) la plata — usado tanto para el cobro del
+// inquilino (PaymentPartialPayment) como para movimientos de Caja
+// (CashMovement).
+enum PaymentMethod {
+  EFECTIVO
+  TRANSFERENCIA
+}
+
+// PENDIENTE: todavía se está armando (montos editables). ENVIADA: los
+// montos ya están cargados y se le mandó al inquilino (ver el PDF
+// exportable) — se congela (ver guardarLiquidacion) hasta que se reabra
+// o se cobre, para que lo que ya se envió no cambie por accidente.
+// PARCIAL: recibió uno o más cobros que no llegan al total todavía (ver
+// PaymentPartialPayment) — la deuda restante queda registrada. PAGADO:
+// el acumulado cobrado llegó al total, ya no se toca.
 enum PaymentStatus {
   PENDIENTE
+  ENVIADA
+  PARCIAL
   PAGADO
   ATRASADO
 }
@@ -427,18 +536,56 @@ model Payment {
 
   currency   String
   status     PaymentStatus @default(PENDIENTE)
-  paidAt     DateTime?
-  paidAmount Decimal?      @db.Decimal(14, 2) // snapshot de la suma al momento de pagar
+  sentAt     DateTime? // cuándo se marcó ENVIADA
+  paidAt     DateTime? // cuándo llegó a PAGADO (el cobro que completó el total)
+  // Acumulado realmente cobrado hasta ahora — suma de partialPayments.
+  // Se guarda acá además de poder sumarse desde partialPayments para
+  // no recalcular en cada lectura de la lista; registrarCobro mantiene
+  // los dos sincronizados dentro de la misma transacción.
+  paidAmount Decimal?      @db.Decimal(14, 2)
   notes      String?
 
-  items        PaymentItem[]
-  cashMovement CashMovement?
+  // Cuándo (y cómo) la inmobiliaria le entregó al propietario el neto de
+  // esta liquidación — evento aparte de que el inquilino haya pagado
+  // (`status` PAGADO): si el inquilino transfirió directo al propietario
+  // no hace falta reenviarle nada, pero si pagó en efectivo la plata
+  // queda en la inmobiliaria hasta que se la entrega. No admite pago
+  // parcial: es un solo evento, igual que la confirmación de comisión.
+  ownerPaidAt        DateTime?
+  ownerPaymentMethod PaymentMethod?
+
+  items           PaymentItem[]
+  partialPayments PaymentPartialPayment[]
+  cashMovement    CashMovement?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([contractId, periodYear, periodMonth])
   @@index([status])
+}
+
+// Cada cobro registrado contra una liquidación — puede haber varios
+// (pagos parciales) hasta llegar al total. La comisión de administración
+// (CashMovement) recién se reconoce cuando el acumulado llega al total,
+// no por cada parcial — ver registrarCobro. Es historial: no se edita
+// ni se borra, solo se acumula.
+model PaymentPartialPayment {
+  id Int @id @default(autoincrement())
+
+  paymentId Int
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  amount Decimal        @db.Decimal(14, 2)
+  paidAt DateTime       @default(now())
+  // Cómo pagó el inquilino esta parte — ej. efectivo, o transferencia
+  // directa al propietario (en ese caso la inmobiliaria todavía no tiene
+  // en mano su comisión, aunque el inquilino ya haya pagado del todo:
+  // ver Payment.cashMovement / confirmarCobroComision).
+  method PaymentMethod?
+  notes  String?
+
+  createdAt DateTime @default(now())
 }
 
 // Una línea de la liquidación (Alquiler, Expensas, Agua...). El monto
@@ -506,6 +653,7 @@ model ContractDocument {
 enum CashMovementSource {
   ADMINISTRACION
   COMISION_ALQUILER
+  COMISION_RENOVACION
   VENTA
   TASACION
 }
@@ -526,6 +674,10 @@ model CashMovement {
   amount      Decimal            @db.Decimal(14, 2)
   currency    String
   occurredAt  DateTime           @default(now())
+  // Cómo llegó la plata a la inmobiliaria — opcional porque no todos los
+  // movimientos lo cargan (ej. legado, o fuentes donde todavía no se
+  // pidió este dato).
+  method      PaymentMethod?
 
   paymentId Int?     @unique
   payment   Payment? @relation(fields: [paymentId], references: [id])
@@ -533,8 +685,13 @@ model CashMovement {
   rentalCommissionId Int?              @unique
   rentalCommission   RentalCommission? @relation(fields: [rentalCommissionId], references: [id])
 
+  // Legado — ver comentario en Sale.cashMovement. Las ventas nuevas usan
+  // saleCommissionInstallmentId en su lugar.
   saleId Int?  @unique
   sale   Sale? @relation(fields: [saleId], references: [id])
+
+  saleCommissionInstallmentId Int?                       @unique
+  saleCommissionInstallment   SaleCommissionInstallment? @relation(fields: [saleCommissionInstallmentId], references: [id])
 
   appraisalId Int?       @unique
   appraisal   Appraisal? @relation(fields: [appraisalId], references: [id])
@@ -543,6 +700,54 @@ model CashMovement {
 
   @@index([source])
   @@index([occurredAt])
+}
+
+// RENOVACION: comisión al renovar un contrato existente — unidad de
+// negocio distinta de ALQUILER (colocar un inquilino nuevo), con
+// participantes propios. Hoy (2026) no tiene esquema configurado
+// todavía y el monto va entero a la inmobiliaria (ver
+// RentalCommission.origin y crearRentalCommissionEnTx) — queda listo
+// para repartirse apenas se defina cómo.
+enum CommissionSchemeType {
+  VENTA
+  ALQUILER
+  RENOVACION
+}
+
+// Esquema de reparto de comisión para Ventas/Alquileres, versionado y
+// append-only: "editar" el esquema desde el admin siempre inserta una
+// fila nueva, nunca actualiza una existente — así una operación ya
+// cerrada (que congela su propio reparto en Sale/RentalCommission)
+// nunca se ve afectada por un cambio de % posterior. La fila vigente
+// para un tipo es la de mayor vigenteDesde.
+model CommissionScheme {
+  id   Int                  @id @default(autoincrement())
+  type CommissionSchemeType
+
+  reservaPercent    Decimal @db.Decimal(5, 2) // % del total → fondo de reserva
+  agenteFijoPercent Decimal @db.Decimal(5, 2) // % del total → rol fijo
+
+  // Rol configurable: quién ocupa el "agente fijo" hoy. No es una
+  // persona hardcodeada — el admin lo reasigna cargando una versión
+  // nueva del esquema.
+  agenteFijoId String  @db.Uuid
+  agenteFijo   Profile @relation("CommissionSchemeAgenteFijo", fields: [agenteFijoId], references: [id])
+
+  // % del "resto" (total - reserva - agenteFijo), no del total.
+  // agencia = resto - vendedor - captador (derivado, no se guarda).
+  vendedorPercent Decimal @db.Decimal(5, 2)
+  captadorPercent Decimal @db.Decimal(5, 2)
+
+  vigenteDesde DateTime @default(now())
+
+  createdById String   @db.Uuid
+  createdBy   Profile  @relation("CommissionSchemeCreadoPor", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  sales             Sale[]
+  rentalCommissions RentalCommission[]
+
+  @@index([type, vigenteDesde])
 }
 
 // Comisión de alquiler: hecho único al colocar un contrato nuevo
@@ -559,8 +764,37 @@ model RentalCommission {
   currency String
   earnedAt DateTime @default(now())
 
-  agentId String  @db.Uuid
-  agent   Profile @relation("RentalCommissionAgent", fields: [agentId], references: [id])
+  // Colocar un inquilino nuevo vs. renovarle el contrato a uno que ya
+  // estaba son unidades de negocio distintas para la agencia, con
+  // participantes propios — se congela automáticamente según
+  // contract.renewedFromContractId al momento del alta (nunca lo elige
+  // quien carga la comisión), y determina qué CommissionScheme.type se
+  // usa para el reparto (ver crearRentalCommissionEnTx).
+  origin CommissionSchemeType @default(ALQUILER)
+
+  // Opcionales: si un rol no se completa, se asume que lo cumplió la
+  // propia inmobiliaria — ese % queda en agenciaAmount (ver calcularReparto).
+  // No aplican a origin = RENOVACION (esa unidad de negocio todavía no
+  // tiene reparto por agente vendedor/captador definido).
+  vendedorAgentId String?  @db.Uuid
+  vendedorAgent   Profile? @relation("RentalCommissionVendedor", fields: [vendedorAgentId], references: [id])
+  captadorAgentId String?  @db.Uuid
+  captadorAgent   Profile? @relation("RentalCommissionCaptador", fields: [captadorAgentId], references: [id])
+
+  // Null si todavía no había un esquema configurado (del tipo que
+  // corresponda según `origin`) al cargar esta comisión — el monto igual
+  // se guarda y se puede repartir más adelante (ver Sale para el mismo
+  // criterio).
+  commissionSchemeId Int?
+  commissionScheme   CommissionScheme? @relation(fields: [commissionSchemeId], references: [id])
+
+  // Reparto congelado al momento del alta — suman `amount` cuando no
+  // son null. No se recalculan si el esquema cambia después.
+  reservaAmount    Decimal? @db.Decimal(14, 2)
+  agenteFijoAmount Decimal? @db.Decimal(14, 2)
+  vendedorAmount   Decimal? @db.Decimal(14, 2)
+  captadorAmount   Decimal? @db.Decimal(14, 2)
+  agenciaAmount    Decimal? @db.Decimal(14, 2)
 
   notes String? @db.Text
 
@@ -583,20 +817,57 @@ model Sale {
   unitId Int
   unit   Unit @relation(fields: [unitId], references: [id])
 
-  saleAmount       Decimal? @db.Decimal(14, 2) // precio de venta, informativo — no impacta la Caja
-  commissionAmount Decimal  @db.Decimal(14, 2) // lo que efectivamente ingresa a la agencia
-  currency         String
-  closedAt         DateTime @default(now())
+  // Parte compradora/vendedora de la operación — personas, no la
+  // inmobiliaria. Nullable por compatibilidad con ventas ya cargadas
+  // antes de que existieran estos campos; el alta nueva los exige.
+  sellerId Int?
+  seller   Client? @relation("SaleSeller", fields: [sellerId], references: [id])
+  buyerId  Int?
+  buyer    Client? @relation("SaleBuyer", fields: [buyerId], references: [id])
 
-  agentId String  @db.Uuid
-  agent   Profile @relation("SaleAgent", fields: [agentId], references: [id])
+  initialPriceAmount Decimal? @db.Decimal(14, 2) // precio de inicio/publicación
+  saleAmount         Decimal? @db.Decimal(14, 2) // precio de cierre, informativo — no impacta la Caja
+  commissionAmount   Decimal  @db.Decimal(14, 2) // lo efectivamente acordado — ver installments para lo cobrado
+  currency           String
+  closedAt           DateTime @default(now())
+
+  // Opcionales: si un rol no se completa, se asume que lo cumplió la
+  // propia inmobiliaria — ese % queda en agenciaAmount (ver calcularReparto).
+  // Son los agentes de la inmobiliaria (staff) — no confundir con
+  // seller/buyer arriba, que son las partes de la operación.
+  vendedorAgentId String?  @db.Uuid
+  vendedorAgent   Profile? @relation("SaleVendedor", fields: [vendedorAgentId], references: [id])
+  captadorAgentId String?  @db.Uuid
+  captadorAgent   Profile? @relation("SaleCaptador", fields: [captadorAgentId], references: [id])
+
+  // Null si todavía no había un esquema de Venta configurado al cargar
+  // esta venta — el monto igual se guarda y se puede repartir más
+  // adelante.
+  commissionSchemeId Int?
+  commissionScheme   CommissionScheme? @relation(fields: [commissionSchemeId], references: [id])
+
+  // Reparto congelado al momento del alta sobre el total de
+  // `commissionAmount` — suman `commissionAmount` cuando no son null. No
+  // se recalculan si el esquema cambia después, y tampoco si la cobranza
+  // se demora: es lo que le corresponde a cada uno del acuerdo ya
+  // cerrado, independiente de cuándo se termine de cobrar (ver
+  // installments). Sirve de base para liquidar a cada agente su parte.
+  reservaAmount    Decimal? @db.Decimal(14, 2)
+  agenteFijoAmount Decimal? @db.Decimal(14, 2)
+  vendedorAmount   Decimal? @db.Decimal(14, 2)
+  captadorAmount   Decimal? @db.Decimal(14, 2)
+  agenciaAmount    Decimal? @db.Decimal(14, 2)
 
   notes String? @db.Text
 
   createdById String  @db.Uuid
   createdBy   Profile @relation("SaleCreadoPor", fields: [createdById], references: [id])
 
+  // Legado: ventas cargadas antes de que existiera installments tienen
+  // acá su único movimiento de caja. Las nuevas ventas siempre cobran a
+  // través de installments, aunque sea una sola cuota "de contado".
   cashMovement CashMovement?
+  installments SaleCommissionInstallment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -604,7 +875,56 @@ model Sale {
   @@index([unitId])
 }
 
-// Tasación: mismo criterio que Sale — hecho único, no pipeline.
+enum InstallmentStatus {
+  PENDIENTE
+  PAGADA
+}
+
+// Quién firma el pagaré que respalda una cuota — puede financiar la
+// comisión cualquiera de las dos partes de la operación, no solo quien
+// compra. Null = sin pagaré (de contado / transferencia directa).
+enum PagareSigner {
+  COMPRADOR
+  VENDEDOR
+}
+
+// Cronograma de cobro de la comisión de una venta — siempre existe al
+// menos una fila (aunque sea "de contado", 1 sola cuota ya pagada), así
+// el mismo mecanismo cubre tanto el pago único como el financiado. Cada
+// cuota es su propio hecho de cobro: genera su propio CashMovement recién
+// cuando se marca PAGADA (ver marcarCuotaPagada) — la Caja refleja plata
+// que entró de verdad, no lo que la venta acordó cobrar a futuro. El
+// reparto a agentes (Sale.vendedorAmount/captadorAmount/etc.) ya quedó
+// congelado sobre el total en el alta y no depende de esto.
+model SaleCommissionInstallment {
+  id Int @id @default(autoincrement())
+
+  saleId Int
+  sale   Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  numeroCuota Int
+  totalCuotas Int
+  amount      Decimal  @db.Decimal(14, 2)
+  dueDate     DateTime
+
+  status InstallmentStatus @default(PENDIENTE)
+  paidAt DateTime?
+
+  pagareSignedBy PagareSigner?
+  notes          String?
+
+  cashMovement CashMovement?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([saleId, numeroCuota])
+  @@index([status])
+}
+
+// Tasación: mismo criterio que Sale — hecho único, no pipeline. El
+// reparto con un agente es opcional y fijo 50/50 (no versionado como
+// Venta/Alquiler): se decide al cargar la tasación, no cambia después.
 model Appraisal {
   id Int @id @default(autoincrement())
 
@@ -615,13 +935,26 @@ model Appraisal {
   currency    String
   completedAt DateTime @default(now())
 
-  agentId String  @db.Uuid
-  agent   Profile @relation("AppraisalAgent", fields: [agentId], references: [id])
+  agentId String?  @db.Uuid
+  agent   Profile? @relation("AppraisalAgent", fields: [agentId], references: [id])
+
+  // Ambos null si no hay reparto (100% inmobiliaria).
+  agentSharePercent Decimal? @db.Decimal(5, 2)
+  agentAmount       Decimal? @db.Decimal(14, 2)
 
   notes String? @db.Text
 
   createdById String  @db.Uuid
   createdBy   Profile @relation("AppraisalCreadoPor", fields: [createdById], references: [id])
+
+  // El informe de tasación enviado — un solo archivo por tasación, no un
+  // listado tipado como ContractDocument (acá no hace falta distinguir
+  // tipos). Subirlo de nuevo reemplaza la referencia, no crea historial.
+  reportFileName     String?
+  reportStoragePath  String?
+  reportUploadedAt   DateTime?
+  reportUploadedById String?   @db.Uuid
+  reportUploadedBy   Profile?  @relation("AppraisalReportUploadedBy", fields: [reportUploadedById], references: [id])
 
   cashMovement CashMovement?
 
@@ -629,4 +962,121 @@ model Appraisal {
   updatedAt DateTime @updatedAt
 
   @@index([unitId])
+}
+
+// Cuenta corriente de agentes: lo que se le debe a cada uno se calcula
+// on-the-fly sumando vendedorAmount/captadorAmount/agenteFijoAmount ya
+// congelados en RentalCommission/Sale (por rol) y agentAmount en
+// Appraisal — no hay tabla de "deuda", esos montos YA SON la deuda,
+// devengada desde que se cargó cada operación (independiente de si el
+// cliente todavía está pagando en cuotas).
+enum AgentDebtSource {
+  RENTAL_COMMISSION
+  SALE
+  APPRAISAL
+}
+
+enum AgentDebtRole {
+  VENDEDOR
+  CAPTADOR
+  AGENTE_FIJO
+  TASACION
+}
+
+// Pago real registrado contra UNA línea puntual de lo devengado
+// (identificada por sourceType+sourceId+role, ver getAgentDebtItems) —
+// puede cubrir el total de esa línea o una parte; el saldo de esa línea
+// es su monto menos la suma de estos pagos, y se puede seguir pagando
+// el resto después. El saldo general del agente (por moneda) es la
+// suma de lo devengado en todas sus líneas menos la suma de todos
+// estos pagos, sin importar a qué línea se hayan imputado.
+model AgentDebtPayment {
+  id Int @id @default(autoincrement())
+
+  agentId String  @db.Uuid
+  agent   Profile @relation("AgentDebtPaymentAgente", fields: [agentId], references: [id])
+
+  sourceType AgentDebtSource
+  sourceId   Int
+  role       AgentDebtRole
+
+  amount   Decimal  @db.Decimal(14, 2)
+  currency String
+  paidAt   DateTime @default(now())
+  notes    String?  @db.Text
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("AgentDebtPaymentCreadoPor", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+  @@index([sourceType, sourceId, role])
+}
+
+// FIJO: se repite mes a mes (alquiler de oficina, sueldos, servicios) —
+// la proyección hacia adelante asume que sigue al mismo monto que la
+// última carga real. VARIABLE: gasto puntual sin patrón (mantenimiento,
+// marketing...) — a propósito NO se proyecta hacia adelante, como
+// tampoco se proyectan Ventas/Tasaciones: no hay forma honesta de
+// estimar algo sin patrón sin inventar un supuesto.
+enum ExpenseType {
+  FIJO
+  VARIABLE
+}
+
+// Catálogo abierto de categorías de gasto — se crean sobre la marcha
+// (Alquiler oficina, Sueldos, Luz...) sin tocar código. "Pagos a
+// agentes" NO es una fila acá: ese gasto ya existe como dato
+// (AgentDebtPayment) y se suma aparte en los reportes de caja, para no
+// cargarlo dos veces.
+model ExpenseCategory {
+  id   Int         @id @default(autoincrement())
+  name String      @unique
+  type ExpenseType
+
+  expenses Expense[]
+
+  createdAt DateTime @default(now())
+}
+
+// Un gasto real cargado contra una categoría, mes a mes — el
+// contrapeso de CashMovement (que solo registra ingresos) para que
+// Caja pueda mostrar un neto real, no solo lo que entró en bruto.
+model Expense {
+  id Int @id @default(autoincrement())
+
+  categoryId Int
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  amount     Decimal        @db.Decimal(14, 2)
+  currency   String
+  occurredAt DateTime       @default(now())
+  method     PaymentMethod?
+  notes      String?        @db.Text
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("ExpenseCreadoPor", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([occurredAt])
+  @@index([categoryId])
+}
+
+// Fila única (id siempre 1) con los parámetros de la proyección
+// financiera — hoy solo la banda de corrección por indexación de
+// alquileres. Editable desde la propia pantalla de Proyección, sin
+// tocar código: el supuesto de mercado (cuánto indexa en promedio)
+// cambia con el tiempo.
+model ProjectionSettings {
+  id Int @id @default(1)
+
+  // % mínimo y máximo que se suma al total proyectado de alquileres en
+  // los meses que caen en o después de la próxima actualización
+  // esperada de cada contrato (ver getProjection).
+  indexationCorrectionMinPercent Decimal @default(7) @db.Decimal(5, 2)
+  indexationCorrectionMaxPercent Decimal @default(10) @db.Decimal(5, 2)
+
+  updatedAt DateTime @updatedAt
 }

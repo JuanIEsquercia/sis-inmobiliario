@@ -16,7 +16,7 @@
   --shadow-premium: 0 12px 30px -10px rgba(28, 24, 23, 0.05), 0 4px 12px -5px rgba(28, 24, 23, 0.02);
 }
 
-/* Antes de que next-themes resuelva la preferencia (sin JS o pre-hidratación). */
+/* Tema "system" (sin data-theme guardado en localStorage): sin JS, o antes de que corra el script de layout.tsx. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --background: #13100f;

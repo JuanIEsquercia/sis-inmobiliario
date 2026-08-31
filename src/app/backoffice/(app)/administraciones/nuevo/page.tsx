@@ -1,10 +1,12 @@
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { getConcepts, getContractById, getIndexTypes } from "@/lib/alquileres";
+import { getAgents, getActiveCommissionScheme, toRepartoSchemeInfo } from "@/lib/caja";
 import { GuarantorFields } from "@/components/backoffice/GuarantorFields";
-import { ConceptsChecklist } from "@/components/backoffice/ConceptsChecklist";
-import { IndexTypeSelect } from "@/components/backoffice/IndexTypeSelect";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { UnitPicker } from "@/components/backoffice/UnitPicker";
+import { AdministracionFields } from "@/components/backoffice/AdministracionFields";
+import { ComisionAlquilerFields } from "@/components/backoffice/ComisionAlquilerFields";
+import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { createContract } from "../actions";
 
 interface PageProps {
@@ -12,14 +14,24 @@ interface PageProps {
 }
 
 export default async function NuevoContratoPage({ searchParams }: PageProps) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("administraciones.crear");
+  const scope = await getContractGroupScope(profile);
   const { renovarDe } = await searchParams;
-  const [concepts, indexTypes] = await Promise.all([getConcepts(), getIndexTypes()]);
+  const sourceContractId = renovarDe ? Number(renovarDe) : null;
+
+  const [concepts, indexTypes, agents, sourceContract] = await Promise.all([
+    getConcepts(),
+    getIndexTypes(),
+    getAgents(),
+    sourceContractId && Number.isFinite(sourceContractId) ? getContractById(sourceContractId, scope) : null,
+  ]);
   const extraConcepts = concepts.filter((c) => !c.isSystem);
 
-  const sourceContractId = renovarDe ? Number(renovarDe) : null;
-  const sourceContract =
-    sourceContractId && Number.isFinite(sourceContractId) ? await getContractById(sourceContractId) : null;
+  // Colocar un inquilino nuevo y renovarle el contrato a uno que ya
+  // estaba son unidades de negocio distintas para la comisión — cada
+  // una con su propio esquema de reparto (ver Caja > Esquema).
+  const isRenewal = !!sourceContract;
+  const commissionScheme = await getActiveCommissionScheme(isRenewal ? "RENOVACION" : "ALQUILER");
 
   return (
     <div className="max-w-2xl">
@@ -34,7 +46,12 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
       )}
 
       <form action={createContract} className="flex flex-col gap-6">
-        {sourceContractId && <input type="hidden" name="renewedFromContractId" value={sourceContractId} />}
+        {/* Ligado a sourceContract (ya cargado y validado contra el scope
+            del usuario), no a sourceContractId crudo — si el contrato
+            pedido en ?renovarDe= no existe o no es visible para quien
+            está creando, esto queda vacío y el alta no se marca como
+            renovación de nada. */}
+        {sourceContract && <input type="hidden" name="renewedFromContractId" value={sourceContract.id} />}
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium text-foreground">Unidad</legend>
@@ -48,12 +65,7 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium text-foreground">Inquilino</legend>
-          <ClientPicker
-            namePrefix="tenant"
-            roleLabel="Inquilino"
-            includeBirthDate
-            initialSelected={sourceContract?.tenant ?? null}
-          />
+          <ClientPicker namePrefix="tenant" roleLabel="Inquilino" initialSelected={sourceContract?.tenant ?? null} />
         </fieldset>
 
         <div>
@@ -86,60 +98,56 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
             <option value="USD">USD</option>
           </select>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="managementFeePercent" className="text-xs text-muted">
-              Comisión administración (%)*
+            <label htmlFor="renewalCommissionExpected" className="text-xs text-muted">
+              ¿Se cobra comisión en la renovación?
             </label>
-            <input
-              id="managementFeePercent"
-              name="managementFeePercent"
-              type="number"
-              step="0.01"
-              min={0}
-              max={100}
-              required
-              defaultValue={sourceContract?.managementFeePercent.toString()}
-              className="field"
-              placeholder="8"
-            />
+            <select id="renewalCommissionExpected" name="renewalCommissionExpected" defaultValue="" className="field">
+              <option value="">A confirmar</option>
+              <option value="true">Sí</option>
+              <option value="false">No</option>
+            </select>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="indexationFrequencyMonths" className="text-xs text-muted">
-              Actualiza cada (meses)
-            </label>
-            <input
-              id="indexationFrequencyMonths"
-              name="indexationFrequencyMonths"
-              type="number"
-              defaultValue={sourceContract?.indexationFrequencyMonths ?? undefined}
-              className="field"
-              placeholder="3"
-            />
-          </div>
-          <IndexTypeSelect initialIndexTypes={indexTypes} />
         </fieldset>
 
         <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <legend className="col-span-full mb-1 text-sm font-medium text-foreground">
-            Transferencias <span className="font-normal text-muted">(para el agente que hace la liquidación)</span>
+            Agentes <span className="font-normal text-muted">(quién colocó este alquiler — necesario para la liquidación al personal)</span>
           </legend>
-          <input
-            name="paymentAlias"
-            placeholder="Alias"
-            defaultValue={sourceContract?.paymentAlias ?? ""}
-            className="field"
+          <AgentSelect
+            agents={agents}
+            name="vendedorAgentId"
+            label="Agente vendedor"
+            required={false}
+            defaultValue={sourceContract?.vendedorAgentId ?? profile.id}
           />
-          <input name="paymentCBU" placeholder="CBU" defaultValue={sourceContract?.paymentCBU ?? ""} className="field" />
+          <AgentSelect
+            agents={agents}
+            name="captadorAgentId"
+            label="Agente captador"
+            required={false}
+            defaultValue={sourceContract?.captadorAgentId ?? undefined}
+          />
         </fieldset>
 
-        <div>
-          <p className="mb-2 text-sm font-medium text-foreground">
-            Conceptos recurrentes <span className="font-normal text-muted">(el monto se carga mes a mes en cada liquidación)</span>
-          </p>
-          <ConceptsChecklist
-            initialConcepts={extraConcepts}
-            defaultCheckedIds={sourceContract?.concepts.filter((c) => !c.concept.isSystem).map((c) => c.concept.id) ?? []}
+        <AdministracionFields
+          defaultChecked={sourceContract ? sourceContract.isAdministered : true}
+          defaultManagementFeePercent={sourceContract?.managementFeePercent?.toString()}
+          defaultIndexationFrequencyMonths={sourceContract?.indexationFrequencyMonths ?? undefined}
+          indexTypes={indexTypes}
+          extraConcepts={extraConcepts}
+          defaultCheckedConceptIds={
+            sourceContract?.concepts.filter((c) => !c.concept.isSystem).map((c) => c.concept.id) ?? []
+          }
+          defaultPaymentAlias={sourceContract?.paymentAlias ?? ""}
+          defaultPaymentCBU={sourceContract?.paymentCBU ?? ""}
+        />
+
+        {profile.permissions.includes("caja.comisiones.crear") && (
+          <ComisionAlquilerFields
+            scheme={commissionScheme && toRepartoSchemeInfo(commissionScheme)}
+            isRenewal={isRenewal}
           />
-        </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="notes" className="text-sm font-medium text-foreground">

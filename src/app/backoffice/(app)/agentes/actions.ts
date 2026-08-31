@@ -1,0 +1,67 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { withRetry } from "@/lib/db-retry";
+import { requirePermission } from "@/lib/auth";
+import { optionalStr, requiredDate, requiredDecimal, requiredStr } from "@/lib/form-utils";
+import type { AgentDebtRole, AgentDebtSource, CommissionSchemeType } from "@/generated/prisma/client";
+
+// Imputa un pago a UNA línea puntual de lo devengado (sourceType +
+// sourceId + role) — puede ser el total de esa línea o menos; el saldo
+// restante se puede seguir pagando después con otro registro igual a
+// este. Solo puede registrar pagos quien tenga el permiso — esto mueve
+// plata de verdad y hay que poder auditar quién lo cargó.
+export async function registrarPagoDeuda(
+  agentId: string,
+  sourceType: AgentDebtSource,
+  sourceId: number,
+  role: AgentDebtRole,
+  formData: FormData
+) {
+  const profile = await requirePermission("agentes.pagos.crear");
+
+  const amount = requiredDecimal(formData.get("amount"), "Monto");
+  const currency = requiredStr(formData.get("currency"), "Moneda");
+  const paidAt = optionalStr(formData.get("paidAt")) ? requiredDate(formData.get("paidAt"), "Fecha") : new Date();
+  const notes = optionalStr(formData.get("notes"));
+
+  await withRetry(() =>
+    prisma.agentDebtPayment.create({
+      data: { agentId, sourceType, sourceId, role, amount, currency, paidAt, notes, createdById: profile.id },
+    })
+  );
+
+  revalidatePath(`/backoffice/agentes/${agentId}`);
+  revalidatePath("/backoffice/agentes");
+}
+
+// Cada edición carga una versión NUEVA (ver comentario en el modelo
+// CommissionScheme) — las operaciones ya cerradas conservan el reparto
+// con el que se calcularon, aunque el esquema cambie después.
+export async function crearEsquemaComision(type: CommissionSchemeType, formData: FormData) {
+  const profile = await requirePermission("comisiones.gestionar");
+
+  const reservaPercent = requiredDecimal(formData.get("reservaPercent"), "% fondo de reserva");
+  const agenteFijoPercent = requiredDecimal(formData.get("agenteFijoPercent"), "% agente fijo");
+  const agenteFijoId = requiredStr(formData.get("agenteFijoId"), "Agente fijo");
+  const vendedorPercent = requiredDecimal(formData.get("vendedorPercent"), "% vendedor");
+  const captadorPercent = requiredDecimal(formData.get("captadorPercent"), "% captador");
+
+  const percents = [reservaPercent, agenteFijoPercent, vendedorPercent, captadorPercent].map(Number);
+  if (percents.some((p) => p < 0 || p > 100)) {
+    throw new Error("Los porcentajes deben estar entre 0 y 100.");
+  }
+  if (Number(reservaPercent) + Number(agenteFijoPercent) > 100) {
+    throw new Error("Reserva + agente fijo no pueden superar el 100% del total.");
+  }
+  if (Number(vendedorPercent) + Number(captadorPercent) > 100) {
+    throw new Error("Vendedor + captador no pueden superar el 100% del resto.");
+  }
+
+  await prisma.commissionScheme.create({
+    data: { type, reservaPercent, agenteFijoPercent, agenteFijoId, vendedorPercent, captadorPercent, createdById: profile.id },
+  });
+
+  revalidatePath("/backoffice/agentes/esquema");
+}

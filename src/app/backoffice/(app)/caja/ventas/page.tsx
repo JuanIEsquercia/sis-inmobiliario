@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
-import { getSales } from "@/lib/caja";
+import { getSales, agentLabel } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -35,6 +35,7 @@ export default async function VentasPage() {
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Propiedad</th>
                 <th className="px-4 py-3">Vendedor</th>
+                <th className="px-4 py-3">Captador</th>
                 <th className="px-4 py-3">Comisión</th>
               </tr>
             </thead>
@@ -47,9 +48,8 @@ export default async function VentasPage() {
                       {s.unit.propertyCode} — {s.unit.address}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-muted">
-                    {s.agent.firstName} {s.agent.lastName}
-                  </td>
+                  <td className="px-4 py-3 text-muted">{agentLabel(s.vendedorAgent)}</td>
+                  <td className="px-4 py-3 text-muted">{agentLabel(s.captadorAgent)}</td>
                   <td className="px-4 py-3 text-foreground">
                     {s.currency} {fmtMoney(Number(s.commissionAmount))}
                   </td>

@@ -7,7 +7,7 @@ export default async function BackofficeDashboard() {
     Promise.all([
       prisma.pedido.count({ where: { estado: { in: ["ABIERTO", "EN_BUSQUEDA"] } } }),
       prisma.contract.count({ where: { status: "ACTIVO" } }),
-      prisma.payment.count({ where: { status: { in: ["PENDIENTE", "ATRASADO"] } } }),
+      prisma.payment.count({ where: { status: { in: ["PENDIENTE", "ENVIADA", "PARCIAL"] } } }),
     ])
   );
 

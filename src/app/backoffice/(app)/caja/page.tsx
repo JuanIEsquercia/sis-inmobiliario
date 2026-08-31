@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getCashMovements, getCashMovementTotals } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
@@ -7,6 +6,7 @@ import type { CashMovementSource } from "@/generated/prisma/client";
 const sourceLabels: Record<CashMovementSource, string> = {
   ADMINISTRACION: "Administración",
   COMISION_ALQUILER: "Comisión de alquiler",
+  COMISION_RENOVACION: "Comisión de renovación",
   VENTA: "Venta",
   TASACION: "Tasación",
 };
@@ -14,19 +14,10 @@ const sourceLabels: Record<CashMovementSource, string> = {
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
-interface PageProps {
-  searchParams: Promise<{ source?: string }>;
-}
-
-export default async function CajaPage({ searchParams }: PageProps) {
+export default async function CajaPage() {
   await requirePermission("caja.ver");
-  const { source } = await searchParams;
-  const sourceFilter = source && source in sourceLabels ? (source as CashMovementSource) : undefined;
 
-  const [movements, totals] = await Promise.all([
-    getCashMovements(sourceFilter ? { source: sourceFilter } : undefined),
-    getCashMovementTotals(),
-  ]);
+  const [movements, totals] = await Promise.all([getCashMovements(), getCashMovementTotals()]);
 
   const totalsByCurrency = new Map<string, Map<CashMovementSource, number>>();
   for (const t of totals) {
@@ -62,24 +53,6 @@ export default async function CajaPage({ searchParams }: PageProps) {
           ))}
         </div>
       )}
-
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
-        <Link
-          href="/backoffice/caja"
-          className={`rounded-full border px-3 py-1 ${!sourceFilter ? "border-accent text-accent" : "border-border text-muted hover:text-foreground"}`}
-        >
-          Todas
-        </Link>
-        {(Object.keys(sourceLabels) as CashMovementSource[]).map((src) => (
-          <Link
-            key={src}
-            href={`/backoffice/caja?source=${src}`}
-            className={`rounded-full border px-3 py-1 ${sourceFilter === src ? "border-accent text-accent" : "border-border text-muted hover:text-foreground"}`}
-          >
-            {sourceLabels[src]}
-          </Link>
-        ))}
-      </div>
 
       {movements.length === 0 ? (
         <p className="text-sm text-muted">No hay movimientos cargados.</p>

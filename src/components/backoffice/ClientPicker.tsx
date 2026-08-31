@@ -18,13 +18,13 @@ export interface ClientOption {
 export function ClientPicker({
   namePrefix,
   roleLabel,
-  includeBirthDate = false,
   initialSelected = null,
+  search = buscarClientes,
 }: {
   namePrefix: string;
   roleLabel: string;
-  includeBirthDate?: boolean;
   initialSelected?: ClientOption | null;
+  search?: (query: string) => Promise<ClientOption[]>;
 }) {
   const [selected, setSelected] = useState<ClientOption | null>(initialSelected);
   const [query, setQuery] = useState("");
@@ -38,14 +38,14 @@ export function ClientPicker({
     const handle = setTimeout(() => {
       startTransition(async () => {
         try {
-          setResults(await buscarClientes(query));
+          setResults(await search(query));
         } catch (err) {
           setError(err instanceof Error ? err.message : "No se pudo buscar");
         }
       });
     }, 300);
     return () => clearTimeout(handle);
-  }, [query, selected]);
+  }, [query, selected, search]);
 
   const field = (suffix: string) => `${namePrefix}.${suffix}`;
 
@@ -111,14 +111,12 @@ export function ClientPicker({
           <input name={field("firstName")} placeholder="Nombre*" required className="field" />
           <input name={field("lastName")} placeholder="Apellido*" required className="field" />
           <input name={field("docId")} placeholder="DNI" className="field" />
-          {includeBirthDate && (
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor={field("birthDate")} className="text-xs text-muted">
-                Fecha de nacimiento
-              </label>
-              <input id={field("birthDate")} name={field("birthDate")} type="date" className="field" />
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={field("birthDate")} className="text-xs text-muted">
+              Fecha de nacimiento
+            </label>
+            <input id={field("birthDate")} name={field("birthDate")} type="date" className="field" />
+          </div>
           <input name={field("phone")} placeholder="Teléfono" className="field" />
           <input name={field("email")} type="email" placeholder="Email" className="field" />
           <button

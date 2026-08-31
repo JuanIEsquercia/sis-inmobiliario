@@ -1,6 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
+import { useTheme } from "@/lib/use-theme";
 import Image from "next/image";
 import { useMounted } from "@/lib/use-mounted";
 

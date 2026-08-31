@@ -76,3 +76,37 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
   await withRetry(() => prisma.profile.update({ where: { id: userId }, data: { isActive } }));
   revalidatePath("/backoffice/usuarios");
 }
+
+export async function crearGrupoContratos(formData: FormData) {
+  const profile = await requirePermission("administraciones.grupos.gestionar");
+
+  const name = requiredStr(formData.get("name"), "Nombre del grupo");
+  const description = optionalStr(formData.get("description"));
+
+  await withRetry(() =>
+    prisma.contractGroup.create({ data: { name, description, createdById: profile.id } })
+  );
+
+  revalidatePath("/backoffice/usuarios/grupos");
+}
+
+// Reemplaza la lista completa de miembros del grupo por la tildada en
+// el formulario — más simple que diffear altas/bajas, y el checklist ya
+// viene precargado con los miembros actuales.
+export async function actualizarMiembrosGrupo(groupId: number, formData: FormData) {
+  await requirePermission("administraciones.grupos.gestionar");
+
+  const profileIds = formData.getAll("memberIds").map(String);
+
+  await withRetry(() =>
+    prisma.$transaction([
+      prisma.profileContractGroup.deleteMany({ where: { groupId } }),
+      prisma.profileContractGroup.createMany({
+        data: profileIds.map((profileId) => ({ profileId, groupId })),
+        skipDuplicates: true,
+      }),
+    ])
+  );
+
+  revalidatePath("/backoffice/usuarios/grupos");
+}

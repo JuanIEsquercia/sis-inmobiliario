@@ -1,6 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
+import { useTheme } from "@/lib/use-theme";
 import { useMounted } from "@/lib/use-mounted";
 
 export function ThemeToggle() {

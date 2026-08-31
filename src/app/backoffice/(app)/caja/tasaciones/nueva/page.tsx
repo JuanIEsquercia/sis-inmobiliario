@@ -1,11 +1,11 @@
 import { requirePermission } from "@/lib/auth";
 import { getAgents } from "@/lib/caja";
 import { UnitPicker } from "@/components/backoffice/UnitPicker";
-import { AgentSelect } from "@/components/backoffice/AgentSelect";
+import { AppraisalSplitFields } from "@/components/backoffice/AppraisalSplitFields";
 import { crearTasacion, buscarUnidadesCaja } from "../../actions";
 
 export default async function NuevaTasacionPage() {
-  const profile = await requirePermission("caja.tasaciones.crear");
+  await requirePermission("caja.tasaciones.crear");
   const agents = await getAgents();
 
   return (
@@ -36,8 +36,9 @@ export default async function NuevaTasacionPage() {
             </label>
             <input id="completedAt" name="completedAt" type="date" required className="field" />
           </div>
-          <AgentSelect agents={agents} defaultValue={profile.id} />
         </fieldset>
+
+        <AppraisalSplitFields agents={agents} />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="notes" className="text-sm font-medium text-foreground">

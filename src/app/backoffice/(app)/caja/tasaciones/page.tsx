@@ -25,6 +25,10 @@ export default async function TasacionesPage() {
         )}
       </div>
 
+      <p className="mb-6 text-sm text-muted">
+        Cargar la tasación no la da por cobrada — el cobro se confirma aparte, desde la ficha de cada una.
+      </p>
+
       {appraisals.length === 0 ? (
         <p className="text-sm text-muted">Todavía no hay tasaciones cargadas.</p>
       ) : (
@@ -34,8 +38,9 @@ export default async function TasacionesPage() {
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Propiedad</th>
-                <th className="px-4 py-3">Tasador</th>
+                <th className="px-4 py-3">Reparto</th>
                 <th className="px-4 py-3">Monto</th>
+                <th className="px-4 py-3">Cobro</th>
               </tr>
             </thead>
             <tbody>
@@ -48,10 +53,13 @@ export default async function TasacionesPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {a.agent.firstName} {a.agent.lastName}
+                    {a.agent ? `50/50 — ${a.agent.firstName} ${a.agent.lastName}` : "100% inmobiliaria"}
                   </td>
                   <td className="px-4 py-3 text-foreground">
                     {a.currency} {fmtMoney(Number(a.amount))}
+                  </td>
+                  <td className="px-4 py-3 text-muted">
+                    {a.cashMovement ? "✓ Cobrada" : "Pendiente"}
                   </td>
                 </tr>
               ))}

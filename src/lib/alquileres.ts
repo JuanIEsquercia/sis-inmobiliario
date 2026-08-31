@@ -1,10 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
+import { contractGroupWhere, type ContractGroupScope } from "@/lib/auth";
 
-export async function getContracts() {
+// Solo contratos administrados: una colocación pura (isAdministered
+// false, sin liquidaciones ni indexación propia) no tiene nada que
+// gestionar acá, vive únicamente en Caja > Comisión alquileres. Sigue
+// existiendo como Contract (para el historial de la unidad) y su ficha
+// sigue siendo accesible, solo no aparece en este listado.
+export async function getContracts(scope: ContractGroupScope) {
   return withRetry(() =>
     prisma.contract.findMany({
-      include: { unit: true, owner: true, tenant: true },
+      where: { isAdministered: true, ...(contractGroupWhere(scope) ?? {}) },
+      include: { unit: true, owner: true, tenant: true, group: true },
       orderBy: { createdAt: "desc" },
     })
   );
@@ -53,16 +60,22 @@ export function buildPaymentSchedule(startDate: Date, durationMonths: number): P
   return entries;
 }
 
-export async function getContractById(id: number) {
+// findFirst (no findUnique) porque necesita combinar el id con el
+// filtro por scope — un contrato fuera de tu(s) grupo(s) da `null`,
+// igual que si no existiera, para no filtrar si existe o no.
+export async function getContractById(id: number, scope: ContractGroupScope) {
   return withRetry(() =>
-    prisma.contract.findUnique({
-      where: { id },
+    prisma.contract.findFirst({
+      where: { id, ...(contractGroupWhere(scope) ?? {}) },
       include: {
         unit: true,
         owner: true,
         tenant: true,
+        group: true,
         guarantors: { include: { client: true } },
-        rentalCommission: { include: { agent: true } },
+        vendedorAgent: true,
+        captadorAgent: true,
+        rentalCommission: { include: { vendedorAgent: true, captadorAgent: true } },
         indexType: true,
         concepts: { include: { concept: true } },
         documents: { include: { uploadedBy: { select: { username: true } } }, orderBy: { createdAt: "desc" } },
@@ -83,6 +96,7 @@ export async function getPaymentById(id: number) {
       include: {
         contract: { include: { unit: true, tenant: true, owner: true } },
         items: { include: { concept: true }, orderBy: { id: "asc" } },
+        partialPayments: { orderBy: { paidAt: "asc" } },
       },
     })
   );
@@ -113,7 +127,7 @@ export function paymentBreakdown(
 
 // Contratos activos cuya próxima indexación cae dentro de los próximos
 // `withinDays` días (por defecto 30), ordenados por fecha más próxima.
-export async function getContractsDueForIndexation(withinDays = 30) {
+export async function getContractsDueForIndexation(scope: ContractGroupScope, withinDays = 30) {
   // Arranca del inicio del día de hoy, no de la hora exacta actual — una
   // actualización que vence "hoy" no puede quedar afuera solo porque ya
   // pasó la medianoche.
@@ -124,26 +138,199 @@ export async function getContractsDueForIndexation(withinDays = 30) {
 
   return withRetry(() =>
     prisma.contract.findMany({
-      where: { status: "ACTIVO", nextIndexationDueAt: { gte: startOfToday, lte: limit } },
+      where: {
+        status: "ACTIVO",
+        nextIndexationDueAt: { gte: startOfToday, lte: limit },
+        ...(contractGroupWhere(scope) ?? {}),
+      },
       include: { unit: true, tenant: true, owner: true, indexType: true },
       orderBy: { nextIndexationDueAt: "asc" },
     })
   );
 }
 
+// Contratos activos cuya fecha de fin cae dentro de los próximos
+// `withinDays` días (por defecto 60) — la lista de "por vencer", que es
+// DISTINTA de getContractsDueForIndexation: un contrato puede tener su
+// próxima actualización de alquiler pronto y aun así faltarle varios
+// cortes antes del vencimiento real. Es donde conviene decidir/revisar
+// si la eventual renovación va a cobrar comisión (ver
+// actualizarRenovacionEsperada).
+export async function getContractsNearingEnd(scope: ContractGroupScope, withinDays = 60) {
+  const now = new Date();
+  const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const limit = new Date(startOfToday);
+  limit.setUTCDate(limit.getUTCDate() + withinDays);
+
+  return withRetry(() =>
+    prisma.contract.findMany({
+      where: {
+        status: "ACTIVO",
+        endDate: { gte: startOfToday, lte: limit },
+        ...(contractGroupWhere(scope) ?? {}),
+      },
+      include: { unit: true, tenant: true, owner: true },
+      orderBy: { endDate: "asc" },
+    })
+  );
+}
+
 // Todas las liquidaciones de un período (mes/año), cruzando todos los
 // contratos — para la vista mensual de Liquidaciones.
-export async function getPaymentsForPeriod(periodMonth: number, periodYear: number) {
+export async function getPaymentsForPeriod(scope: ContractGroupScope, periodMonth: number, periodYear: number) {
   return withRetry(() =>
     prisma.payment.findMany({
-      where: { periodMonth, periodYear },
+      where: { periodMonth, periodYear, contract: contractGroupWhere(scope) ?? undefined },
       include: {
         items: { include: { concept: true } },
-        contract: { include: { unit: true, owner: true } },
+        contract: { include: { unit: true, owner: true, tenant: true } },
       },
       orderBy: { contractId: "asc" },
     })
   );
+}
+
+// Liquidaciones ya cobradas por el inquilino (status PAGADO) donde la
+// inmobiliaria todavía no confirmó tener en mano su propia comisión de
+// administración (sin CashMovement todavía) — para Caja > Administración.
+// Sin filtro por grupo: Caja no está scopeada por cartera, la ve
+// cualquiera con permiso de Caja.
+export async function getPaymentsPendingFeeConfirmation() {
+  return withRetry(() =>
+    prisma.payment.findMany({
+      where: { status: "PAGADO", cashMovement: null },
+      include: {
+        items: { include: { concept: true } },
+        contract: { include: { unit: true, owner: true } },
+      },
+      orderBy: { paidAt: "desc" },
+    })
+  );
+}
+
+export interface MoraChargeSummary {
+  contractId: number;
+  propertyCode: string;
+  address: string;
+  tenantName: string;
+  currency: string;
+  total: number;
+  periods: number;
+}
+
+// Cuánto se cargó en concepto de "Mora" (interés por atraso) por
+// contrato, sumando el ítem de esa liquidación cada mes que se cargó —
+// "Mora" no es un campo propio, es un Concept más (ver
+// agregarConceptoLiquidacion), así que se identifica por nombre.
+export async function getMoraChargesSummary(scope: ContractGroupScope) {
+  const items = await withRetry(() =>
+    prisma.paymentItem.findMany({
+      where: {
+        concept: { name: { equals: "Mora", mode: "insensitive" } },
+        amount: { not: null },
+        payment: { contract: contractGroupWhere(scope) ?? undefined },
+      },
+      include: {
+        payment: { include: { contract: { include: { unit: true, tenant: true } } } },
+      },
+    })
+  );
+
+  const byContract = new Map<number, MoraChargeSummary>();
+  for (const item of items) {
+    const contract = item.payment.contract;
+    const amount = Number(item.amount ?? 0);
+    const existing = byContract.get(contract.id);
+    if (existing) {
+      existing.total += amount;
+      existing.periods += 1;
+    } else {
+      byContract.set(contract.id, {
+        contractId: contract.id,
+        propertyCode: contract.unit.propertyCode,
+        address: contract.unit.address,
+        tenantName: `${contract.tenant.firstName} ${contract.tenant.lastName}`,
+        currency: item.payment.currency,
+        total: amount,
+        periods: 1,
+      });
+    }
+  }
+
+  const rows = [...byContract.values()].sort((a, b) => b.total - a.total);
+  const totalsByCurrency = new Map<string, number>();
+  for (const row of rows) {
+    totalsByCurrency.set(row.currency, (totalsByCurrency.get(row.currency) ?? 0) + row.total);
+  }
+
+  return { rows, totalsByCurrency };
+}
+
+export interface OverduePayment {
+  paymentId: number;
+  contractId: number;
+  propertyCode: string;
+  address: string;
+  tenantName: string;
+  currency: string;
+  periodMonth: number;
+  periodYear: number;
+  dueDate: Date;
+  saldo: number;
+  daysLate: number;
+}
+
+export type MoraBucket = "1-3" | "4-8" | "9-15" | "16-30" | "30+";
+
+export function moraBucketFor(daysLate: number): MoraBucket {
+  if (daysLate <= 3) return "1-3";
+  if (daysLate <= 8) return "4-8";
+  if (daysLate <= 15) return "9-15";
+  if (daysLate <= 30) return "16-30";
+  return "30+";
+}
+
+// Liquidaciones vencidas y todavía no cobradas del todo (ni Enviada,
+// Parcial o incluso recién Pendiente si ya pasó la fecha) — la lista
+// base para el seguimiento de morosidad: días de atraso a hoy,
+// categorización por rango y promedio se calculan a partir de esto.
+export async function getOverduePayments(scope: ContractGroupScope): Promise<OverduePayment[]> {
+  const now = new Date();
+  const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+  const payments = await withRetry(() =>
+    prisma.payment.findMany({
+      where: {
+        status: { in: ["PENDIENTE", "ENVIADA", "PARCIAL"] },
+        dueDate: { lt: startOfToday },
+        contract: contractGroupWhere(scope) ?? undefined,
+      },
+      include: {
+        items: true,
+        contract: { include: { unit: true, tenant: true } },
+      },
+      orderBy: { dueDate: "asc" },
+    })
+  );
+
+  return payments.map((p) => {
+    const total = paymentTotal(p.items);
+    const saldo = total - Number(p.paidAmount ?? 0);
+    const daysLate = Math.round((startOfToday.getTime() - p.dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      paymentId: p.id,
+      contractId: p.contractId,
+      propertyCode: p.contract.unit.propertyCode,
+      address: p.contract.unit.address,
+      tenantName: `${p.contract.tenant.firstName} ${p.contract.tenant.lastName}`,
+      currency: p.currency,
+      periodMonth: p.periodMonth,
+      periodYear: p.periodYear,
+      dueDate: p.dueDate,
+      saldo,
+      daysLate,
+    };
+  });
 }
 
 export async function getConcepts() {
@@ -162,9 +349,15 @@ export interface ContractPunctuality {
   pending: number;
 }
 
+// "Atrasado" no es un status guardado (nada lo asigna nunca — ver
+// getOverduePayments, que ya calcula el atraso al vuelo desde dueDate en
+// vez de depender de un status): acá se calcula igual, comparando contra
+// hoy, para que el resumen de puntualidad del cliente no muestre "0
+// atrasados" aunque tenga pagos vencidos sin cobrar.
 function summarizePunctuality(
   payments: { status: string; dueDate: Date; paidAt: Date | null }[]
 ): ContractPunctuality {
+  const now = new Date();
   let paidOnTime = 0;
   let paidLate = 0;
   let overdue = 0;
@@ -174,7 +367,7 @@ function summarizePunctuality(
     if (p.status === "PAGADO") {
       if (p.paidAt && p.paidAt <= p.dueDate) paidOnTime++;
       else paidLate++;
-    } else if (p.status === "ATRASADO") {
+    } else if (p.dueDate < now) {
       overdue++;
     } else {
       pending++;
@@ -242,8 +435,20 @@ export async function getClientById(id: number) {
   };
 }
 
-// Ficha de unidad: historial completo de contratos de esa propiedad
-// (mismo código Adinco), sin importar cuántas veces se haya reutilizado.
+// Catálogo de propiedades para el módulo de Historial — todas las
+// unidades cargadas, tengan o no contrato activo hoy.
+export async function getUnits() {
+  return withRetry(() =>
+    prisma.unit.findMany({
+      include: { _count: { select: { contracts: true, sales: true, appraisals: true } } },
+      orderBy: { propertyCode: "asc" },
+    })
+  );
+}
+
+// Ficha de unidad: trazabilidad completa de esa propiedad (mismo código
+// Adinco) — contratos, ventas y tasaciones, sin importar cuántas veces
+// se haya reutilizado la unidad a lo largo de los años.
 export async function getUnitById(id: number) {
   return withRetry(() =>
     prisma.unit.findUnique({
@@ -253,6 +458,34 @@ export async function getUnitById(id: number) {
           include: { owner: true, tenant: true },
           orderBy: { startDate: "desc" },
         },
+        sales: {
+          include: { seller: true, buyer: true },
+          orderBy: { closedAt: "desc" },
+        },
+        appraisals: {
+          orderBy: { completedAt: "desc" },
+        },
+      },
+    })
+  );
+}
+
+export async function getContractGroups() {
+  return withRetry(() =>
+    prisma.contractGroup.findMany({
+      include: { members: { include: { profile: true } }, _count: { select: { contracts: true } } },
+      orderBy: { name: "asc" },
+    })
+  );
+}
+
+export async function getContractGroupById(id: number) {
+  return withRetry(() =>
+    prisma.contractGroup.findUnique({
+      where: { id },
+      include: {
+        members: { include: { profile: true } },
+        contracts: { include: { unit: true, tenant: true, owner: true }, orderBy: { createdAt: "desc" } },
       },
     })
   );
