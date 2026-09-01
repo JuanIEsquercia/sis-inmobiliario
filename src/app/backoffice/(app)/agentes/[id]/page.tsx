@@ -10,7 +10,7 @@ import {
   sumPaymentsByCurrency,
   filterPaymentsByMonth,
 } from "@/lib/agentes";
-import { PagarDeudaDialog } from "@/components/backoffice/PagarDeudaDialog";
+import { AgentDebtItemsTable } from "@/components/backoffice/AgentDebtItemsTable";
 import { CustomMonthPicker } from "@/components/backoffice/CustomMonthPicker";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -120,72 +120,7 @@ export default async function AgenteDetailPage({ params, searchParams }: PagePro
           Cada línea es una operación puntual — el pago se imputa a esa línea, total o parcial, no a un total
           suelto.
         </p>
-        {debtItems.length === 0 ? (
-          <p className="text-sm text-muted">Sin operaciones todavía.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3">Origen</th>
-                  <th className="px-4 py-3">Rol</th>
-                  <th className="px-4 py-3">Operación</th>
-                  <th className="px-4 py-3">Devengado</th>
-                  <th className="px-4 py-3">Saldo</th>
-                  {canRegistrarPago && <th className="px-4 py-3">Acciones</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {debtItems.map((item) => (
-                  <tr
-                    key={`${item.sourceType}-${item.sourceId}-${item.role}`}
-                    className="border-b border-border last:border-0 hover:bg-surface"
-                  >
-                    <td className="px-4 py-3 text-muted">{fmtDate.format(item.date)}</td>
-                    <td className="px-4 py-3 text-muted">{item.sourceLabel}</td>
-                    <td className="px-4 py-3 text-muted">{item.roleLabel}</td>
-                    <td className="px-4 py-3">
-                      <Link href={item.href} className="text-foreground hover:underline">
-                        {item.description}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-foreground">
-                      {item.currency} {fmtMoney(item.amount)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.saldo > 0 ? (
-                        <span className="font-medium text-accent">
-                          {item.currency} {fmtMoney(item.saldo)}
-                        </span>
-                      ) : (
-                        <span className="text-muted">Pagado</span>
-                      )}
-                    </td>
-                    {canRegistrarPago && (
-                      <td className="px-4 py-3">
-                        {item.saldo > 0 && (
-                          <PagarDeudaDialog
-                            agentId={id}
-                            sourceType={item.sourceType}
-                            sourceId={item.sourceId}
-                            role={item.role}
-                            sourceLabel={item.sourceLabel}
-                            roleLabel={item.roleLabel}
-                            description={item.description}
-                            currency={item.currency}
-                            amount={item.amount}
-                            saldo={item.saldo}
-                          />
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <AgentDebtItemsTable agentId={id} debtItems={debtItems} canRegistrarPago={canRegistrarPago} />
       </section>
 
       <section>

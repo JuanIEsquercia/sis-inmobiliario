@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
 import { optionalStr, requiredDate, requiredDecimal, requiredMethod, requiredStr } from "@/lib/form-utils";
-import { resolveDebtSourceCurrency } from "@/lib/agentes";
+import { resolveDebtSourceCurrency, getAgentDebtItems, debtKey } from "@/lib/agentes";
 import type { AgentDebtRole, AgentDebtSource, CommissionSchemeType } from "@/generated/prisma/client";
 
 // Imputa un pago a UNA línea puntual de lo devengado (sourceType +
@@ -33,6 +33,56 @@ export async function registrarPagoDeuda(
   await withRetry(() =>
     prisma.agentDebtPayment.create({
       data: { agentId, sourceType, sourceId, role, amount, currency, paidAt, method, notes, createdById: profile.id },
+    })
+  );
+
+  revalidatePath(`/backoffice/agentes/${agentId}`);
+  revalidatePath("/backoffice/agentes");
+}
+
+// Paga de una varias líneas de deuda a la vez, cada una por su saldo
+// completo — la única regla es que todas compartan moneda (un
+// AgentDebtPayment, como cualquier otro cobro/pago del sistema, es
+// siempre de una sola moneda). Nunca confía en montos que pudieran venir
+// del formulario: vuelve a resolver cada línea desde getAgentDebtItems,
+// mismo criterio que resolveDebtSourceCurrency en registrarPagoDeuda.
+export async function registrarPagoLote(agentId: string, formData: FormData) {
+  const profile = await requirePermission("agentes.pagos.crear");
+
+  const method = requiredMethod(formData.get("method"));
+  const paidAt = optionalStr(formData.get("paidAt")) ? requiredDate(formData.get("paidAt"), "Fecha") : new Date();
+  const notes = optionalStr(formData.get("notes"));
+
+  const keys = formData.getAll("items").map(String);
+  if (keys.length === 0) throw new Error("No seleccionaste ninguna línea para pagar.");
+
+  const debtItems = await getAgentDebtItems(agentId);
+  const selected = keys.map((key) => {
+    const item = debtItems.find((i) => debtKey(i.sourceType, i.sourceId, i.role) === key);
+    if (!item) throw new Error("Una de las líneas seleccionadas ya no existe o cambió — recargá la página.");
+    if (item.saldo <= 0) throw new Error(`"${item.description}" ya está pagada.`);
+    return item;
+  });
+
+  const currencies = new Set(selected.map((i) => i.currency));
+  if (currencies.size > 1) {
+    throw new Error("No se puede pagar en lote líneas con distinta moneda — separalas en pagos aparte.");
+  }
+
+  await withRetry(() =>
+    prisma.agentDebtPayment.createMany({
+      data: selected.map((item) => ({
+        agentId,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+        role: item.role,
+        amount: item.saldo.toFixed(2),
+        currency: item.currency,
+        paidAt,
+        method,
+        notes,
+        createdById: profile.id,
+      })),
     })
   );
 

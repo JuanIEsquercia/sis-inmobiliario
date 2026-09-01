@@ -23,7 +23,10 @@ export interface AgentDebtItem {
   saldo: number;
 }
 
-function debtKey(sourceType: AgentDebtSource, sourceId: number, role: AgentDebtRole): string {
+// Exportada — la usa también el checkbox de selección en lote (mismo
+// string tanto para armar el value del checkbox del lado del cliente
+// como para volver a encontrar el item del lado del servidor).
+export function debtKey(sourceType: AgentDebtSource, sourceId: number, role: AgentDebtRole): string {
   return `${sourceType}:${sourceId}:${role}`;
 }
 

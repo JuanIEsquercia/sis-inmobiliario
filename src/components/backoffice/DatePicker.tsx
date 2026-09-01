@@ -144,11 +144,26 @@ export function DatePicker({
     else setInternalValue(v);
   }
 
+  const [openUpwards, setOpenUpwards] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
+
   function openCalendar() {
     if (disabled) return;
     const parsed = parseISO(value);
     setViewYear(parsed?.y ?? today.getFullYear());
     setViewMonth(parsed?.m ?? today.getMonth() + 1);
+
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+
+      // Abrir hacia arriba si hay menos de 360px abajo y suficiente espacio arriba
+      setOpenUpwards(viewportHeight - rect.bottom < 360 && rect.top > 300);
+      // Alinear a la derecha si hay menos de 330px hacia la derecha
+      setAlignRight(viewportWidth - rect.left < 330);
+    }
+
     setOpen(true);
   }
 
@@ -169,8 +184,6 @@ export function DatePicker({
         setViewYear(p.y);
         setViewMonth(p.m);
       }
-      // Si no forma una fecha real (ej. 31/02), se deja el texto tal
-      // cual para que se corrija — no se toca el valor anterior.
     }
   }
 
@@ -245,7 +258,9 @@ export function DatePicker({
         <div
           role="dialog"
           aria-label="Elegir fecha"
-          className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-80 max-w-[90vw] rounded-3xl border border-border/70 bg-surface/95 p-4 sm:p-5 shadow-premium backdrop-blur-md animate-fadeIn"
+          className={`absolute z-50 w-80 max-w-[90vw] rounded-3xl border border-border/70 bg-surface/95 p-4 sm:p-5 shadow-premium backdrop-blur-md animate-fadeIn ${
+            openUpwards ? "bottom-[calc(100%+0.5rem)] top-auto" : "top-[calc(100%+0.5rem)] bottom-auto"
+          } ${alignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
         >
           {/* Fila 1: Navegación Mes Anterior / Título / Siguiente */}
           <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-border/40 pb-2.5">

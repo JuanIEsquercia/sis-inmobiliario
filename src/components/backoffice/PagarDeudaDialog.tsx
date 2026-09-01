@@ -96,8 +96,8 @@ export function PagarDeudaDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-3.5 w-full">
+            <div className="flex flex-col gap-1.5 w-full">
               <label htmlFor={`pagar-deuda-amount-${sourceType}-${sourceId}-${role}`} className="text-xs font-semibold text-foreground/80">
                 Monto a pagar ({currency}) *
               </label>
@@ -108,10 +108,10 @@ export function PagarDeudaDialog({
                 step="0.01"
                 required
                 defaultValue={montoDefault}
-                className="field"
+                className="field w-full"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 w-full">
               <label htmlFor={`pagar-deuda-fecha-${sourceType}-${sourceId}-${role}`} className="text-xs font-semibold text-foreground/80">
                 Fecha del pago
               </label>

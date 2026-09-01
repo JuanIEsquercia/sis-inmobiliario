@@ -77,14 +77,14 @@ export function PagarPropietarioDialog({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-3.5 w-full">
+            <div className="flex flex-col gap-1.5 w-full">
               <label htmlFor={`pago-prop-fecha-${paymentId}`} className="text-xs font-semibold text-foreground/80">
                 Fecha del pago
               </label>
               <DatePicker id={`pago-prop-fecha-${paymentId}`} name="ownerPaidAt" />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 w-full">
               <label htmlFor={`pago-prop-medio-${paymentId}`} className="text-xs font-semibold text-foreground/80">
                 Medio de pago *
               </label>
@@ -93,10 +93,10 @@ export function PagarPropietarioDialog({
                 name="method"
                 defaultValue="TRANSFERENCIA"
                 required
-                className="field"
+                className="field w-full"
               >
-                <option value="EFECTIVO">Efectivo</option>
-                <option value="TRANSFERENCIA">Transferencia</option>
+                <option value="EFECTIVO" className="bg-surface text-foreground">Efectivo</option>
+                <option value="TRANSFERENCIA" className="bg-surface text-foreground">Transferencia</option>
               </select>
             </div>
           </div>
