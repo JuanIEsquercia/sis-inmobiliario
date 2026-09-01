@@ -19,6 +19,8 @@ export function CustomMonthPicker({ month, year, basePath }: { month: number; ye
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(year);
+  const [alignRight, setAlignRight] = useState(false);
+  const [openUpwards, setOpenUpwards] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,7 +43,14 @@ export function CustomMonthPicker({ month, year, basePath }: { month: number; ye
   }, [open]);
 
   function toggleOpen() {
-    setViewYear(year); // arranca siempre desde el mes/año actualmente elegido
+    setViewYear(year);
+    if (!open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      setAlignRight(viewportWidth - rect.left < 300 || rect.left > viewportWidth / 2);
+      setOpenUpwards(viewportHeight - rect.bottom < 260 && rect.top > 260);
+    }
     setOpen((o) => !o);
   }
 
@@ -83,25 +92,27 @@ export function CustomMonthPicker({ month, year, basePath }: { month: number; ye
         <div
           role="dialog"
           aria-label="Elegir mes"
-          className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-64 rounded-2xl border border-border/60 bg-surface p-4 shadow-premium"
+          className={`absolute z-50 w-72 max-w-[90vw] rounded-3xl border border-border/70 bg-surface/95 p-4 shadow-premium backdrop-blur-md animate-fadeIn ${
+            openUpwards ? "bottom-[calc(100%+0.5rem)] top-auto" : "top-[calc(100%+0.5rem)] bottom-auto"
+          } ${alignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
         >
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between border-b border-border/40 pb-2.5">
             <button
               type="button"
               onClick={() => setViewYear((y) => y - 1)}
               aria-label="Año anterior"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-accent-soft/40 hover:text-accent cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/60 text-muted transition-colors hover:bg-accent-soft/40 hover:text-accent cursor-pointer"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.3">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className="text-sm font-bold text-foreground">{viewYear}</span>
+            <span className="text-base font-extrabold text-foreground tracking-tight">{viewYear}</span>
             <button
               type="button"
               onClick={() => setViewYear((y) => y + 1)}
               aria-label="Año siguiente"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-accent-soft/40 hover:text-accent cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/60 text-muted transition-colors hover:bg-accent-soft/40 hover:text-accent cursor-pointer"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.3">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -109,7 +120,7 @@ export function CustomMonthPicker({ month, year, basePath }: { month: number; ye
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-2">
             {monthAbbr.map((label, idx) => {
               const m = idx + 1;
               const isSelected = m === month && viewYear === year;
@@ -119,10 +130,10 @@ export function CustomMonthPicker({ month, year, basePath }: { month: number; ye
                   type="button"
                   onClick={() => selectMonth(m)}
                   aria-current={isSelected ? "true" : undefined}
-                  className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors cursor-pointer ${
+                  className={`rounded-xl px-2 py-2.5 text-xs font-bold transition-all cursor-pointer ${
                     isSelected
-                      ? "bg-accent text-accent-foreground shadow-sm"
-                      : "text-foreground hover:bg-accent-soft/40"
+                      ? "bg-accent text-accent-foreground shadow-sm scale-95"
+                      : "text-foreground hover:bg-accent-soft/50"
                   }`}
                 >
                   {label}
