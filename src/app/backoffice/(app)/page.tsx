@@ -1,12 +1,24 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
+import { requireProfile, getContractGroupScope, contractGroupWhere } from "@/lib/auth";
 
 export default async function BackofficeDashboard() {
+  const profile = await requireProfile();
+  const scope = await getContractGroupScope(profile);
+
   const [pedidosAbiertos, contratosActivos, pagosPendientes] = await withRetry(() =>
     Promise.all([
       prisma.pedido.count({ where: { estado: { in: ["ABIERTO", "EN_BUSQUEDA"] } } }),
-      prisma.contract.count({ where: { status: "ACTIVO" } }),
+      // Solo contratos que administramos de verdad — una colocación
+      // pura (isAdministered false) no tiene nada que gestionar, vive en
+      // Caja > Comisión alquileres. Sin este filtro, cargar una comisión
+      // de alquiler sola sumaba acá como si fuera una administración más
+      // (mismo criterio que getContracts, que alimenta el listado al que
+      // esta tarjeta lleva).
+      prisma.contract.count({
+        where: { status: "ACTIVO", isAdministered: true, ...(contractGroupWhere(scope) ?? {}) },
+      }),
       prisma.payment.count({ where: { status: { in: ["PENDIENTE", "ENVIADA", "PARCIAL"] } } }),
     ])
   );

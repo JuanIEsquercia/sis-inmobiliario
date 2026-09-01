@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getContracts, getContractGroups } from "@/lib/alquileres";
+import { getContracts, getContractGroups, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { SelectAllCheckbox } from "@/components/backoffice/SelectAllCheckbox";
@@ -117,8 +117,8 @@ export default async function AdministracionesPage() {
                         {c.unit.address}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted">{c.tenant.firstName} {c.tenant.lastName}</td>
-                    <td className="px-4 py-3 text-muted">{c.owner.firstName} {c.owner.lastName}</td>
+                    <td className="px-4 py-3 text-muted">{clientLabel(c.tenant)}</td>
+                    <td className="px-4 py-3 text-muted">{clientLabel(c.owner)}</td>
                     <td className="px-4 py-3 text-foreground">
                       {c.currency} {c.rentAmount.toString()}
                     </td>

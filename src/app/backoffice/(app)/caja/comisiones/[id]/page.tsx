@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getRentalCommissionById, agentLabel } from "@/lib/caja";
+import { clientLabel } from "@/lib/alquileres";
 import { AlquilerCronogramaFields } from "@/components/backoffice/AlquilerCronogramaFields";
 import { confirmarCobroComisionAlquiler, registrarCronogramaAlquiler, marcarCuotaPagada } from "../../actions";
 
@@ -46,7 +47,7 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
       </Link>
 
       <h1 className="mb-1 text-xl font-semibold text-foreground">
-        {commission.contract.unit.address} — {commission.contract.tenant.firstName} {commission.contract.tenant.lastName}
+        {commission.contract.unit.address} — {clientLabel(commission.contract.tenant)}
       </h1>
       <p className="mb-6 text-sm text-muted">
         <Link href={`/backoffice/administraciones/${commission.contractId}`} className="hover:underline">

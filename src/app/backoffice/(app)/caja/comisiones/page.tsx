@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getRentalCommissions, agentLabel } from "@/lib/caja";
+import { clientLabel } from "@/lib/alquileres";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -62,7 +63,7 @@ export default async function ComisionesPage() {
                       href={`/backoffice/caja/comisiones/${c.id}`}
                       className="font-medium text-foreground hover:underline"
                     >
-                      {c.contract.unit.address} — {c.contract.tenant.firstName} {c.contract.tenant.lastName}
+                      {c.contract.unit.address} — {clientLabel(c.contract.tenant)}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-muted">{originLabels[c.origin] ?? c.origin}</td>

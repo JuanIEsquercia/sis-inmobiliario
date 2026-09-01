@@ -14,11 +14,13 @@ interface ConceptOption {
   name: string;
 }
 
-// Todo lo que solo aplica si administramos el contrato (comisión,
-// indexación, transferencias, conceptos recurrentes) — se muestra u
-// oculta con el tilde "Administramos este contrato". Si se destilda,
-// el contrato queda solo como el registro del alquiler cerrado, sin
-// cronograma de liquidaciones.
+// Todo lo que solo aplica si administramos el contrato (indexación,
+// transferencias, conceptos recurrentes) — se muestra u oculta con el
+// tilde "Administramos este contrato". Si se destilda, el contrato
+// queda solo como el registro de la colocación, sin cronograma de
+// liquidaciones — igual que ComisionAlquilerFields, que arranca
+// destildado por default: administrar es la excepción, no la regla, la
+// mayoría de las cargas son solo la comisión de colocación.
 export function AdministracionFields({
   defaultChecked,
   defaultManagementFeePercent,

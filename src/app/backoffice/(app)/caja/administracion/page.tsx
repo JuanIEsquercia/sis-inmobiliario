@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/auth";
 import { getCashMovements } from "@/lib/caja";
-import { getPaymentsPendingFeeConfirmation, paymentBreakdown } from "@/lib/alquileres";
+import { getPaymentsPendingFeeConfirmation, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 import { confirmarCobroComision } from "../actions";
 
@@ -69,9 +69,7 @@ export default async function AdministracionCajaPage() {
                         <td className="px-4 py-3 text-foreground">
                           {p.contract.unit.propertyCode} — {p.contract.unit.address}
                         </td>
-                        <td className="px-4 py-3 text-muted">
-                          {p.contract.owner.firstName} {p.contract.owner.lastName}
-                        </td>
+                        <td className="px-4 py-3 text-muted">{clientLabel(p.contract.owner)}</td>
                         <td className="px-4 py-3 text-foreground">
                           {p.currency} {fmtMoney(managementFee)}
                         </td>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPaymentsForPeriod, paymentBreakdown } from "@/lib/alquileres";
+import { getPaymentsForPeriod, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { CobrarDialog } from "@/components/backoffice/CobrarDialog";
@@ -114,9 +114,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                         {p.contract.unit.address}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted">
-                      {p.contract.owner.firstName} {p.contract.owner.lastName}
-                    </td>
+                    <td className="px-4 py-3 text-muted">{clientLabel(p.contract.owner)}</td>
                     <td className="px-4 py-3 text-foreground">
                       {p.currency} {fmtMoney(total)}
                     </td>
@@ -147,7 +145,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                             paymentId={p.id}
                             propertyCode={p.contract.unit.propertyCode}
                             address={p.contract.unit.address}
-                            tenantName={`${p.contract.tenant.firstName} ${p.contract.tenant.lastName}`}
+                            tenantName={clientLabel(p.contract.tenant)}
                             periodLabel={`${monthNames[p.periodMonth - 1]} ${p.periodYear}`}
                             currency={p.currency}
                             total={total}
@@ -162,7 +160,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                               paymentId={p.id}
                               propertyCode={p.contract.unit.propertyCode}
                               address={p.contract.unit.address}
-                              ownerName={`${p.contract.owner.firstName} ${p.contract.owner.lastName}`}
+                              ownerName={clientLabel(p.contract.owner)}
                               periodLabel={`${monthNames[p.periodMonth - 1]} ${p.periodYear}`}
                               currency={p.currency}
                               netAmount={netForOwner}

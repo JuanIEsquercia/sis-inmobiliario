@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getPaymentById, paymentBreakdown } from "@/lib/alquileres";
+import { getPaymentById, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { requirePermission } from "@/lib/auth";
 import {
   guardarLiquidacion,
@@ -68,7 +68,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
             Liquidación {monthNames[payment.periodMonth - 1]} {payment.periodYear}
           </h1>
           <p className="text-xs text-muted mt-1">
-            Vence {fmtDate.format(payment.dueDate)} · Inquilino: {payment.contract.tenant.firstName} {payment.contract.tenant.lastName}
+            Vence {fmtDate.format(payment.dueDate)} · Inquilino: {clientLabel(payment.contract.tenant)}
           </p>
         </div>
         

@@ -389,11 +389,15 @@ model Contract {
   groupId Int?
   group   ContractGroup? @relation(fields: [groupId], references: [id])
 
-  ownerId Int
-  owner   Client @relation("ContractOwner", fields: [ownerId], references: [id])
+  // Nullable a propósito: se puede cargar la colocación ya (fecha, monto,
+  // comisión) sin tener todavía el nombre completo del propietario o del
+  // inquilino — se completa después desde la ficha del contrato (ver
+  // actualizarPartesContrato), mismo criterio que Sale.seller/buyer.
+  ownerId Int?
+  owner   Client? @relation("ContractOwner", fields: [ownerId], references: [id])
 
-  tenantId Int
-  tenant   Client @relation("ContractTenant", fields: [tenantId], references: [id])
+  tenantId Int?
+  tenant   Client? @relation("ContractTenant", fields: [tenantId], references: [id])
 
   // Transferencias — se cargan por contrato (no por cliente): cada
   // contrato puede tener una cuenta de cobro distinta, y el agente que

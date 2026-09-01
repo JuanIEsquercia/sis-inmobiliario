@@ -9,6 +9,7 @@ import {
   aplicarIndexacion,
   finalizarContrato,
   actualizarAgentesContrato,
+  actualizarPartesContrato,
   anularContrato,
   asignarGrupoContrato,
   actualizarRenovacionEsperada,
@@ -17,6 +18,7 @@ import { crearComisionAlquiler } from "../../caja/actions";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { RepartoPreview } from "@/components/backoffice/RepartoPreview";
 import { DatePicker } from "@/components/backoffice/DatePicker";
+import { ClientPicker } from "@/components/backoffice/ClientPicker";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -104,16 +106,24 @@ export default async function ContractDetailPage({ params }: PageProps) {
             ·{" "}
             <span>
               Inquilino:{" "}
-              <Link href={`/backoffice/clientes/${contract.tenant.id}`} className="hover:underline font-semibold text-foreground">
-                {contract.tenant.firstName} {contract.tenant.lastName}
-              </Link>
+              {contract.tenant ? (
+                <Link href={`/backoffice/clientes/${contract.tenant.id}`} className="hover:underline font-semibold text-foreground">
+                  {contract.tenant.firstName} {contract.tenant.lastName}
+                </Link>
+              ) : (
+                <span className="font-semibold text-muted">A completar</span>
+              )}
             </span>{" "}
             ·{" "}
             <span>
               Propietario:{" "}
-              <Link href={`/backoffice/clientes/${contract.owner.id}`} className="hover:underline font-semibold text-foreground">
-                {contract.owner.firstName} {contract.owner.lastName}
-              </Link>
+              {contract.owner ? (
+                <Link href={`/backoffice/clientes/${contract.owner.id}`} className="hover:underline font-semibold text-foreground">
+                  {contract.owner.firstName} {contract.owner.lastName}
+                </Link>
+              ) : (
+                <span className="font-semibold text-muted">A completar</span>
+              )}
             </span>
           </p>
         </div>
@@ -129,6 +139,29 @@ export default async function ContractDetailPage({ params }: PageProps) {
           </Link>
         </div>
       </div>
+
+      {canEditAgentes && (!contract.owner || !contract.tenant) && (
+        <div className="mb-6 rounded-xl border border-dashed border-border p-5">
+          <h2 className="mb-3 text-sm font-medium text-foreground">Partes del contrato</h2>
+          <p className="mb-3 text-xs text-muted">
+            No hace falta completarlas al cargar el contrato — se pueden confirmar después.
+          </p>
+          <form action={actualizarPartesContrato.bind(null, contract.id)} className="flex flex-col gap-4 sm:flex-row">
+            <div className="flex-1">
+              <ClientPicker namePrefix="owner" roleLabel="Propietario" initialSelected={contract.owner} />
+            </div>
+            <div className="flex-1">
+              <ClientPicker namePrefix="tenant" roleLabel="Inquilino" initialSelected={contract.tenant} />
+            </div>
+            <button
+              type="submit"
+              className="h-fit rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface sm:self-end"
+            >
+              Guardar
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Columna Principal Izquierda (Ficha Financiera y Liquidaciones) */}
@@ -205,12 +238,12 @@ export default async function ContractDetailPage({ params }: PageProps) {
             </dl>
           </div>
 
-          {/* Cronograma de Liquidaciones */}
-          <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-muted mb-4">Cronograma de Liquidaciones</h2>
-            {!contract.isAdministered ? (
-              <p className="text-xs text-muted font-medium">No administramos este contrato — sin cronograma de liquidaciones.</p>
-            ) : (
+          {/* Cronograma de Liquidaciones — no aplica si no administramos:
+              ya lo dice la línea "Administración" de arriba, repetir una
+              tarjeta entera solo para decir "no aplica" es ruido. */}
+          {contract.isAdministered && (
+            <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-muted mb-4">Cronograma de Liquidaciones</h2>
               <div className="overflow-x-auto rounded-lg border border-border/60">
                 <table className="w-full text-sm">
                   <thead>
@@ -246,8 +279,8 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Comisión de Contrato */}
           <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">

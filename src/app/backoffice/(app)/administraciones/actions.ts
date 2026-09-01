@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
 import { addMonths, buildPaymentSchedule, computeEndDate, paymentTotal } from "@/lib/alquileres";
-import { resolveClient, resolveUnit } from "@/lib/backoffice-resolvers";
+import { resolveClient, resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadContractDocument } from "@/lib/supabase/storage";
 import { crearRentalCommissionEnTx } from "@/lib/comisiones";
 import {
@@ -118,8 +118,12 @@ export async function createContract(formData: FormData) {
 
   const contract = await withRetry(() =>
     prisma.$transaction(async (tx) => {
-      const ownerId = await resolveClient(tx, formData, "owner", "Propietario");
-      const tenantId = await resolveClient(tx, formData, "tenant", "Inquilino");
+      // A propósito tolerante — a veces se conoce el negocio (unidad,
+      // monto, comisión) antes de tener los datos completos de las
+      // partes; se completan después desde la ficha del contrato (ver
+      // actualizarPartesContrato).
+      const ownerId = await resolveClientOptional(tx, formData, "owner", "Propietario");
+      const tenantId = await resolveClientOptional(tx, formData, "tenant", "Inquilino");
       const unitId = await resolveUnit(tx, formData);
 
       // Una renovación hereda el grupo del contrato que renueva — sigue
@@ -256,6 +260,25 @@ export async function createContract(formData: FormData) {
 
   revalidatePath("/backoffice/administraciones");
   redirect(`/backoffice/administraciones/${contract.id}`);
+}
+
+// Completa propietario/inquilino después del alta — a propósito no son
+// obligatorios al cargar el contrato (ver resolveClientOptional en
+// createContract): a veces se sabe el negocio antes de tener los datos
+// completos de las partes.
+export async function actualizarPartesContrato(contractId: number, formData: FormData) {
+  await requirePermission("administraciones.crear");
+
+  await withRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const ownerId = await resolveClientOptional(tx, formData, "owner", "Propietario");
+      const tenantId = await resolveClientOptional(tx, formData, "tenant", "Inquilino");
+      await tx.contract.update({ where: { id: contractId }, data: { ownerId, tenantId } });
+    })
+  );
+
+  revalidatePath(`/backoffice/administraciones/${contractId}`);
+  revalidatePath("/backoffice/administraciones");
 }
 
 export async function crearConcepto(name: string) {

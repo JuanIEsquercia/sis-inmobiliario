@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
-import { getUnitById } from "@/lib/alquileres";
+import { getUnitById, clientLabel } from "@/lib/alquileres";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -53,8 +53,7 @@ export default async function HistorialUnidadPage({ params }: PageProps) {
                   <span className="text-xs text-muted">{statusLabels[c.status]}</span>
                 </div>
                 <p className="text-muted">
-                  Inquilino: {c.tenant.firstName} {c.tenant.lastName} · Propietario: {c.owner.firstName}{" "}
-                  {c.owner.lastName}
+                  Inquilino: {clientLabel(c.tenant)} · Propietario: {clientLabel(c.owner)}
                 </p>
                 <p className="text-muted">
                   Alquiler: {c.currency} {fmtMoney(Number(c.rentAmount))}

@@ -2,6 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { contractGroupWhere, type ContractGroupScope } from "@/lib/auth";
 
+// Propietario/inquilino son opcionales al cargar un contrato (ver
+// comentario en el modelo) — mismo criterio que agentLabel (lib/caja.ts)
+// para mostrar algo legible mientras se completan los datos reales.
+export function clientLabel(client: { firstName: string; lastName: string } | null | undefined) {
+  return client ? `${client.firstName} ${client.lastName}` : "A completar";
+}
+
 // Solo contratos administrados: una colocación pura (isAdministered
 // false, sin liquidaciones ni indexación propia) no tiene nada que
 // gestionar acá, vive únicamente en Caja > Comisión alquileres. Sigue
@@ -249,7 +256,7 @@ export async function getMoraChargesSummary(scope: ContractGroupScope) {
         contractId: contract.id,
         propertyCode: contract.unit.propertyCode,
         address: contract.unit.address,
-        tenantName: `${contract.tenant.firstName} ${contract.tenant.lastName}`,
+        tenantName: clientLabel(contract.tenant),
         currency: item.payment.currency,
         total: amount,
         periods: 1,
@@ -322,7 +329,7 @@ export async function getOverduePayments(scope: ContractGroupScope): Promise<Ove
       contractId: p.contractId,
       propertyCode: p.contract.unit.propertyCode,
       address: p.contract.unit.address,
-      tenantName: `${p.contract.tenant.firstName} ${p.contract.tenant.lastName}`,
+      tenantName: clientLabel(p.contract.tenant),
       currency: p.currency,
       periodMonth: p.periodMonth,
       periodYear: p.periodYear,

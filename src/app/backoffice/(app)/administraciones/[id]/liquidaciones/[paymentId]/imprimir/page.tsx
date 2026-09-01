@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { getPaymentById, paymentBreakdown } from "@/lib/alquileres";
+import { getPaymentById, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { requirePermission } from "@/lib/auth";
 import { AutoPrint } from "@/components/backoffice/AutoPrint";
 import { PrintButton } from "@/components/backoffice/PrintButton";
@@ -105,15 +105,11 @@ export default async function ImprimirLiquidacionPage({ params, searchParams }: 
       <div className="mb-10 grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-12 text-sm bg-neutral-50 rounded-2xl p-6 border border-neutral-100">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 block mb-1">Inquilino</span>
-          <span className="text-neutral-800 font-semibold text-base">
-            {payment.contract.tenant.firstName} {payment.contract.tenant.lastName}
-          </span>
+          <span className="text-neutral-800 font-semibold text-base">{clientLabel(payment.contract.tenant)}</span>
         </div>
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 block mb-1">Propietario</span>
-          <span className="text-neutral-800 font-semibold text-base">
-            {payment.contract.owner.firstName} {payment.contract.owner.lastName}
-          </span>
+          <span className="text-neutral-800 font-semibold text-base">{clientLabel(payment.contract.owner)}</span>
         </div>
         <div className="sm:col-span-2 border-t border-neutral-200/60 pt-4 mt-2">
           <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 block mb-1">Propiedad Asociada</span>

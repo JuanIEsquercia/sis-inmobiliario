@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getContractsDueForIndexation, getContractsNearingEnd } from "@/lib/alquileres";
+import { getContractsDueForIndexation, getContractsNearingEnd, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { actualizarRenovacionEsperada } from "../actions";
@@ -55,9 +55,7 @@ export default async function ActualizacionesPage() {
                       {c.unit.address}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-muted">
-                    {c.tenant.firstName} {c.tenant.lastName}
-                  </td>
+                  <td className="px-4 py-3 text-muted">{clientLabel(c.tenant)}</td>
                   <td className="px-4 py-3 text-foreground">
                     {c.currency} {c.rentAmount.toString()}
                   </td>
@@ -100,9 +98,7 @@ export default async function ActualizacionesPage() {
                       {c.unit.address}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-muted">
-                    {c.tenant.firstName} {c.tenant.lastName}
-                  </td>
+                  <td className="px-4 py-3 text-muted">{clientLabel(c.tenant)}</td>
                   <td className="px-4 py-3 text-muted">{fmtDate.format(c.endDate)}</td>
                   <td className="px-4 py-3 text-foreground">{daysUntil(c.endDate)} días</td>
                   <td className="px-4 py-3">

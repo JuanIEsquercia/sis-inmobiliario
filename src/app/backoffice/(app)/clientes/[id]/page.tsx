@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
-import { getClientById } from "@/lib/alquileres";
+import { getClientById, clientLabel } from "@/lib/alquileres";
 import { actualizarCliente } from "../actions";
 import { DatePicker } from "@/components/backoffice/DatePicker";
 
@@ -84,8 +84,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   <span className="text-xs text-muted">{statusLabels[c.status]}</span>
                 </div>
                 <p className="text-muted">
-                  {fmtDate.format(c.startDate)} — {fmtDate.format(c.endDate)} · Propietario: {c.owner.firstName}{" "}
-                  {c.owner.lastName}
+                  {fmtDate.format(c.startDate)} — {fmtDate.format(c.endDate)} · Propietario: {clientLabel(c.owner)}
                 </p>
                 <p className="text-muted">
                   Puntualidad: {c.punctuality.paidOnTime}/{c.punctuality.totalPayments} a tiempo
@@ -113,8 +112,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   <span className="text-xs text-muted">{statusLabels[c.status]}</span>
                 </div>
                 <p className="text-muted">
-                  {fmtDate.format(c.startDate)} — {fmtDate.format(c.endDate)} · Inquilino: {c.tenant.firstName}{" "}
-                  {c.tenant.lastName}
+                  {fmtDate.format(c.startDate)} — {fmtDate.format(c.endDate)} · Inquilino: {clientLabel(c.tenant)}
                 </p>
               </li>
             ))}
@@ -140,8 +138,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   <span className="text-xs text-muted">{statusLabels[g.contract.status]}</span>
                 </div>
                 <p className="text-muted">
-                  Inquilino: {g.contract.tenant.firstName} {g.contract.tenant.lastName} · Propietario:{" "}
-                  {g.contract.owner.firstName} {g.contract.owner.lastName}
+                  Inquilino: {clientLabel(g.contract.tenant)} · Propietario: {clientLabel(g.contract.owner)}
                 </p>
               </li>
             ))}

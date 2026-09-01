@@ -119,7 +119,11 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
             name="vendedorAgentId"
             label="Agente vendedor"
             required={false}
-            defaultValue={sourceContract?.vendedorAgentId ?? profile.id}
+            // A propósito sin default a quien está cargando el contrato:
+            // asumir que quien lo carga es siempre el vendedor generó un
+            // cruce real cuando el que carga también es el propietario de
+            // la propiedad — se elige a mano en cada alta.
+            defaultValue={sourceContract?.vendedorAgentId ?? undefined}
           />
           <AgentSelect
             agents={agents}
@@ -130,8 +134,18 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
           />
         </fieldset>
 
+        {profile.permissions.includes("caja.comisiones.crear") && (
+          <ComisionAlquilerFields
+            scheme={commissionScheme && toRepartoSchemeInfo(commissionScheme)}
+            isRenewal={isRenewal}
+          />
+        )}
+
+        {/* Administración al final a propósito — es la excepción, no la
+            regla: la mayoría de las cargas son solo la comisión de
+            colocación de arriba, sin gestión continua del alquiler. */}
         <AdministracionFields
-          defaultChecked={sourceContract ? sourceContract.isAdministered : true}
+          defaultChecked={sourceContract ? sourceContract.isAdministered : false}
           defaultManagementFeePercent={sourceContract?.managementFeePercent?.toString()}
           defaultIndexationFrequencyMonths={sourceContract?.indexationFrequencyMonths ?? undefined}
           indexTypes={indexTypes}
@@ -142,13 +156,6 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
           defaultPaymentAlias={sourceContract?.paymentAlias ?? ""}
           defaultPaymentCBU={sourceContract?.paymentCBU ?? ""}
         />
-
-        {profile.permissions.includes("caja.comisiones.crear") && (
-          <ComisionAlquilerFields
-            scheme={commissionScheme && toRepartoSchemeInfo(commissionScheme)}
-            isRenewal={isRenewal}
-          />
-        )}
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="notes" className="text-sm font-medium text-foreground">
