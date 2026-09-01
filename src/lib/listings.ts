@@ -11,6 +11,13 @@ export interface ListingFilters {
   city?: string;
   priceMin?: number;
   priceMax?: number;
+  // Pese al nombre (viene del tag <rooms> del feed de Adinco), este dato
+  // es la cantidad de DORMITORIOS de la propiedad, no de ambientes —
+  // confirmado contra el feed real: coincide siempre con lo que dice el
+  // título/descripción ("3 dormitorios" → rooms=3). El feed tiene un tag
+  // <ambients> aparte que Adinco nunca completa (siempre vacío), así que
+  // no hay forma de mostrar "ambientes" real — se filtra/etiqueta como
+  // dormitorios en toda la UI pública para no prometer un dato que no es.
   rooms?: number;
   aptoCredito?: boolean;
   page?: number;
@@ -40,6 +47,7 @@ const listingCardSelect = {
   id: true,
   externalId: true,
   title: true,
+  contentTitle: true,
   operationType: true,
   propertyType: true,
   priceAmount: true,
@@ -104,7 +112,6 @@ export async function getListingById(id: number) {
       include: {
         images: { orderBy: { sortOrder: "asc" } },
         videos: true,
-        agency: true,
       },
     })
   );

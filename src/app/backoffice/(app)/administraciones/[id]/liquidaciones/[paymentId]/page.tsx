@@ -11,6 +11,7 @@ import {
   agregarConceptoLiquidacion,
   quitarConceptoLiquidacion,
 } from "../../../actions";
+import { DatePicker } from "@/components/backoffice/DatePicker";
 
 const monthNames = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -341,7 +342,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                   <label htmlFor="paidAt" className="text-xs text-muted">
                     Fecha de pago
                   </label>
-                  <input id="paidAt" name="paidAt" type="date" className="field w-full text-sm" />
+                  <DatePicker id="paidAt" name="paidAt" className="field w-full text-sm" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="method" className="text-xs text-muted">
@@ -397,7 +398,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                     <label htmlFor="ownerPaidAt" className="text-xs text-muted">
                       Fecha de pago
                     </label>
-                    <input id="ownerPaidAt" name="ownerPaidAt" type="date" className="field w-full text-sm" />
+                    <DatePicker id="ownerPaidAt" name="ownerPaidAt" className="field w-full text-sm" />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label htmlFor="ownerMethod" className="text-xs text-muted">

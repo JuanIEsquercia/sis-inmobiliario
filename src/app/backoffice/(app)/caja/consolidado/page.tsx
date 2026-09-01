@@ -1,7 +1,7 @@
 import { requirePermission } from "@/lib/auth";
 import { getMonthlyCashSummary } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
-import { MonthPicker } from "@/components/backoffice/MonthPicker";
+import { CustomMonthPicker } from "@/components/backoffice/CustomMonthPicker";
 import type { CashMovementSource } from "@/generated/prisma/client";
 
 const sourceLabels: Record<CashMovementSource, string> = {
@@ -62,7 +62,7 @@ export default async function ConsolidadoPage({ searchParams }: PageProps) {
       <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-border/60 bg-surface p-4 shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold uppercase tracking-wider text-muted">Período:</span>
-          <MonthPicker month={month} year={year} basePath="/backoffice/caja/consolidado" />
+          <CustomMonthPicker month={month} year={year} basePath="/backoffice/caja/consolidado" />
         </div>
       </div>
 

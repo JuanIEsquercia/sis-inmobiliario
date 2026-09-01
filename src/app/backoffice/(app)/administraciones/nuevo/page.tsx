@@ -7,6 +7,7 @@ import { UnitPicker } from "@/components/backoffice/UnitPicker";
 import { AdministracionFields } from "@/components/backoffice/AdministracionFields";
 import { ComisionAlquilerFields } from "@/components/backoffice/ComisionAlquilerFields";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
+import { DatePicker } from "@/components/backoffice/DatePicker";
 import { createContract } from "../actions";
 
 interface PageProps {
@@ -79,7 +80,7 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
             <label htmlFor="startDate" className="text-xs text-muted">
               Fecha de inicio*
             </label>
-            <input id="startDate" name="startDate" type="date" required className="field" />
+            <DatePicker id="startDate" name="startDate" required />
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="durationMonths" className="text-xs text-muted">

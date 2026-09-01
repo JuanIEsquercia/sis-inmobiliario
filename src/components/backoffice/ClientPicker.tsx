@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { buscarClientes } from "@/app/backoffice/(app)/administraciones/actions";
+import { DatePicker } from "./DatePicker";
 
 export interface ClientOption {
   id: number;
@@ -115,7 +116,7 @@ export function ClientPicker({
             <label htmlFor={field("birthDate")} className="text-xs text-muted">
               Fecha de nacimiento
             </label>
-            <input id={field("birthDate")} name={field("birthDate")} type="date" className="field" />
+            <DatePicker id={field("birthDate")} name={field("birthDate")} />
           </div>
           <input name={field("phone")} placeholder="Teléfono" className="field" />
           <input name={field("email")} type="email" placeholder="Email" className="field" />

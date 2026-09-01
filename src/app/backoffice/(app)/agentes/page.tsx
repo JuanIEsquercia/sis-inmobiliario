@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { getAllAgentBalances } from "@/lib/agentes";
 import { AgentesTabs } from "@/components/backoffice/AgentesTabs";
-import { MonthPicker } from "@/components/backoffice/MonthPicker";
+import { CustomMonthPicker } from "@/components/backoffice/CustomMonthPicker";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
@@ -34,7 +34,7 @@ export default async function AgentesPage({ searchParams }: PageProps) {
         <h1 className="text-xl font-semibold text-foreground">Pagos a agentes</h1>
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-muted">Período:</span>
-          <MonthPicker month={month} year={year} basePath="/backoffice/agentes" />
+          <CustomMonthPicker month={month} year={year} basePath="/backoffice/agentes" />
         </div>
       </div>
       <p className="mb-6 text-sm text-muted">

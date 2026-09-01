@@ -4,6 +4,7 @@ import { UnitPicker } from "@/components/backoffice/UnitPicker";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { CommissionInstallmentsFields } from "@/components/backoffice/CommissionInstallmentsFields";
+import { DatePicker } from "@/components/backoffice/DatePicker";
 import { crearVenta, buscarUnidadesCaja, buscarClientesCaja } from "../../actions";
 
 export default async function NuevaVentaPage() {
@@ -60,7 +61,7 @@ export default async function NuevaVentaPage() {
                 <label htmlFor="closedAt" className="text-xs font-semibold text-foreground/80">
                   Fecha de cierre *
                 </label>
-                <input id="closedAt" name="closedAt" type="date" required className="field" />
+                <DatePicker id="closedAt" name="closedAt" required />
               </div>
             </div>
           </fieldset>

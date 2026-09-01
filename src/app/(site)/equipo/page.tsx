@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { getPublicTeam } from "@/lib/site";
+import { toWhatsAppLink } from "@/lib/whatsapp";
 
 // Sin fetch() de por medio (es una consulta directa a Prisma), Next no
 // tiene ninguna señal para tratar esta página como dinámica — sin esto
@@ -15,7 +16,7 @@ export default async function EquipoPage() {
     <div className="mx-auto max-w-6xl px-6 py-16">
       <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">Nuestro equipo</h1>
       <p className="mb-10 max-w-xl text-muted">
-        Las personas detrás de García Propiedades — conocelas antes de tu próxima operación.
+        Conocé a las personas autorizadas a operar dentro de García Propiedades, antes de tu próxima operación.
       </p>
 
       {team.length === 0 ? (
@@ -41,11 +42,16 @@ export default async function EquipoPage() {
               {person.bio && <p className="mt-2 text-sm leading-relaxed text-muted">{person.bio}</p>}
               {person.phone && (
                 <a
-                  href={`tel:${person.phone}`}
+                  href={toWhatsAppLink(
+                    person.phone,
+                    `Hola${person.firstName ? ` ${person.firstName}` : ""}, te escribo desde la web de García Propiedades.`
+                  )}
+                  target="_blank"
+                  rel="noreferrer"
                   className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
                 >
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h1.5a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106a1.125 1.125 0 0 0-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97a1.125 1.125 0 0 0 .417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.72 14.02c-.24.68-1.4 1.29-1.93 1.35-.5.06-1.06.09-1.71-.11-.4-.12-.9-.29-1.55-.57-2.73-1.18-4.51-3.94-4.65-4.13-.14-.19-1.11-1.47-1.11-2.81 0-1.33.7-1.99.95-2.26.24-.27.53-.34.7-.34.18 0 .35 0 .5.01.16.01.38-.06.59.45.22.53.75 1.83.81 1.96.07.14.11.3.02.48-.09.18-.14.29-.27.45-.14.16-.29.35-.41.47-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.45.12.62-.07.16-.19.7-.81.89-1.09.19-.28.38-.23.63-.14.26.09 1.63.77 1.91.91.28.14.47.21.53.33.07.12.07.68-.17 1.35Z" />
                   </svg>
                   {person.phone}
                 </a>

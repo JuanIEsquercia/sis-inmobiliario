@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getClientById } from "@/lib/alquileres";
 import { actualizarCliente } from "../actions";
+import { DatePicker } from "@/components/backoffice/DatePicker";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -48,13 +49,11 @@ export default async function ClienteDetailPage({ params }: PageProps) {
             <label htmlFor="birthDate" className="text-xs text-muted">
               Fecha de nacimiento
             </label>
-            <input
+            <DatePicker
               id="birthDate"
               name="birthDate"
-              type="date"
               defaultValue={toDateInputValue(client.birthDate)}
               disabled={!canEdit}
-              className="field"
             />
           </div>
           <input name="phone" defaultValue={client.phone ?? ""} placeholder="Teléfono" disabled={!canEdit} className="field" />

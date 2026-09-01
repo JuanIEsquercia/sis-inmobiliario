@@ -5,6 +5,11 @@ import { formatArea, formatPrice, operationLabel } from "@/lib/format";
 export interface PropertyCardListing {
   id: number;
   title: string;
+  // El feed trae "title" como "{dirección} - {precio} - {tipo} - {operación}"
+  // concatenado — se ve repetido con la placa de tipo y el precio de
+  // abajo. contentTitle es el título real que escribe quien carga el
+  // aviso (ver comentario en la ficha de detalle).
+  contentTitle: string | null;
   operationType: string;
   propertyType: string;
   priceAmount: unknown;
@@ -23,6 +28,7 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
   const image = listing.images[0]?.url;
   const area = formatArea(listing.plotArea) ?? formatArea(listing.floorArea);
   const location = [listing.city, listing.region].filter(Boolean).join(", ");
+  const displayTitle = listing.contentTitle ?? listing.title;
 
   return (
     <Link
@@ -33,7 +39,7 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
         {image ? (
           <Image
             src={image}
-            alt={listing.title}
+            alt={displayTitle}
             fill
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
@@ -52,7 +58,7 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
         </span>
         
         <h3 className="line-clamp-2 text-base font-semibold text-foreground group-hover:text-accent transition-colors duration-250 mt-1 min-h-[3rem] leading-snug">
-          {listing.title}
+          {displayTitle}
         </h3>
         
         <div className="flex items-center gap-1 text-xs text-muted mt-1.5">
@@ -78,11 +84,11 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
           
           <div className="flex items-center gap-3 text-xs text-muted font-medium">
             {listing.rooms && (
-              <span className="flex items-center gap-1" title="Ambientes">
+              <span className="flex items-center gap-1" title="Dormitorios">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25A2.25 2.25 0 0 1 13.5 8.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
                 </svg>
-                {listing.rooms} <span className="opacity-70">amb</span>
+                {listing.rooms} <span className="opacity-70">dorm</span>
               </span>
             )}
             {area && (

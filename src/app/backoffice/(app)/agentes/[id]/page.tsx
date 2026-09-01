@@ -11,7 +11,7 @@ import {
   filterPaymentsByMonth,
 } from "@/lib/agentes";
 import { PagarDeudaDialog } from "@/components/backoffice/PagarDeudaDialog";
-import { MonthPicker } from "@/components/backoffice/MonthPicker";
+import { CustomMonthPicker } from "@/components/backoffice/CustomMonthPicker";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -79,7 +79,7 @@ export default async function AgenteDetailPage({ params, searchParams }: PagePro
 
       <div className="mb-6 flex items-center gap-3">
         <span className="text-xs font-bold uppercase tracking-wider text-muted">Período:</span>
-        <MonthPicker month={month} year={year} basePath={`/backoffice/agentes/${id}`} />
+        <CustomMonthPicker month={month} year={year} basePath={`/backoffice/agentes/${id}`} />
       </div>
 
       <div className="mb-8 flex flex-wrap gap-4">

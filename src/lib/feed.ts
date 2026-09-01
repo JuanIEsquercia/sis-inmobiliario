@@ -112,6 +112,11 @@ export interface NormalizedListing {
   floorArea: string | null;
   plotArea: string | null;
   landArea: string | null;
+  // El tag <rooms> del feed es en realidad la cantidad de dormitorios,
+  // no de ambientes (verificado contra el feed real: "3 dormitorios" en
+  // el título siempre trae rooms=3) — ver comentario en ListingFilters
+  // (lib/listings.ts). El feed también trae <ambients>, pero Adinco
+  // nunca lo completa para esta agencia, así que ni se importa.
   rooms: number | null;
   bathrooms: number | null;
   condition: string | null;

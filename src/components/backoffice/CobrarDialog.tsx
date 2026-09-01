@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { registrarCobro } from "@/app/backoffice/(app)/administraciones/actions";
+import { DatePicker } from "./DatePicker";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
@@ -111,7 +112,7 @@ export function CobrarDialog({
               <label htmlFor={`cobrar-fecha-${paymentId}`} className="text-xs font-semibold text-foreground/80">
                 Fecha de pago
               </label>
-              <input id={`cobrar-fecha-${paymentId}`} name="paidAt" type="date" className="field" />
+              <DatePicker id={`cobrar-fecha-${paymentId}`} name="paidAt" />
             </div>
           </div>
 

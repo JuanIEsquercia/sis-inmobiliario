@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { registrarPagoPropietario } from "@/app/backoffice/(app)/administraciones/actions";
+import { DatePicker } from "./DatePicker";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
@@ -81,12 +82,7 @@ export function PagarPropietarioDialog({
               <label htmlFor={`pago-prop-fecha-${paymentId}`} className="text-xs font-semibold text-foreground/80">
                 Fecha del pago
               </label>
-              <input
-                id={`pago-prop-fecha-${paymentId}`}
-                name="ownerPaidAt"
-                type="date"
-                className="field"
-              />
+              <DatePicker id={`pago-prop-fecha-${paymentId}`} name="ownerPaidAt" />
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={`pago-prop-medio-${paymentId}`} className="text-xs font-semibold text-foreground/80">

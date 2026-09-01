@@ -10,7 +10,7 @@ interface PageProps {
     ciudad?: string;
     precioMin?: string;
     precioMax?: string;
-    ambientes?: string;
+    dormitorios?: string;
     aptoCredito?: string;
     page?: string;
   }>;
@@ -29,7 +29,7 @@ function buildPageHref(sp: Awaited<PageProps["searchParams"]>, page: number): st
   if (sp.ciudad) params.set("ciudad", sp.ciudad);
   if (sp.precioMin) params.set("precioMin", sp.precioMin);
   if (sp.precioMax) params.set("precioMax", sp.precioMax);
-  if (sp.ambientes) params.set("ambientes", sp.ambientes);
+  if (sp.dormitorios) params.set("dormitorios", sp.dormitorios);
   if (sp.aptoCredito) params.set("aptoCredito", sp.aptoCredito);
   params.set("page", String(page));
   return `/propiedades?${params.toString()}`;
@@ -49,7 +49,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
       city: sp.ciudad,
       priceMin: toNumber(sp.precioMin),
       priceMax: toNumber(sp.precioMax),
-      rooms: toNumber(sp.ambientes),
+      rooms: toNumber(sp.dormitorios),
       aptoCredito: sp.aptoCredito === "true" ? true : undefined,
       page: toNumber(sp.page),
     }),

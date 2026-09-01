@@ -16,6 +16,7 @@ import {
 import { crearComisionAlquiler } from "../../caja/actions";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { RepartoPreview } from "@/components/backoffice/RepartoPreview";
+import { DatePicker } from "@/components/backoffice/DatePicker";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -296,7 +297,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   <label htmlFor="earnedAt" className="text-xs text-muted">
                     Fecha
                   </label>
-                  <input id="earnedAt" name="earnedAt" type="date" required className="field" />
+                  <DatePicker id="earnedAt" name="earnedAt" required />
                 </div>
                 {!isRenewal && (
                   <>

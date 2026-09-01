@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getExpenseCategories, getExpenses } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
+import { DatePicker } from "@/components/backoffice/DatePicker";
 import { crearCategoriaGasto, registrarGasto } from "../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -143,7 +144,7 @@ export default async function EgresosPage({ searchParams }: PageProps) {
                     <label htmlFor="expenseDate" className="text-xs text-muted">
                       Fecha
                     </label>
-                    <input id="expenseDate" name="occurredAt" type="date" className="field" />
+                    <DatePicker id="expenseDate" name="occurredAt" />
                   </div>
                   <div className="flex flex-1 flex-col gap-1.5">
                     <label htmlFor="expenseMethod" className="text-xs text-muted">

@@ -1,5 +1,7 @@
 "use client";
 
+import { DatePicker } from "./DatePicker";
+
 export interface CuotaRowValue {
   amount: string;
   dueDate: string;
@@ -56,14 +58,12 @@ export function CuotaRowFields({
           <label htmlFor={`installments.${index}.dueDate`} className="text-xs text-muted">
             Vence*
           </label>
-          <input
+          <DatePicker
             id={`installments.${index}.dueDate`}
             name={`installments.${index}.dueDate`}
-            type="date"
             required
             value={value.dueDate}
-            onChange={(e) => onChange({ dueDate: e.target.value })}
-            className="field"
+            onChange={(v) => onChange({ dueDate: v })}
           />
         </div>
         <div className="flex flex-col gap-1.5">

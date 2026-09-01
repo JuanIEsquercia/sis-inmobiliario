@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { registrarPagoDeuda } from "@/app/backoffice/(app)/agentes/actions";
+import { DatePicker } from "./DatePicker";
 import type { AgentDebtRole, AgentDebtSource } from "@/generated/prisma/client";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -114,12 +115,7 @@ export function PagarDeudaDialog({
               <label htmlFor={`pagar-deuda-fecha-${sourceType}-${sourceId}-${role}`} className="text-xs font-semibold text-foreground/80">
                 Fecha del pago
               </label>
-              <input
-                id={`pagar-deuda-fecha-${sourceType}-${sourceId}-${role}`}
-                name="paidAt"
-                type="date"
-                className="field"
-              />
+              <DatePicker id={`pagar-deuda-fecha-${sourceType}-${sourceId}-${role}`} name="paidAt" />
             </div>
           </div>
 

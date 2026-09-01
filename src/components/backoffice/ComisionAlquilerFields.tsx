@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { RepartoPreview, type RepartoSchemeInfo } from "./RepartoPreview";
+import { DatePicker } from "./DatePicker";
 import { refrescarEsquema } from "@/app/backoffice/(app)/caja/actions";
 
 // Comisión de colocación (alquiler nuevo) o de renovación — son unidades
@@ -53,7 +54,7 @@ export function ComisionAlquilerFields({
             <label htmlFor="earnedAt" className="text-xs text-muted">
               Fecha de cierre
             </label>
-            <input id="earnedAt" name="earnedAt" type="date" className="field" />
+            <DatePicker id="earnedAt" name="earnedAt" />
           </div>
 
           {!scheme && (

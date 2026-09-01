@@ -3,6 +3,7 @@ import { getAgents } from "@/lib/caja";
 import { UnitPicker } from "@/components/backoffice/UnitPicker";
 import { AppraisalSplitFields } from "@/components/backoffice/AppraisalSplitFields";
 import { YaCobradaFields } from "@/components/backoffice/YaCobradaFields";
+import { DatePicker } from "@/components/backoffice/DatePicker";
 import { crearTasacion, buscarUnidadesCaja } from "../../actions";
 
 export default async function NuevaTasacionPage() {
@@ -44,7 +45,7 @@ export default async function NuevaTasacionPage() {
                 <label htmlFor="completedAt" className="text-xs font-semibold text-foreground/80">
                   Fecha *
                 </label>
-                <input id="completedAt" name="completedAt" type="date" required className="field" />
+                <DatePicker id="completedAt" name="completedAt" required />
               </div>
             </div>
           </fieldset>
