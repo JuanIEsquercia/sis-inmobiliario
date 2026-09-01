@@ -12,52 +12,54 @@ export default async function NuevaVentaPage() {
   const [agents, scheme] = await Promise.all([getAgents(), getActiveCommissionScheme("VENTA")]);
 
   return (
-    <div className="max-w-5xl w-full mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="max-w-6xl w-full mx-auto space-y-6">
+      <div className="flex items-center justify-between border-b border-border/50 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Nueva Venta</h1>
-          <p className="text-xs text-muted mt-1">Registra una nueva operación de venta realizada por la inmobiliaria.</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Nueva Venta</h1>
+          <p className="text-xs font-medium text-muted mt-1">Registrá una nueva operación de venta realizada por la inmobiliaria.</p>
         </div>
       </div>
 
-      <form action={crearVenta} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <fieldset className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-surface p-5 sm:p-6 shadow-sm">
-            <legend className="px-2 text-xs font-bold uppercase tracking-wider text-muted">Propiedad & Partes</legend>
-            <div className="flex flex-col gap-4">
+      <form action={crearVenta} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Columna Principal (8 cols en LG) */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          <fieldset className="flex flex-col gap-5 rounded-3xl border border-border/70 bg-surface p-6 sm:p-7 shadow-sm">
+            <legend className="px-2 text-xs font-extrabold uppercase tracking-wider text-muted">Propiedad & Partes</legend>
+            <div className="flex flex-col gap-5 w-full">
               <UnitPicker search={buscarUnidadesCaja} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              
+              <div className="flex flex-col gap-5 w-full pt-1">
                 <ClientPicker namePrefix="seller" roleLabel="Parte vendedora" search={buscarClientesCaja} />
                 <ClientPicker namePrefix="buyer" roleLabel="Comprador" search={buscarClientesCaja} />
               </div>
             </div>
           </fieldset>
 
-          <fieldset className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-surface p-5 sm:p-6 shadow-sm">
-            <legend className="px-2 text-xs font-bold uppercase tracking-wider text-muted">Valores & Fechas</legend>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
+          <fieldset className="flex flex-col gap-5 rounded-3xl border border-border/70 bg-surface p-6 sm:p-7 shadow-sm">
+            <legend className="px-2 text-xs font-extrabold uppercase tracking-wider text-muted">Valores & Fechas</legend>
+            <div className="flex flex-col gap-4.5 w-full">
+              <div className="flex flex-col gap-1.5 w-full">
                 <label htmlFor="initialPriceAmount" className="text-xs font-semibold text-foreground/80">
                   Precio de inicio
                 </label>
-                <input id="initialPriceAmount" name="initialPriceAmount" type="number" step="0.01" className="field" placeholder="0.00" />
+                <input id="initialPriceAmount" name="initialPriceAmount" type="number" step="0.01" className="field w-full" placeholder="0.00" />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 w-full">
                 <label htmlFor="saleAmount" className="text-xs font-semibold text-foreground/80">
-                  Precio de cierre
+                  Precio de cierre *
                 </label>
-                <input id="saleAmount" name="saleAmount" type="number" step="0.01" className="field" placeholder="0.00" />
+                <input id="saleAmount" name="saleAmount" type="number" step="0.01" required className="field w-full" placeholder="0.00" />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 w-full">
                 <label htmlFor="currency" className="text-xs font-semibold text-foreground/80">
                   Moneda *
                 </label>
-                <select id="currency" name="currency" defaultValue="ARS" className="field">
-                  <option value="ARS">ARS ($)</option>
-                  <option value="USD">USD ($)</option>
+                <select id="currency" name="currency" defaultValue="ARS" className="field w-full">
+                  <option value="ARS" className="bg-surface text-foreground">ARS ($)</option>
+                  <option value="USD" className="bg-surface text-foreground">USD ($)</option>
                 </select>
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 w-full">
                 <label htmlFor="closedAt" className="text-xs font-semibold text-foreground/80">
                   Fecha de cierre *
                 </label>
@@ -66,9 +68,9 @@ export default async function NuevaVentaPage() {
             </div>
           </fieldset>
 
-          <fieldset className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-surface p-5 sm:p-6 shadow-sm">
-            <legend className="px-2 text-xs font-bold uppercase tracking-wider text-muted">Agentes de la Inmobiliaria</legend>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <fieldset className="flex flex-col gap-5 rounded-3xl border border-border/70 bg-surface p-6 sm:p-7 shadow-sm">
+            <legend className="px-2 text-xs font-extrabold uppercase tracking-wider text-muted">Agentes de la Inmobiliaria</legend>
+            <div className="flex flex-col gap-4.5 w-full">
               <AgentSelect
                 agents={agents}
                 defaultValue={profile.id}
@@ -81,9 +83,10 @@ export default async function NuevaVentaPage() {
           </fieldset>
         </div>
 
-        <div className="flex flex-col gap-6">
-          <div className="rounded-2xl border border-border/60 bg-surface p-5 sm:p-6 shadow-sm flex flex-col gap-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-muted">Cobro de Comisión</h2>
+        {/* Columna Lateral de Comisión y Cobro (4 cols en LG) */}
+        <div className="lg:col-span-4 flex flex-col gap-6 lg:sticky lg:top-24">
+          <div className="rounded-3xl border border-border/70 bg-surface p-6 sm:p-7 shadow-premium flex flex-col gap-5">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-muted">Cobro de Comisión</h2>
             <CommissionInstallmentsFields scheme={scheme && toRepartoSchemeInfo(scheme)} />
 
             {!scheme && (
@@ -104,7 +107,7 @@ export default async function NuevaVentaPage() {
 
             <button
               type="submit"
-              className="mt-2 w-full rounded-xl bg-accent py-3 text-xs font-bold text-accent-foreground shadow-sm hover:bg-accent-strong transition-all cursor-pointer"
+              className="mt-2 w-full rounded-2xl bg-gradient-to-r from-accent to-accent-strong py-3.5 text-sm font-bold text-accent-foreground shadow-md shadow-accent/20 hover:opacity-95 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
             >
               Crear Venta
             </button>

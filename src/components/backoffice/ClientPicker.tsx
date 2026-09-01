@@ -52,17 +52,21 @@ export function ClientPicker({
 
   if (selected) {
     return (
-      <div className="flex flex-col gap-1.5">
-        <p className="text-xs text-muted">{roleLabel}</p>
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2">
+      <div className="flex flex-col gap-1.5 w-full">
+        <span className="text-xs font-semibold text-foreground/80">{roleLabel}</span>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 px-4 py-3 shadow-2xs">
           <input type="hidden" name={field("clientId")} value={selected.id} />
           <div className="text-sm text-foreground">
-            <span className="font-medium">
+            <span className="font-bold">
               {selected.firstName} {selected.lastName}
             </span>
-            {selected.docId && <span className="ml-2 text-muted">DNI {selected.docId}</span>}
+            {selected.docId && <span className="ml-2 text-xs font-medium text-muted">· DNI {selected.docId}</span>}
           </div>
-          <button type="button" onClick={() => setSelected(null)} className="text-xs text-accent hover:underline">
+          <button
+            type="button"
+            onClick={() => setSelected(null)}
+            className="text-xs font-semibold text-accent hover:text-accent-strong transition-colors cursor-pointer"
+          >
             Cambiar
           </button>
         </div>
@@ -71,19 +75,33 @@ export function ClientPicker({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-      <p className="text-xs text-muted">{roleLabel}</p>
+    <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/40 p-4 sm:p-5 shadow-2xs w-full">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted">{roleLabel}</span>
+        {!showNew && (
+          <button
+            type="button"
+            onClick={() => setShowNew(true)}
+            className="text-xs font-semibold text-accent hover:underline cursor-pointer"
+          >
+            + Crear cliente nuevo
+          </button>
+        )}
+      </div>
+
       {!showNew && (
         <>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre o DNI..."
-            className="field"
-          />
+          <div className="relative w-full">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por nombre, apellido o DNI..."
+              className="field w-full"
+            />
+          </div>
           {pending && <p className="text-xs text-muted">Buscando…</p>}
           {query.trim().length >= 2 && results.length > 0 && (
-            <ul className="flex flex-col gap-1">
+            <ul className="flex flex-col gap-1.5 rounded-xl border border-border/80 bg-surface p-1.5 shadow-sm max-h-48 overflow-y-auto">
               {results.map((c) => (
                 <li key={c.id}>
                   <button
@@ -93,43 +111,59 @@ export function ClientPicker({
                       setQuery("");
                       setResults([]);
                     }}
-                    className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface"
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-background transition-colors cursor-pointer"
                   >
-                    {c.firstName} {c.lastName}
-                    {c.docId && <span className="text-muted"> · DNI {c.docId}</span>}
+                    <span className="font-semibold text-foreground">{c.firstName} {c.lastName}</span>
+                    {c.docId && <span className="text-xs text-muted ml-2">· DNI {c.docId}</span>}
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          <button type="button" onClick={() => setShowNew(true)} className="w-fit text-xs text-accent hover:underline">
-            + Cliente nuevo
-          </button>
         </>
       )}
+
       {showNew && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <input name={field("firstName")} placeholder="Nombre*" required className="field" />
-          <input name={field("lastName")} placeholder="Apellido*" required className="field" />
-          <input name={field("docId")} placeholder="DNI" className="field" />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={field("birthDate")} className="text-xs text-muted">
-              Fecha de nacimiento
-            </label>
-            <DatePicker id={field("birthDate")} name={field("birthDate")} />
+        <div className="flex flex-col gap-4 pt-1">
+          <div className="flex flex-col gap-3.5 w-full">
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Nombre *</label>
+              <input name={field("firstName")} placeholder="Ej. Juan Carlos" required className="field w-full" />
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Apellido *</label>
+              <input name={field("lastName")} placeholder="Ej. Pérez" required className="field w-full" />
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">DNI / CUIT</label>
+              <input name={field("docId")} placeholder="Número de documento sin puntos" className="field w-full" />
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Teléfono</label>
+              <input name={field("phone")} placeholder="Ej. 3794123456" className="field w-full" />
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Correo electrónico</label>
+              <input name={field("email")} type="email" placeholder="ejemplo@correo.com" className="field w-full" />
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label htmlFor={field("birthDate")} className="text-xs font-semibold text-foreground/80">
+                Fecha de nacimiento
+              </label>
+              <DatePicker id={field("birthDate")} name={field("birthDate")} />
+            </div>
           </div>
-          <input name={field("phone")} placeholder="Teléfono" className="field" />
-          <input name={field("email")} type="email" placeholder="Email" className="field" />
+
           <button
             type="button"
             onClick={() => setShowNew(false)}
-            className="col-span-full w-fit text-xs text-muted hover:underline"
+            className="w-fit text-xs font-semibold text-muted hover:text-foreground transition-colors cursor-pointer pt-1"
           >
-            Buscar existente en su lugar
+            ← Volver a buscar cliente existente
           </button>
         </div>
       )}
-      {error && <p className="text-xs text-accent">{error}</p>}
+      {error && <p className="text-xs font-semibold text-accent">{error}</p>}
     </div>
   );
 }

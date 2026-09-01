@@ -45,32 +45,54 @@ export function UnitPicker({
 
   if (selected) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2">
-        <input type="hidden" name="unit.id" value={selected.id} />
-        <div className="text-sm text-foreground">
-          <span className="font-medium">{selected.propertyCode}</span>
-          <span className="ml-2 text-muted">{selected.address}</span>
+      <div className="flex flex-col gap-1.5 w-full">
+        <span className="text-xs font-semibold text-foreground/80">Unidad de propiedad</span>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 px-4 py-3 shadow-2xs">
+          <input type="hidden" name="unit.id" value={selected.id} />
+          <div className="text-sm text-foreground">
+            <span className="font-bold">{selected.propertyCode}</span>
+            <span className="ml-2 text-xs font-medium text-muted">· {selected.address}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelected(null)}
+            className="text-xs font-semibold text-accent hover:text-accent-strong transition-colors cursor-pointer"
+          >
+            Cambiar
+          </button>
         </div>
-        <button type="button" onClick={() => setSelected(null)} className="text-xs text-accent hover:underline">
-          Cambiar
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/40 p-4 sm:p-5 shadow-2xs w-full">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted">Unidad de Propiedad</span>
+        {!showNew && (
+          <button
+            type="button"
+            onClick={() => setShowNew(true)}
+            className="text-xs font-semibold text-accent hover:underline cursor-pointer"
+          >
+            + Crear unidad nueva
+          </button>
+        )}
+      </div>
+
       {!showNew && (
         <>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por código Adinco o dirección..."
-            className="field"
-          />
+          <div className="relative w-full">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por código de propiedad (Adinco) o dirección..."
+              className="field w-full"
+            />
+          </div>
           {pending && <p className="text-xs text-muted">Buscando…</p>}
           {query.trim().length >= 2 && results.length > 0 && (
-            <ul className="flex flex-col gap-1">
+            <ul className="flex flex-col gap-1.5 rounded-xl border border-border/80 bg-surface p-1.5 shadow-sm max-h-48 overflow-y-auto">
               {results.map((u) => (
                 <li key={u.id}>
                   <button
@@ -80,43 +102,56 @@ export function UnitPicker({
                       setQuery("");
                       setResults([]);
                     }}
-                    className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface"
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-background transition-colors cursor-pointer"
                   >
-                    <span className="font-medium">{u.propertyCode}</span>{" "}
-                    <span className="text-muted">{u.address}</span>
+                    <span className="font-bold text-foreground">{u.propertyCode}</span>{" "}
+                    <span className="text-xs text-muted">· {u.address}</span>
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          <button type="button" onClick={() => setShowNew(true)} className="w-fit text-xs text-accent hover:underline">
-            + Unidad nueva
-          </button>
         </>
       )}
+
       {showNew && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <input name="unit.propertyCode" placeholder="Código de propiedad (Adinco)*" required className="field" />
-          <input name="unit.address" placeholder="Dirección*" required className="field sm:col-span-2" />
-          <input name="unit.city" placeholder="Ciudad" className="field" />
-          <select name="unit.propertyType" defaultValue="" className="field">
-            <option value="">Tipo</option>
-            {PROPERTY_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-4 pt-1">
+          <div className="flex flex-col gap-3.5 w-full">
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Código Adinco *</label>
+              <input name="unit.propertyCode" placeholder="Ej. PROP-1234" required className="field w-full" />
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Tipo de propiedad</label>
+              <select name="unit.propertyType" defaultValue="" className="field w-full">
+                <option value="" className="bg-surface text-foreground">Seleccionar tipo</option>
+                {PROPERTY_TYPES.map((type) => (
+                  <option key={type} value={type} className="bg-surface text-foreground">
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Dirección completa *</label>
+              <input name="unit.address" placeholder="Calle, número, piso o depto" required className="field w-full" />
+            </div>
+            <div className="flex flex-col gap-1 w-full">
+              <label className="text-xs font-semibold text-foreground/80">Ciudad</label>
+              <input name="unit.city" placeholder="Ej. Corrientes" className="field w-full" />
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => setShowNew(false)}
-            className="col-span-full w-fit text-xs text-muted hover:underline"
+            className="w-fit text-xs font-semibold text-muted hover:text-foreground transition-colors cursor-pointer pt-1"
           >
-            Buscar existente en su lugar
+            ← Volver a buscar unidad existente
           </button>
         </div>
       )}
-      {error && <p className="text-xs text-accent">{error}</p>}
+      {error && <p className="text-xs font-semibold text-accent">{error}</p>}
     </div>
   );
 }
