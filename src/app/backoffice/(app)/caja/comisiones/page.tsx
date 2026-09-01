@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getRentalCommissions, agentLabel } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
-import { confirmarCobroComisionAlquiler } from "../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -14,7 +13,6 @@ const originLabels: Record<string, string> = {
 
 export default async function ComisionesPage() {
   const profile = await requirePermission("caja.ver");
-  const canConfirmar = profile.permissions.includes("caja.comisiones.confirmar");
   const commissions = await getRentalCommissions();
 
   return (
@@ -61,7 +59,7 @@ export default async function ComisionesPage() {
                   <td className="px-4 py-3 text-muted">{fmtDate.format(c.earnedAt)}</td>
                   <td className="px-4 py-3">
                     <Link
-                      href={`/backoffice/administraciones/${c.contractId}`}
+                      href={`/backoffice/caja/comisiones/${c.id}`}
                       className="font-medium text-foreground hover:underline"
                     >
                       {c.contract.unit.address} — {c.contract.tenant.firstName} {c.contract.tenant.lastName}
@@ -77,22 +75,14 @@ export default async function ComisionesPage() {
                   <td className="px-4 py-3 text-foreground">
                     {c.currency} {fmtMoney(Number(c.amount))}
                   </td>
-                  <td className="px-4 py-3">
-                    {c.cashMovement ? (
-                      <span className="text-xs text-muted">✓ Cobrada</span>
-                    ) : canConfirmar ? (
-                      <form action={confirmarCobroComisionAlquiler.bind(null, c.id)} className="flex items-center gap-1.5">
-                        <select name="method" defaultValue="TRANSFERENCIA" className="field py-1 text-xs" required>
-                          <option value="EFECTIVO">Efectivo</option>
-                          <option value="TRANSFERENCIA">Transferencia</option>
-                        </select>
-                        <button type="submit" className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface">
-                          Confirmar
-                        </button>
-                      </form>
-                    ) : (
-                      <span className="text-xs text-muted">Pendiente</span>
-                    )}
+                  <td className="px-4 py-3 text-xs text-muted">
+                    {c.cashMovement
+                      ? "✓ Cobrada"
+                      : c.installments.length > 0
+                        ? c.installments.every((i) => i.status === "PAGADA")
+                          ? "✓ Cobrada"
+                          : `${c.installments.filter((i) => i.status === "PAGADA").length}/${c.installments.length} cuotas cobradas`
+                        : "Pendiente"}
                   </td>
                 </tr>
               ))}

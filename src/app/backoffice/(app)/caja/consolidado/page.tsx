@@ -1,13 +1,8 @@
-import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getMonthlyCashSummary } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
+import { MonthPicker } from "@/components/backoffice/MonthPicker";
 import type { CashMovementSource } from "@/generated/prisma/client";
-
-const monthNames = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
 
 const sourceLabels: Record<CashMovementSource, string> = {
   ADMINISTRACION: "Administración",
@@ -32,12 +27,6 @@ export default async function ConsolidadoPage({ searchParams }: PageProps) {
   const year = Number(sp.anio) || now.getUTCFullYear();
 
   const { movements, expenses, agentPayments } = await getMonthlyCashSummary(month, year);
-
-  function periodHref(m: number, y: number) {
-    return `/backoffice/caja/consolidado?mes=${m}&anio=${y}`;
-  }
-  const prev = month === 1 ? { m: 12, y: year - 1 } : { m: month - 1, y: year };
-  const next = month === 12 ? { m: 1, y: year + 1 } : { m: month + 1, y: year };
 
   // Nunca se suma ARS con USD — todo se acumula por moneda.
   const ingresosByCurrency = new Map<string, number>();
@@ -70,16 +59,11 @@ export default async function ConsolidadoPage({ searchParams }: PageProps) {
       <h1 className="mb-1 text-xl font-semibold text-foreground">Consolidado mensual</h1>
       <p className="mb-6 text-sm text-muted">Ingresos reales menos egresos reales del mes — el neto de verdad.</p>
 
-      <div className="mb-6 flex items-center gap-3">
-        <Link href={periodHref(prev.m, prev.y)} className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface">
-          ← Anterior
-        </Link>
-        <span className="text-sm font-medium text-foreground">
-          {monthNames[month - 1]} {year}
-        </span>
-        <Link href={periodHref(next.m, next.y)} className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface">
-          Siguiente →
-        </Link>
+      <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-border/60 bg-surface p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted">Período:</span>
+          <MonthPicker month={month} year={year} basePath="/backoffice/caja/consolidado" />
+        </div>
       </div>
 
       {currencies.size === 0 ? (

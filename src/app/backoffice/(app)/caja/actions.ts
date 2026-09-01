@@ -5,13 +5,25 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requirePermission, requireAnyPermission } from "@/lib/auth";
-import { resolveClient, resolveUnit } from "@/lib/backoffice-resolvers";
+import { resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadAppraisalReport } from "@/lib/supabase/storage";
 import { paymentBreakdown } from "@/lib/alquileres";
-import { calcularReparto, crearRentalCommissionEnTx } from "@/lib/comisiones";
+import {
+  calcularReparto,
+  crearRentalCommissionEnTx,
+  crearCronogramaCobroEnTx,
+  validarSumaCuotas,
+  type CuotaEntrada,
+} from "@/lib/comisiones";
 import { getActiveCommissionScheme, toRepartoSchemeInfo } from "@/lib/caja";
-import { optionalDecimal, optionalStr, requiredDate, requiredDecimal, requiredStr } from "@/lib/form-utils";
-import { Prisma, type CommissionSchemeType, type ExpenseType, type PaymentMethod } from "@/generated/prisma/client";
+import { optionalDecimal, optionalStr, requiredDate, requiredDecimal, requiredMethod, requiredStr } from "@/lib/form-utils";
+import {
+  Prisma,
+  type CommissionSchemeType,
+  type CommissionParty,
+  type ExpenseType,
+  type PaymentMethod,
+} from "@/generated/prisma/client";
 
 // Para el botón "Ya lo configuré" en los formularios que quedaron
 // esperando el esquema — evita recargar toda la página (y perder lo ya
@@ -75,8 +87,13 @@ function installmentIndices(formData: FormData): number[] {
   return [...indices].sort((a, b) => a - b);
 }
 
-function asPagareSigner(v: string | null): "COMPRADOR" | "VENDEDOR" | null {
-  return v === "COMPRADOR" || v === "VENDEDOR" ? v : null;
+const VENTA_PARTIES = ["COMPRADOR", "VENDEDOR"] as const;
+const ALQUILER_PARTIES = ["INQUILINO", "PROPIETARIO"] as const;
+
+// Optativo a propósito (ver comentario en CommissionParty) — una cuota
+// sin atribución puntual no es un error de carga.
+function asCommissionParty(v: string | null, allowed: readonly CommissionParty[]): CommissionParty | null {
+  return v && (allowed as readonly string[]).includes(v) ? (v as CommissionParty) : null;
 }
 
 export async function crearVenta(formData: FormData) {
@@ -84,41 +101,51 @@ export async function crearVenta(formData: FormData) {
 
   const initialPriceAmount = optionalDecimal(formData.get("initialPriceAmount"));
   const saleAmount = optionalDecimal(formData.get("saleAmount"));
+  // El total de la comisión SIEMPRE se carga acá, una sola vez y directo
+  // — nunca sale de sumar cuotas (eso quedó al revés antes: ver
+  // validarSumaCuotas más abajo, que corta en seco si no coinciden).
+  const commissionAmount = requiredDecimal(formData.get("commissionAmount"), "Comisión de venta");
   const currency = requiredStr(formData.get("currency"), "Moneda");
   const closedAt = requiredDate(formData.get("closedAt"), "Fecha de cierre");
   const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
   const captadorAgentId = optionalStr(formData.get("captadorAgentId"));
   const notes = optionalStr(formData.get("notes"));
 
-  // La comisión siempre se cobra a través de cuotas — "de contado" es
-  // simplemente una sola cuota que ya se da por cobrada hoy. Así el
-  // mismo mecanismo (SaleCommissionInstallment) cubre ambos casos y la
-  // Caja nunca ve plata que todavía no entró de verdad.
+  // "De contado" (enCuotas destildado) es, para el cronograma, una sola
+  // cuota que además se da por cobrada hoy mismo — mismo mecanismo
+  // (CommissionInstallment) que Alquiler, ver crearCronogramaCobroEnTx.
   const enCuotas = formData.get("enCuotas") === "on";
-  const cuotasInput = enCuotas
-    ? installmentIndices(formData).map((i, idx) => ({
-        amount: requiredDecimal(formData.get(`installments.${i}.amount`), `Monto cuota ${idx + 1}`),
-        dueDate: requiredDate(formData.get(`installments.${i}.dueDate`), `Vencimiento cuota ${idx + 1}`),
-        pagareSignedBy: asPagareSigner(optionalStr(formData.get(`installments.${i}.pagareSignedBy`))),
-      }))
+  const cuotas: CuotaEntrada[] = enCuotas
+    ? installmentIndices(formData).map((i, idx) => {
+        const yaCobrada = formData.get(`installments.${i}.yaCobrada`) === "on";
+        return {
+          amount: requiredDecimal(formData.get(`installments.${i}.amount`), `Monto cuota ${idx + 1}`),
+          dueDate: requiredDate(formData.get(`installments.${i}.dueDate`), `Vencimiento cuota ${idx + 1}`),
+          attributedTo: asCommissionParty(optionalStr(formData.get(`installments.${i}.attributedTo`)), VENTA_PARTIES),
+          pagareFirmado: formData.get(`installments.${i}.pagareFirmado`) === "on",
+          yaCobrada,
+          method: yaCobrada ? requiredMethod(formData.get(`installments.${i}.method`), `Medio de cobro cuota ${idx + 1}`) : null,
+        };
+      })
     : [
         {
-          amount: requiredDecimal(formData.get("commissionAmount"), "Comisión de venta"),
+          amount: commissionAmount,
           dueDate: closedAt,
-          pagareSignedBy: null,
+          attributedTo: null,
+          pagareFirmado: false,
+          yaCobrada: true,
+          method: requiredMethod(formData.get("method")),
         },
       ];
-  if (cuotasInput.length === 0) {
+  if (cuotas.length === 0) {
     throw new Error("Agregá al menos una cuota o destildá el pago en cuotas.");
   }
-  const commissionAmount = cuotasInput
-    .reduce((sum, c) => sum.add(new Prisma.Decimal(c.amount)), new Prisma.Decimal(0))
-    .toFixed(2);
+  validarSumaCuotas(cuotas, commissionAmount);
 
   const sale = await withRetry(() =>
     prisma.$transaction(async (tx) => {
-      const sellerId = await resolveClient(tx, formData, "seller", "Parte vendedora");
-      const buyerId = await resolveClient(tx, formData, "buyer", "Comprador");
+      const sellerId = await resolveClientOptional(tx, formData, "seller", "Parte vendedora");
+      const buyerId = await resolveClientOptional(tx, formData, "buyer", "Comprador");
       const unitId = await resolveUnit(tx, formData);
       const unit = await tx.unit.findUniqueOrThrow({ where: { id: unitId }, select: { propertyCode: true } });
 
@@ -152,39 +179,15 @@ export async function crearVenta(formData: FormData) {
         },
       });
 
-      const totalCuotas = cuotasInput.length;
-      for (let i = 0; i < cuotasInput.length; i++) {
-        const cuota = cuotasInput[i];
-        // Sin cuotas (pago único) se da por cobrada en el momento, igual
-        // que el comportamiento de antes de que existiera este cronograma.
-        const yaCobrada = !enCuotas;
-
-        const installment = await tx.saleCommissionInstallment.create({
-          data: {
-            saleId: created.id,
-            numeroCuota: i + 1,
-            totalCuotas,
-            amount: cuota.amount,
-            dueDate: cuota.dueDate,
-            pagareSignedBy: cuota.pagareSignedBy,
-            status: yaCobrada ? "PAGADA" : "PENDIENTE",
-            paidAt: yaCobrada ? closedAt : null,
-          },
-        });
-
-        if (yaCobrada) {
-          await tx.cashMovement.create({
-            data: {
-              source: "VENTA",
-              description: `Venta — ${unit.propertyCode}`,
-              amount: cuota.amount,
-              currency,
-              occurredAt: closedAt,
-              saleCommissionInstallmentId: installment.id,
-            },
-          });
-        }
-      }
+      await crearCronogramaCobroEnTx(tx, {
+        source: "VENTA",
+        saleId: created.id,
+        currency,
+        cuotas,
+        vendedorAgentId,
+        descriptionBase: `Venta — ${unit.propertyCode}`,
+        cashMovementSource: "VENTA",
+      });
 
       return created;
     },
@@ -197,42 +200,79 @@ export async function crearVenta(formData: FormData) {
   redirect(`/backoffice/caja/ventas/${sale.id}`);
 }
 
-// Marca una cuota de comisión como cobrada y recién ahí genera su
-// movimiento de caja — antes de eso esa plata todavía no entró de
-// verdad a la agencia (ver comentario en el modelo SaleCommissionInstallment).
-export async function marcarCuotaPagada(installmentId: number) {
+// Marca una cuota de comisión (de Venta o de Alquiler — mismo mecanismo
+// para las dos) como cobrada y recién ahí genera su movimiento de caja
+// — antes de eso esa plata todavía no entró de verdad a la agencia (ver
+// comentario en el modelo CommissionInstallment).
+export async function marcarCuotaPagada(installmentId: number, formData: FormData) {
   await requirePermission("caja.ventas.crear");
+  const method = requiredMethod(formData.get("method"));
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
-      const installment = await tx.saleCommissionInstallment.findUniqueOrThrow({
+      const installment = await tx.commissionInstallment.findUniqueOrThrow({
         where: { id: installmentId },
-        include: { sale: { include: { unit: true } } },
+        include: {
+          sale: { include: { unit: true } },
+          rentalCommission: { include: { contract: { include: { unit: true } } } },
+        },
       });
       if (installment.status === "PAGADA") return; // ya procesada, no duplicar el movimiento de caja
 
-      await tx.saleCommissionInstallment.update({
+      await tx.commissionInstallment.update({
         where: { id: installmentId },
-        data: { status: "PAGADA", paidAt: new Date() },
+        data: { status: "PAGADA", paidAt: new Date(), method },
       });
+
+      const isVenta = installment.source === "VENTA";
+      const propertyCode = isVenta ? installment.sale!.unit.propertyCode : installment.rentalCommission!.contract.unit.propertyCode;
+      const descriptionBase = isVenta ? `Venta — ${propertyCode}` : `Comisión de alquiler — ${propertyCode}`;
+      const vendedorAgentId = isVenta ? installment.sale!.vendedorAgentId : installment.rentalCommission!.vendedorAgentId;
 
       await tx.cashMovement.create({
         data: {
-          source: "VENTA",
-          description: `Venta — ${installment.sale.unit.propertyCode} (cuota ${installment.numeroCuota}/${installment.totalCuotas})`,
+          source: isVenta ? "VENTA" : "COMISION_ALQUILER",
+          description:
+            installment.totalCuotas > 1
+              ? `${descriptionBase} (cuota ${installment.numeroCuota}/${installment.totalCuotas})`
+              : descriptionBase,
           amount: installment.amount,
-          currency: installment.sale.currency,
-          saleCommissionInstallmentId: installment.id,
+          currency: installment.currency,
+          method,
+          commissionInstallmentId: installment.id,
+          vendedorAgentId,
         },
       });
     })
   );
 
   const installment = await withRetry(() =>
-    prisma.saleCommissionInstallment.findUniqueOrThrow({ where: { id: installmentId } })
+    prisma.commissionInstallment.findUniqueOrThrow({ where: { id: installmentId } })
   );
-  revalidatePath(`/backoffice/caja/ventas/${installment.saleId}`);
+  if (installment.saleId) {
+    revalidatePath(`/backoffice/caja/ventas/${installment.saleId}`);
+  } else {
+    revalidatePath("/backoffice/caja/comisiones");
+  }
   revalidatePath("/backoffice/caja");
+}
+
+// Completa comprador/vendedor después del alta — a propósito no son
+// obligatorios al cargar la venta (ver resolveClientOptional en
+// crearVenta): a veces se sabe el negocio antes de tener los datos
+// completos de las partes.
+export async function actualizarPartesVenta(saleId: number, formData: FormData) {
+  await requirePermission("caja.ventas.crear");
+
+  await withRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const sellerId = await resolveClientOptional(tx, formData, "seller", "Parte vendedora");
+      const buyerId = await resolveClientOptional(tx, formData, "buyer", "Comprador");
+      await tx.sale.update({ where: { id: saleId }, data: { sellerId, buyerId } });
+    })
+  );
+
+  revalidatePath(`/backoffice/caja/ventas/${saleId}`);
 }
 
 export async function crearTasacion(formData: FormData) {
@@ -244,20 +284,51 @@ export async function crearTasacion(formData: FormData) {
   const notes = optionalStr(formData.get("notes"));
 
   const hasAgentSplit = formData.get("hasAgentSplit") === "on";
-  const agentId = hasAgentSplit ? requiredStr(formData.get("agentId"), "Agente") : null;
+  const vendedorAgentId = hasAgentSplit ? requiredStr(formData.get("agentId"), "Agente") : null;
   const agentSharePercent = hasAgentSplit ? "50" : null;
   const agentAmount = hasAgentSplit ? new Prisma.Decimal(amount).div(2).toFixed(2) : null;
 
-  // No crea el CashMovement acá: hacer la tasación y cobrarla suelen ser
-  // momentos distintos, igual que Ventas (cuotas) o Comisión de
-  // alquiler — ver confirmarCobroTasacion.
+  // Cargar la tasación no la da por cobrada por default — pero a
+  // diferencia de antes de la última vuelta, si ya se sabe que se cobró
+  // al cierre, se puede confirmar en el mismo paso en vez de forzar un
+  // segundo viaje a confirmarCobroTasacion.
+  const yaCobrada = formData.get("yaCobrada") === "on";
+  const method = yaCobrada ? requiredMethod(formData.get("method")) : null;
+
   const appraisal = await withRetry(() =>
     prisma.$transaction(async (tx) => {
       const unitId = await resolveUnit(tx, formData);
+      const unit = await tx.unit.findUniqueOrThrow({ where: { id: unitId }, select: { propertyCode: true } });
 
-      return tx.appraisal.create({
-        data: { unitId, amount, currency, completedAt, agentId, agentSharePercent, agentAmount, notes, createdById: profile.id },
+      const created = await tx.appraisal.create({
+        data: {
+          unitId,
+          amount,
+          currency,
+          completedAt,
+          vendedorAgentId,
+          agentSharePercent,
+          agentAmount,
+          notes,
+          createdById: profile.id,
+        },
       });
+
+      if (yaCobrada) {
+        await tx.cashMovement.create({
+          data: {
+            source: "TASACION",
+            description: `Tasación — ${unit.propertyCode}`,
+            amount,
+            currency,
+            method,
+            appraisalId: created.id,
+            vendedorAgentId,
+          },
+        });
+      }
+
+      return created;
     })
   );
 
@@ -271,8 +342,7 @@ export async function crearTasacion(formData: FormData) {
 export async function confirmarCobroTasacion(appraisalId: number, formData: FormData) {
   await requirePermission("caja.tasaciones.confirmar");
 
-  const method = requiredStr(formData.get("method"), "Medio de cobro") as "EFECTIVO" | "TRANSFERENCIA";
-  if (method !== "EFECTIVO" && method !== "TRANSFERENCIA") throw new Error("Medio de cobro inválido");
+  const method = requiredMethod(formData.get("method"));
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -292,6 +362,7 @@ export async function confirmarCobroTasacion(appraisalId: number, formData: Form
           currency: appraisal.currency,
           method,
           appraisalId: appraisal.id,
+          vendedorAgentId: appraisal.vendedorAgentId,
         },
       });
     })
@@ -361,15 +432,16 @@ export async function crearComisionAlquiler(contractId: number, formData: FormDa
 }
 
 // Confirma que la inmobiliaria ya tiene en mano la comisión de alquiler
-// (colocación o renovación) — evento aparte de cargarla: colocamos el
-// alquiler y devengamos la comisión ese día, pero no necesariamente se
-// cobra en el momento. Recién acá se genera el CashMovement, igual
-// criterio que confirmarCobroComision para Administración.
+// (colocación o renovación) por el camino directo, sin cronograma — hoy
+// lo sigue usando exclusivamente Renovación, que todavía no tiene
+// esquema de cuotas propio (ver CommissionInstallmentSource, que a
+// propósito no incluye RENOVACION). Colocación (origin ALQUILER) usa
+// registrarCronogramaAlquiler en su lugar, aunque sea para una sola
+// cuota "de contado".
 export async function confirmarCobroComisionAlquiler(rentalCommissionId: number, formData: FormData) {
   await requirePermission("caja.comisiones.confirmar");
 
-  const method = requiredStr(formData.get("method"), "Medio de cobro") as "EFECTIVO" | "TRANSFERENCIA";
-  if (method !== "EFECTIVO" && method !== "TRANSFERENCIA") throw new Error("Medio de cobro inválido");
+  const method = requiredMethod(formData.get("method"));
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -389,7 +461,70 @@ export async function confirmarCobroComisionAlquiler(rentalCommissionId: number,
           currency: commission.currency,
           method,
           rentalCommissionId: commission.id,
+          vendedorAgentId: commission.vendedorAgentId,
         },
+      });
+    })
+  );
+
+  revalidatePath("/backoffice/caja");
+  revalidatePath("/backoffice/caja/comisiones");
+}
+
+// Define el cronograma de cobro (cuotas o "de contado") de una comisión
+// de alquiler YA cargada — mismo mecanismo que Ventas (ver
+// crearCronogramaCobroEnTx). El total NO se vuelve a pedir acá: ya
+// quedó fijo en RentalCommission.amount al cargar la comisión, así que
+// se lee de la base en vez de confiar en lo que venga del formulario.
+export async function registrarCronogramaAlquiler(rentalCommissionId: number, formData: FormData) {
+  await requirePermission("caja.comisiones.confirmar");
+
+  const enCuotas = formData.get("enCuotas") === "on";
+
+  await withRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const commission = await tx.rentalCommission.findUniqueOrThrow({
+        where: { id: rentalCommissionId },
+        include: { cashMovement: true, installments: true, contract: { include: { unit: true } } },
+      });
+      if (commission.cashMovement) throw new Error("Ya se confirmó el cobro de esta comisión.");
+      if (commission.installments.length > 0) throw new Error("Esta comisión ya tiene un cronograma de cobro cargado.");
+
+      const cuotas: CuotaEntrada[] = enCuotas
+        ? installmentIndices(formData).map((i, idx) => {
+            const yaCobrada = formData.get(`installments.${i}.yaCobrada`) === "on";
+            return {
+              amount: requiredDecimal(formData.get(`installments.${i}.amount`), `Monto cuota ${idx + 1}`),
+              dueDate: requiredDate(formData.get(`installments.${i}.dueDate`), `Vencimiento cuota ${idx + 1}`),
+              attributedTo: asCommissionParty(optionalStr(formData.get(`installments.${i}.attributedTo`)), ALQUILER_PARTIES),
+              pagareFirmado: formData.get(`installments.${i}.pagareFirmado`) === "on",
+              yaCobrada,
+              method: yaCobrada
+                ? requiredMethod(formData.get(`installments.${i}.method`), `Medio de cobro cuota ${idx + 1}`)
+                : null,
+            };
+          })
+        : [
+            {
+              amount: commission.amount,
+              dueDate: new Date(),
+              attributedTo: null,
+              pagareFirmado: false,
+              yaCobrada: true,
+              method: requiredMethod(formData.get("method")),
+            },
+          ];
+      if (cuotas.length === 0) throw new Error("Agregá al menos una cuota o destildá el pago en cuotas.");
+      validarSumaCuotas(cuotas, commission.amount);
+
+      await crearCronogramaCobroEnTx(tx, {
+        source: "ALQUILER",
+        rentalCommissionId: commission.id,
+        currency: commission.currency,
+        cuotas,
+        vendedorAgentId: commission.vendedorAgentId,
+        descriptionBase: `Comisión de alquiler — ${commission.contract.unit.propertyCode}`,
+        cashMovementSource: "COMISION_ALQUILER",
       });
     })
   );
@@ -409,8 +544,7 @@ export async function confirmarCobroComisionAlquiler(rentalCommissionId: number,
 export async function confirmarCobroComision(paymentId: number, formData: FormData) {
   await requirePermission("caja.administracion.confirmar");
 
-  const method = requiredStr(formData.get("method"), "Medio de cobro") as "EFECTIVO" | "TRANSFERENCIA";
-  if (method !== "EFECTIVO" && method !== "TRANSFERENCIA") throw new Error("Medio de cobro inválido");
+  const method = requiredMethod(formData.get("method"));
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -440,6 +574,7 @@ export async function confirmarCobroComision(paymentId: number, formData: FormDa
           currency: payment.currency,
           method,
           paymentId: payment.id,
+          vendedorAgentId: payment.contract.vendedorAgentId,
         },
       });
     })

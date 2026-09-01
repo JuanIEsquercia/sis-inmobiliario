@@ -195,7 +195,7 @@ model Profile {
   salesAsVendedor             Sale[]                 @relation("SaleVendedor")
   salesAsCaptador             Sale[]                 @relation("SaleCaptador")
   salesCreadas                Sale[]                 @relation("SaleCreadoPor")
-  appraisalsAsAgent           Appraisal[]            @relation("AppraisalAgent")
+  appraisalsAsVendedor        Appraisal[]            @relation("AppraisalVendedor")
   appraisalsCreadas           Appraisal[]            @relation("AppraisalCreadoPor")
   appraisalReportsSubidos     Appraisal[]            @relation("AppraisalReportUploadedBy")
   commissionSchemesAsFijo     CommissionScheme[]     @relation("CommissionSchemeAgenteFijo")
@@ -206,6 +206,7 @@ model Profile {
   agentDebtPaymentsCreados    AgentDebtPayment[]     @relation("AgentDebtPaymentCreadoPor")
   expensesCreadas             Expense[]              @relation("ExpenseCreadoPor")
   partnerLogosCreados         PartnerLogo[]          @relation("PartnerLogoCreadoPor")
+  cashMovementsAsVendedor     CashMovement[]         @relation("CashMovementVendedor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -701,6 +702,14 @@ model CashMovement {
   // pidió este dato).
   method      PaymentMethod?
 
+  // Agente vendedor responsable de la operación que generó este ingreso
+  // — copiado desde la fuente al crear el movimiento (Sale/RentalCommission
+  // directo, Appraisal directo, Payment vía su Contract), para que la
+  // ficha de Caja se pueda rastrear por agente en un solo campo sin
+  // tener que saber de antemano de qué fuente viene cada fila.
+  vendedorAgentId String?  @db.Uuid
+  vendedorAgent   Profile? @relation("CashMovementVendedor", fields: [vendedorAgentId], references: [id])
+
   paymentId Int?     @unique
   payment   Payment? @relation(fields: [paymentId], references: [id])
 
@@ -708,12 +717,12 @@ model CashMovement {
   rentalCommission   RentalCommission? @relation(fields: [rentalCommissionId], references: [id])
 
   // Legado — ver comentario en Sale.cashMovement. Las ventas nuevas usan
-  // saleCommissionInstallmentId en su lugar.
+  // commissionInstallmentId en su lugar.
   saleId Int?  @unique
   sale   Sale? @relation(fields: [saleId], references: [id])
 
-  saleCommissionInstallmentId Int?                       @unique
-  saleCommissionInstallment   SaleCommissionInstallment? @relation(fields: [saleCommissionInstallmentId], references: [id])
+  commissionInstallmentId Int?                   @unique
+  commissionInstallment   CommissionInstallment? @relation(fields: [commissionInstallmentId], references: [id])
 
   appraisalId Int?       @unique
   appraisal   Appraisal? @relation(fields: [appraisalId], references: [id])
@@ -722,6 +731,7 @@ model CashMovement {
 
   @@index([source])
   @@index([occurredAt])
+  @@index([vendedorAgentId])
 }
 
 // RENOVACION: comisión al renovar un contrato existente — unidad de
@@ -824,6 +834,7 @@ model RentalCommission {
   createdBy   Profile @relation("RentalCommissionCreadoPor", fields: [createdById], references: [id])
 
   cashMovement CashMovement?
+  installments CommissionInstallment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -889,7 +900,7 @@ model Sale {
   // acá su único movimiento de caja. Las nuevas ventas siempre cobran a
   // través de installments, aunque sea una sola cuota "de contado".
   cashMovement CashMovement?
-  installments SaleCommissionInstallment[]
+  installments CommissionInstallment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -902,46 +913,71 @@ enum InstallmentStatus {
   PAGADA
 }
 
-// Quién firma el pagaré que respalda una cuota — puede financiar la
-// comisión cualquiera de las dos partes de la operación, no solo quien
-// compra. Null = sin pagaré (de contado / transferencia directa).
-enum PagareSigner {
-  COMPRADOR
-  VENDEDOR
+// Una sola tabla de cuotas para toda comisión que se cobre en partes,
+// sin importar la unidad de negocio (Venta o Alquiler) — mismo esquema
+// de registro para las dos, para que se aprenda una sola vez y se pueda
+// rastrear cualquier cobro pendiente desde el mismo lugar. El total de
+// la operación (Sale.commissionAmount / RentalCommission.amount) SIEMPRE
+// se carga aparte, una sola vez — estas filas son un cronograma de cobro
+// de ESE total ya fijo, nunca la fuente de ese total (la suma de las
+// cuotas tiene que coincidir con el total, se valida al cargar). Cada
+// cuota es su propio hecho de cobro: genera su propio CashMovement recién
+// cuando se marca PAGADA — la Caja refleja plata que entró de verdad, no
+// lo que se acordó cobrar a futuro.
+enum CommissionInstallmentSource {
+  VENTA
+  ALQUILER
 }
 
-// Cronograma de cobro de la comisión de una venta — siempre existe al
-// menos una fila (aunque sea "de contado", 1 sola cuota ya pagada), así
-// el mismo mecanismo cubre tanto el pago único como el financiado. Cada
-// cuota es su propio hecho de cobro: genera su propio CashMovement recién
-// cuando se marca PAGADA (ver marcarCuotaPagada) — la Caja refleja plata
-// que entró de verdad, no lo que la venta acordó cobrar a futuro. El
-// reparto a agentes (Sale.vendedorAmount/captadorAmount/etc.) ya quedó
-// congelado sobre el total en el alta y no depende de esto.
-model SaleCommissionInstallment {
+// A qué parte de la operación se le atribuye/imputa este cobro puntual
+// — Comprador/Vendedor si la cuota es de una Venta, Inquilino/Propietario
+// si es de un Alquiler. Nunca se mezclan los dos pares en una misma fila
+// (los valida el propio código según source). Optativo: a veces no
+// importa rastrear de qué parte vino puntualmente.
+enum CommissionParty {
+  COMPRADOR
+  VENDEDOR
+  INQUILINO
+  PROPIETARIO
+}
+
+model CommissionInstallment {
   id Int @id @default(autoincrement())
 
-  saleId Int
-  sale   Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  source CommissionInstallmentSource
+
+  saleId Int?
+  sale   Sale? @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  rentalCommissionId Int?
+  rentalCommission   RentalCommission? @relation(fields: [rentalCommissionId], references: [id], onDelete: Cascade)
 
   numeroCuota Int
   totalCuotas Int
   amount      Decimal  @db.Decimal(14, 2)
+  currency    String
   dueDate     DateTime
 
   status InstallmentStatus @default(PENDIENTE)
   paidAt DateTime?
+  method PaymentMethod?
 
-  pagareSignedBy PagareSigner?
-  notes          String?
+  attributedTo  CommissionParty?
+  // Respaldo legal de esta cuota puntual — separado de attributedTo a
+  // propósito: antes un solo campo mezclaba "quién firma el pagaré" con
+  // "de quién es este cobro", y una cuota cobrada en efectivo sin pagaré
+  // no tenía forma de decir de dónde vino.
+  pagareFirmado Boolean          @default(false)
+  notes         String?
 
   cashMovement CashMovement?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([saleId, numeroCuota])
   @@index([status])
+  @@index([saleId])
+  @@index([rentalCommissionId])
 }
 
 // Tasación: mismo criterio que Sale — hecho único, no pipeline. El
@@ -957,8 +993,12 @@ model Appraisal {
   currency    String
   completedAt DateTime @default(now())
 
-  agentId String?  @db.Uuid
-  agent   Profile? @relation("AppraisalAgent", fields: [agentId], references: [id])
+  // Renombrado de "agentId" a "vendedorAgentId" para que preguntar "de
+  // qué agente es esto" sea el mismo campo en Sale/RentalCommission/
+  // Appraisal — acá sigue siendo un solo rol con reparto fijo 50/50, no
+  // pasa a tener captador.
+  vendedorAgentId String?  @db.Uuid
+  vendedorAgent   Profile? @relation("AppraisalVendedor", fields: [vendedorAgentId], references: [id])
 
   // Ambos null si no hay reparto (100% inmobiliaria).
   agentSharePercent Decimal? @db.Decimal(5, 2)
@@ -1022,10 +1062,14 @@ model AgentDebtPayment {
   sourceId   Int
   role       AgentDebtRole
 
-  amount   Decimal  @db.Decimal(14, 2)
+  amount   Decimal        @db.Decimal(14, 2)
   currency String
-  paidAt   DateTime @default(now())
-  notes    String?  @db.Text
+  paidAt   DateTime       @default(now())
+  // Cómo salió la plata de la inmobiliaria hacia el agente — mismo
+  // enum que ya se usa para los cobros (PaymentMethod), aunque acá el
+  // sentido sea el de un egreso en vez de un ingreso.
+  method   PaymentMethod?
+  notes    String?        @db.Text
 
   createdById String  @db.Uuid
   createdBy   Profile @relation("AgentDebtPaymentCreadoPor", fields: [createdById], references: [id])

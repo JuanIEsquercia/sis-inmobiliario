@@ -27,7 +27,7 @@ export default async function HistorialUnidadPage({ params }: PageProps) {
   if (!unit) notFound();
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl w-full mx-auto">
       <Link href="/backoffice/historial" className="mb-2 inline-block text-xs text-accent hover:underline">
         ← Historial de propiedades
       </Link>

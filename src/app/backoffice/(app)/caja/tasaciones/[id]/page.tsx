@@ -26,9 +26,9 @@ export default async function TasacionDetailPage({ params }: PageProps) {
   const reportUrl = appraisal.reportStoragePath ? await getSignedDocumentUrl(appraisal.reportStoragePath) : null;
 
   return (
-    <div className="max-w-xl">
-      <Link href="/backoffice/caja/tasaciones" className="mb-4 inline-block text-sm text-accent hover:underline">
-        ← Tasaciones
+    <div className="max-w-5xl w-full mx-auto">
+      <Link href="/backoffice/caja/tasaciones" className="mb-4 inline-block text-xs font-semibold text-accent hover:underline">
+        ← Volver a Tasaciones
       </Link>
 
       <h1 className="mb-1 text-xl font-semibold text-foreground">
@@ -54,9 +54,9 @@ export default async function TasacionDetailPage({ params }: PageProps) {
         <div>
           <dt className="text-muted">Reparto</dt>
           <dd className="text-foreground">
-            {appraisal.agent ? (
+            {appraisal.vendedorAgent ? (
               <>
-                50/50 con {appraisal.agent.firstName} {appraisal.agent.lastName} —{" "}
+                50/50 con {appraisal.vendedorAgent.firstName} {appraisal.vendedorAgent.lastName} —{" "}
                 {fmtMoney(Number(appraisal.agentAmount))} c/u
               </>
             ) : (

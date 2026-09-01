@@ -175,7 +175,7 @@ export async function getSaleById(id: number) {
 export async function getAppraisals() {
   return withRetry(() =>
     prisma.appraisal.findMany({
-      include: { unit: true, agent: true, cashMovement: true },
+      include: { unit: true, vendedorAgent: true, cashMovement: true },
       orderBy: { completedAt: "desc" },
     })
   );
@@ -185,7 +185,7 @@ export async function getAppraisalById(id: number) {
   return withRetry(() =>
     prisma.appraisal.findUnique({
       where: { id },
-      include: { unit: true, agent: true, createdBy: true, cashMovement: true },
+      include: { unit: true, vendedorAgent: true, createdBy: true, cashMovement: true },
     })
   );
 }
@@ -198,8 +198,25 @@ export async function getRentalCommissions() {
         vendedorAgent: true,
         captadorAgent: true,
         cashMovement: true,
+        installments: { orderBy: { numeroCuota: "asc" } },
       },
       orderBy: { earnedAt: "desc" },
+    })
+  );
+}
+
+export async function getRentalCommissionById(id: number) {
+  return withRetry(() =>
+    prisma.rentalCommission.findUnique({
+      where: { id },
+      include: {
+        contract: { include: { unit: true, tenant: true } },
+        vendedorAgent: true,
+        captadorAgent: true,
+        cashMovement: true,
+        commissionScheme: { include: { agenteFijo: true } },
+        installments: { orderBy: { numeroCuota: "asc" } },
+      },
     })
   );
 }

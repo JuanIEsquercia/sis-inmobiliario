@@ -13,7 +13,7 @@ export function UsuariosTabs({
   showGrupos?: boolean;
 }) {
   return (
-    <div className="mb-6 flex gap-1 border-b border-border">
+    <div className="mb-6 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-border/60 pb-3">
       {tabs
         .filter((tab) => tab.key !== "grupos" || showGrupos)
         .map((tab) => {
@@ -22,10 +22,10 @@ export function UsuariosTabs({
             <Link
               key={tab.href}
               href={tab.href}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm ${
+              className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all duration-200 ${
                 isActive
-                  ? "border-accent font-medium text-foreground"
-                  : "border-transparent text-muted hover:text-foreground"
+                  ? "bg-accent text-accent-foreground shadow-sm shadow-accent/20"
+                  : "text-muted hover:bg-surface hover:text-foreground border border-border/40"
               }`}
             >
               {tab.label}

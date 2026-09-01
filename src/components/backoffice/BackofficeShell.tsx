@@ -95,7 +95,7 @@ export function BackofficeShell({ profile, children }: BackofficeShellProps) {
           </div>
 
           {/* Menú Sidebar */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto no-scrollbar">
             <Sidebar permissions={profile.permissions} onLinkClick={() => setIsSidebarOpen(false)} />
           </div>
         </aside>

@@ -53,7 +53,7 @@ export default async function TasacionesPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {a.agent ? `50/50 — ${a.agent.firstName} ${a.agent.lastName}` : "100% inmobiliaria"}
+                    {a.vendedorAgent ? `50/50 — ${a.vendedorAgent.firstName} ${a.vendedorAgent.lastName}` : "100% inmobiliaria"}
                   </td>
                   <td className="px-4 py-3 text-foreground">
                     {a.currency} {fmtMoney(Number(a.amount))}

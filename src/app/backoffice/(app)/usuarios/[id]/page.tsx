@@ -18,9 +18,9 @@ export default async function EditarUsuarioPage({ params }: PageProps) {
   if (!profile) notFound();
 
   return (
-    <div className="max-w-xl">
-      <h1 className="mb-1 text-xl font-semibold text-foreground">@{profile.username}</h1>
-      <p className="mb-6 text-sm text-muted">{profile.email}</p>
+    <div className="max-w-5xl w-full mx-auto">
+      <h1 className="mb-1 text-2xl font-bold tracking-tight text-foreground">@{profile.username}</h1>
+      <p className="mb-6 text-xs text-muted font-medium">{profile.email}</p>
 
       <form action={actualizarUsuario.bind(null, profile.id)} className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

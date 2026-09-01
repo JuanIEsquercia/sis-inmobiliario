@@ -33,7 +33,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const canEdit = profile.permissions.includes("clientes.gestionar");
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl w-full mx-auto">
       <h1 className="mb-6 text-xl font-semibold text-foreground">
         {client.firstName} {client.lastName}
       </h1>

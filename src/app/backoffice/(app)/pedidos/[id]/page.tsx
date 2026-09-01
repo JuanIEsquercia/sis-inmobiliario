@@ -26,7 +26,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
   if (!pedido) notFound();
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-5xl w-full mx-auto">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">{pedido.clienteNombre}</h1>

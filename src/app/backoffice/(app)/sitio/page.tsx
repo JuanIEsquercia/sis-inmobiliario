@@ -8,7 +8,7 @@ export default async function SitioPage() {
   const logos = await getAllPartnerLogos();
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl w-full mx-auto">
       <h1 className="mb-1 text-xl font-semibold text-foreground">Sitio público</h1>
       <p className="mb-6 text-sm text-muted">
         Logos de marcas y servicios que aparecen en el carrusel de confianza de la portada (Adinco, Argenprop, etc.).

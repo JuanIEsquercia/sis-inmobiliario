@@ -3,11 +3,23 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requireSelfOrAgentesVerTodos, requireProfile } from "@/lib/auth";
-import { getAgentDebtItems, getAgentDebtPayments, summarizeAgentBalance } from "@/lib/agentes";
+import {
+  getAgentDebtItems,
+  getAgentDebtPayments,
+  summarizeAgentBalance,
+  sumPaymentsByCurrency,
+  filterPaymentsByMonth,
+} from "@/lib/agentes";
 import { PagarDeudaDialog } from "@/components/backoffice/PagarDeudaDialog";
+import { MonthPicker } from "@/components/backoffice/MonthPicker";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+
+const monthNames = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
 
 const sourceLabels: Record<string, string> = {
   RENTAL_COMMISSION: "Alquiler",
@@ -20,12 +32,17 @@ const roleLabels: Record<string, string> = {
   AGENTE_FIJO: "Agente fijo",
   TASACION: "Tasación",
 };
+const methodLabels: Record<string, string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+};
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ mes?: string; anio?: string }>;
 }
 
-export default async function AgenteDetailPage({ params }: PageProps) {
+export default async function AgenteDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   await requireSelfOrAgentesVerTodos(id);
   const viewerProfile = await requireProfile();
@@ -36,8 +53,16 @@ export default async function AgenteDetailPage({ params }: PageProps) {
   );
   if (!agent) notFound();
 
+  const sp = await searchParams;
+  const now = new Date();
+  const month = Number(sp.mes) || now.getUTCMonth() + 1;
+  const year = Number(sp.anio) || now.getUTCFullYear();
+  const monthFilter = { month, year };
+
   const [debtItems, payments] = await Promise.all([getAgentDebtItems(id), getAgentDebtPayments(id)]);
   const balances = summarizeAgentBalance(debtItems, payments);
+  const pagadoEnMes = sumPaymentsByCurrency(payments, monthFilter);
+  const paymentsEnMes = filterPaymentsByMonth(payments, monthFilter);
 
   return (
     <div className="max-w-4xl">
@@ -50,7 +75,12 @@ export default async function AgenteDetailPage({ params }: PageProps) {
       <h1 className="mb-1 text-xl font-semibold text-foreground">
         {agent.lastName} {agent.firstName}
       </h1>
-      <p className="mb-6 text-sm text-muted">@{agent.username}</p>
+      <p className="mb-4 text-sm text-muted">@{agent.username}</p>
+
+      <div className="mb-6 flex items-center gap-3">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted">Período:</span>
+        <MonthPicker month={month} year={year} basePath={`/backoffice/agentes/${id}`} />
+      </div>
 
       <div className="mb-8 flex flex-wrap gap-4">
         {balances.length === 0 ? (
@@ -65,8 +95,14 @@ export default async function AgenteDetailPage({ params }: PageProps) {
                   <span className="text-foreground">{fmtMoney(b.debido)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-6">
-                  <span className="text-muted">Pagado</span>
+                  <span className="text-muted">Pagado (total)</span>
                   <span className="text-foreground">{fmtMoney(b.pagado)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-6">
+                  <span className="text-muted">Pagado en {monthNames[month - 1]}</span>
+                  <span className="text-foreground">
+                    {fmtMoney(pagadoEnMes.find((p) => p.currency === b.currency)?.total ?? 0)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-6 border-t border-border pt-1 font-semibold">
                   <span className="text-foreground">Saldo</span>
@@ -153,9 +189,11 @@ export default async function AgenteDetailPage({ params }: PageProps) {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-foreground">Pagos registrados</h2>
-        {payments.length === 0 ? (
-          <p className="text-sm text-muted">Todavía no se le registró ningún pago.</p>
+        <h2 className="mb-3 text-lg font-semibold text-foreground">
+          Pagos registrados en {monthNames[month - 1]} {year}
+        </h2>
+        {paymentsEnMes.length === 0 ? (
+          <p className="text-sm text-muted">No se le registró ningún pago en este mes.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-sm">
@@ -164,11 +202,12 @@ export default async function AgenteDetailPage({ params }: PageProps) {
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Imputado a</th>
                   <th className="px-4 py-3">Monto</th>
+                  <th className="px-4 py-3">Medio</th>
                   <th className="px-4 py-3">Notas</th>
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => (
+                {paymentsEnMes.map((p) => (
                   <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface">
                     <td className="px-4 py-3 text-muted">{fmtDate.format(p.paidAt)}</td>
                     <td className="px-4 py-3 text-muted">
@@ -177,6 +216,7 @@ export default async function AgenteDetailPage({ params }: PageProps) {
                     <td className="px-4 py-3 text-foreground">
                       {p.currency} {fmtMoney(Number(p.amount))}
                     </td>
+                    <td className="px-4 py-3 text-muted">{p.method ? methodLabels[p.method] : "—"}</td>
                     <td className="px-4 py-3 text-muted">{p.notes ?? "—"}</td>
                   </tr>
                 ))}

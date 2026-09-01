@@ -266,6 +266,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   </>
                 )}{" "}
                 · {fmtDate.format(contract.rentalCommission.earnedAt)}
+                {profile.permissions.includes("caja.ver") && (
+                  <>
+                    {" · "}
+                    <Link href={`/backoffice/caja/comisiones/${contract.rentalCommission.id}`} className="text-accent hover:underline">
+                      Ver cobro
+                    </Link>
+                  </>
+                )}
               </p>
             ) : canCreateCommission ? (
               <form

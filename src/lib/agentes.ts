@@ -27,6 +27,29 @@ function debtKey(sourceType: AgentDebtSource, sourceId: number, role: AgentDebtR
   return `${sourceType}:${sourceId}:${role}`;
 }
 
+// La moneda de un pago a agente SIEMPRE es la de la operación que
+// generó la deuda — no tiene sentido pagarle en una moneda distinta a
+// la que se acordó la comisión. Por eso nunca se le pide al que carga
+// el pago (ni se confía en un campo oculto del formulario, que además
+// un cliente podría manipular): se resuelve acá, del lado del servidor,
+// a partir de la operación real.
+export async function resolveDebtSourceCurrency(sourceType: AgentDebtSource, sourceId: number): Promise<string> {
+  switch (sourceType) {
+    case "RENTAL_COMMISSION": {
+      const rc = await prisma.rentalCommission.findUniqueOrThrow({ where: { id: sourceId }, select: { currency: true } });
+      return rc.currency;
+    }
+    case "SALE": {
+      const sale = await prisma.sale.findUniqueOrThrow({ where: { id: sourceId }, select: { currency: true } });
+      return sale.currency;
+    }
+    case "APPRAISAL": {
+      const appraisal = await prisma.appraisal.findUniqueOrThrow({ where: { id: sourceId }, select: { currency: true } });
+      return appraisal.currency;
+    }
+  }
+}
+
 export async function getAgentDebtItems(agentId: string): Promise<AgentDebtItem[]> {
   const [
     rentalVendedor,
@@ -64,7 +87,7 @@ export async function getAgentDebtItems(agentId: string): Promise<AgentDebtItem[
         include: { unit: true },
       }),
       prisma.appraisal.findMany({
-        where: { agentId, agentAmount: { not: null } },
+        where: { vendedorAgentId: agentId, agentAmount: { not: null } },
         include: { unit: true },
       }),
       prisma.agentDebtPayment.findMany({
@@ -222,9 +245,47 @@ export function summarizeAgentBalance(
     .sort((a, b) => a.currency.localeCompare(b.currency));
 }
 
+export interface MonthFilter {
+  month: number;
+  year: number;
+}
+
+// Lo pagado en UN mes puntual, aparte del saldo (que siempre es
+// acumulado — una deuda no "resetea" al cambiar de mes). Son dos
+// preguntas distintas: "¿cuánto le pagamos en agosto?" no tiene nada
+// que ver con "¿cuánto le debemos hoy?".
+export function sumPaymentsByCurrency(
+  payments: { amount: unknown; currency: string; paidAt: Date }[],
+  monthFilter?: MonthFilter
+): { currency: string; total: number }[] {
+  const byCurrency = new Map<string, number>();
+  for (const p of payments) {
+    if (monthFilter && (p.paidAt.getUTCMonth() + 1 !== monthFilter.month || p.paidAt.getUTCFullYear() !== monthFilter.year)) {
+      continue;
+    }
+    byCurrency.set(p.currency, (byCurrency.get(p.currency) ?? 0) + Number(p.amount));
+  }
+  return [...byCurrency.entries()]
+    .map(([currency, total]) => ({ currency, total }))
+    .sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
+// Para la ficha de un agente: mismo criterio, pero devuelve las filas en
+// vez del total — la tabla "Pagos registrados" se filtra por mes sin
+// tener que pedirle de nuevo a la base (ya se trajeron todos los pagos
+// para calcular el saldo acumulado).
+export function filterPaymentsByMonth<T extends { paidAt: Date }>(payments: T[], monthFilter?: MonthFilter): T[] {
+  if (!monthFilter) return payments;
+  return payments.filter(
+    (p) => p.paidAt.getUTCMonth() + 1 === monthFilter.month && p.paidAt.getUTCFullYear() === monthFilter.year
+  );
+}
+
 // Lista de agentes activos con su saldo por moneda, para el listado
-// general — recorre el mismo cálculo por cada uno.
-export async function getAllAgentBalances() {
+// general — recorre el mismo cálculo por cada uno. `monthFilter` solo
+// afecta a "pagadoEnMes" (para las tarjetas "cuánto le pagamos este
+// mes") — el saldo/devengado siempre es acumulado.
+export async function getAllAgentBalances(monthFilter?: MonthFilter) {
   const agents = await withRetry(() =>
     prisma.profile.findMany({
       where: { isActive: true },
@@ -239,7 +300,11 @@ export async function getAllAgentBalances() {
         getAgentDebtItems(agent.id),
         getAgentDebtPayments(agent.id),
       ]);
-      return { agent, balances: summarizeAgentBalance(debtItems, payments) };
+      return {
+        agent,
+        balances: summarizeAgentBalance(debtItems, payments),
+        pagadoEnMes: sumPaymentsByCurrency(payments, monthFilter),
+      };
     })
   );
 

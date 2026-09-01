@@ -6,7 +6,7 @@ import { withRetry } from "@/lib/db-retry";
 import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import type { Profile } from "@/generated/prisma/client";
 
-// El middleware ya redirige a /backoffice/login si no hay sesión; estos
+// proxy.ts ya redirige a /backoffice/login si no hay sesión; estos
 // helpers asumen que corren dentro de /backoffice y solo resuelven el
 // Profile (rol) para las rutas/acciones que lo necesitan.
 

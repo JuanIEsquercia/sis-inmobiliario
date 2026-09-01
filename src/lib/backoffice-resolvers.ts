@@ -29,6 +29,36 @@ export async function resolveClient(
   return client.id;
 }
 
+// Mismo criterio que resolveClient, pero para partes que no siempre se
+// conocen al momento del alta (comprador/vendedor de una Venta) — si el
+// ClientPicker quedó sin tocar (ni eligieron uno existente ni tipearon
+// uno nuevo), devuelve null en vez de exigir un nombre que el usuario
+// nunca tuvo intención de cargar todavía. Si SÍ empezó a tipear algo
+// (aunque sea un campo suelto), ahí sí exige nombre/apellido completos
+// — a medio completar es un error real, en blanco no lo es.
+export async function resolveClientOptional(
+  tx: Prisma.TransactionClient,
+  formData: FormData,
+  prefix: string,
+  roleLabel: string
+): Promise<number | null> {
+  const existingId = optionalInt(formData.get(`${prefix}.clientId`));
+  if (existingId) return existingId;
+
+  const touched = [
+    "firstName",
+    "lastName",
+    "docId",
+    "phone",
+    "email",
+    "birthDate",
+  ].some((field) => optionalStr(formData.get(`${prefix}.${field}`)) !== null);
+
+  if (!touched) return null;
+
+  return resolveClient(tx, formData, prefix, roleLabel);
+}
+
 // Mismo criterio que resolveClient, pero para Unit — con upsert por
 // propertyCode como red de seguridad si se tipeó a mano un código que
 // ya existe en vez de elegirlo con UnitPicker.

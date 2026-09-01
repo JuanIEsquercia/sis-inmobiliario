@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
-import { optionalStr, requiredDate, requiredDecimal, requiredStr } from "@/lib/form-utils";
+import { optionalStr, requiredDate, requiredDecimal, requiredMethod, requiredStr } from "@/lib/form-utils";
+import { resolveDebtSourceCurrency } from "@/lib/agentes";
 import type { AgentDebtRole, AgentDebtSource, CommissionSchemeType } from "@/generated/prisma/client";
 
 // Imputa un pago a UNA línea puntual de lo devengado (sourceType +
@@ -22,13 +23,16 @@ export async function registrarPagoDeuda(
   const profile = await requirePermission("agentes.pagos.crear");
 
   const amount = requiredDecimal(formData.get("amount"), "Monto");
-  const currency = requiredStr(formData.get("currency"), "Moneda");
   const paidAt = optionalStr(formData.get("paidAt")) ? requiredDate(formData.get("paidAt"), "Fecha") : new Date();
+  const method = requiredMethod(formData.get("method"));
   const notes = optionalStr(formData.get("notes"));
+  // Nunca se lee del formulario — la moneda la fija la operación de
+  // origen, no quien carga el pago (ver resolveDebtSourceCurrency).
+  const currency = await resolveDebtSourceCurrency(sourceType, sourceId);
 
   await withRetry(() =>
     prisma.agentDebtPayment.create({
-      data: { agentId, sourceType, sourceId, role, amount, currency, paidAt, notes, createdById: profile.id },
+      data: { agentId, sourceType, sourceId, role, amount, currency, paidAt, method, notes, createdById: profile.id },
     })
   );
 

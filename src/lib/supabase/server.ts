@@ -19,7 +19,7 @@ export async function createClient() {
             }
           } catch {
             // Se llama desde un Server Component sin permiso de escritura;
-            // el middleware ya se encarga de refrescar la sesión en ese caso.
+            // proxy.ts ya se encarga de refrescar la sesión en ese caso.
           }
         },
       },

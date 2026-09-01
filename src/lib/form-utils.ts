@@ -1,3 +1,5 @@
+import type { PaymentMethod } from "@/generated/prisma/client";
+
 export function optionalStr(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v.trim() : "";
   return s.length > 0 ? s : null;
@@ -34,4 +36,12 @@ export function requiredDate(v: FormDataEntryValue | null, fieldName: string): D
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) throw new Error(`Fecha inválida en "${fieldName}"`);
   return d;
+}
+
+// Cada punto donde se confirma un cobro o un pago pide un medio
+// (Efectivo/Transferencia) — un solo lugar para leer y validar el enum.
+export function requiredMethod(v: FormDataEntryValue | null, fieldName = "Medio de pago"): PaymentMethod {
+  const value = requiredStr(v, fieldName);
+  if (value !== "EFECTIVO" && value !== "TRANSFERENCIA") throw new Error(`Medio de pago inválido ("${fieldName}")`);
+  return value;
 }

@@ -3,10 +3,15 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { getAllAgentBalances } from "@/lib/agentes";
 import { AgentesTabs } from "@/components/backoffice/AgentesTabs";
+import { MonthPicker } from "@/components/backoffice/MonthPicker";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
-export default async function AgentesPage() {
+interface PageProps {
+  searchParams: Promise<{ mes?: string; anio?: string }>;
+}
+
+export default async function AgentesPage({ searchParams }: PageProps) {
   const profile = await requireProfile();
 
   // Sin agentes.ver_todos no hay listado que mostrar — vas directo a tu
@@ -15,60 +20,76 @@ export default async function AgentesPage() {
     redirect(`/backoffice/agentes/${profile.id}`);
   }
 
-  const balances = await getAllAgentBalances();
+  const sp = await searchParams;
+  const now = new Date();
+  const month = Number(sp.mes) || now.getUTCMonth() + 1;
+  const year = Number(sp.anio) || now.getUTCFullYear();
+
+  const balances = await getAllAgentBalances({ month, year });
 
   return (
     <div>
       <AgentesTabs active="saldos" showEsquema={profile.permissions.includes("comisiones.ver")} />
-      <h1 className="mb-1 text-xl font-semibold text-foreground">Pagos a agentes</h1>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-foreground">Pagos a agentes</h1>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted">Período:</span>
+          <MonthPicker month={month} year={year} basePath="/backoffice/agentes" />
+        </div>
+      </div>
       <p className="mb-6 text-sm text-muted">
         Lo que se le debe a cada agente sale de su parte en Ventas, Alquileres/Renovaciones y Tasaciones ya
-        cargadas — se descuenta a medida que se le registran pagos.
+        cargadas — se descuenta a medida que se le registran pagos. El saldo siempre es acumulado; lo pagado de
+        cada tarjeta es solo del mes elegido arriba.
       </p>
 
       {balances.length === 0 ? (
         <p className="text-sm text-muted">No hay agentes activos.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3">Agente</th>
-                <th className="px-4 py-3">Saldo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {balances.map(({ agent, balances: agentBalances }) => (
-                <tr key={agent.id} className="border-b border-border last:border-0 hover:bg-surface">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/backoffice/agentes/${agent.id}`}
-                      className="font-medium text-foreground hover:underline"
-                    >
-                      {agent.lastName} {agent.firstName}
-                    </Link>
-                    <span className="ml-1.5 text-muted">@{agent.username}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {agentBalances.length === 0 ? (
-                      <span className="text-muted">Sin movimientos</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-3">
-                        {agentBalances.map((b) => (
-                          <span
-                            key={b.currency}
-                            className={`font-medium ${b.saldo > 0 ? "text-accent" : "text-muted"}`}
-                          >
-                            {b.currency} {fmtMoney(b.saldo)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {balances.map(({ agent, balances: agentBalances, pagadoEnMes }) => {
+            const currencies = [
+              ...new Set([...agentBalances.map((b) => b.currency), ...pagadoEnMes.map((p) => p.currency)]),
+            ].sort();
+
+            return (
+              <Link
+                key={agent.id}
+                href={`/backoffice/agentes/${agent.id}`}
+                className="rounded-xl border border-border p-4 text-sm transition-colors hover:bg-surface"
+              >
+                <p className="mb-3 font-medium text-foreground">
+                  {agent.lastName} {agent.firstName}
+                  <span className="ml-1.5 font-normal text-muted">@{agent.username}</span>
+                </p>
+                {currencies.length === 0 ? (
+                  <p className="text-muted">Sin movimientos</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {currencies.map((currency) => {
+                      const saldo = agentBalances.find((b) => b.currency === currency)?.saldo ?? 0;
+                      const pagado = pagadoEnMes.find((p) => p.currency === currency)?.total ?? 0;
+                      return (
+                        <div key={currency} className="flex flex-col gap-1 rounded-lg bg-surface/60 p-2.5">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted">{currency}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted">Pagado este mes</span>
+                            <span className="font-medium text-foreground">{fmtMoney(pagado)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted">Saldo pendiente</span>
+                            <span className={`font-semibold ${saldo > 0 ? "text-accent" : "text-foreground"}`}>
+                              {fmtMoney(saldo)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

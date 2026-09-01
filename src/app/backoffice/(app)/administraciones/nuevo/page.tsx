@@ -34,7 +34,7 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
   const commissionScheme = await getActiveCommissionScheme(isRenewal ? "RENOVACION" : "ALQUILER");
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-6xl w-full mx-auto">
       <h1 className={sourceContract ? "mb-1 text-xl font-semibold text-foreground" : "mb-6 text-xl font-semibold text-foreground"}>
         {sourceContract ? "Renovar contrato" : "Nuevo contrato"}
       </h1>

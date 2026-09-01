@@ -1,4 +1,10 @@
-import { Prisma } from "@/generated/prisma/client";
+import {
+  Prisma,
+  type CommissionInstallmentSource,
+  type CommissionParty,
+  type PaymentMethod,
+  type CashMovementSource,
+} from "@/generated/prisma/client";
 
 type DecimalInput = string | number | Prisma.Decimal;
 
@@ -95,4 +101,95 @@ export async function crearRentalCommissionEnTx(
   });
 
   return created;
+}
+
+// Una cuota del cronograma de cobro — la misma forma para Venta y
+// Alquiler (ver comentario en el modelo CommissionInstallment).
+// `yaCobrada` es una decisión explícita por cuota, nunca automática: una
+// cuota recién cargada por default queda PENDIENTE, y solo genera su
+// CashMovement en el momento si se la marca así a propósito (ej. "de
+// contado", o una seña ya cobrada al firmar).
+export interface CuotaEntrada {
+  amount: DecimalInput;
+  dueDate: Date;
+  attributedTo: CommissionParty | null;
+  pagareFirmado: boolean;
+  yaCobrada: boolean;
+  method: PaymentMethod | null;
+}
+
+// Corta en seco el viejo bug de "sumar comisión + cuotas": acá se valida
+// que el cronograma sume EXACTAMENTE el total ya fijado de la operación
+// — el total nunca sale de sumar cuotas, siempre es al revés (se carga
+// una sola vez, aparte, y las cuotas son su cronograma de cobro).
+export function validarSumaCuotas(cuotas: { amount: DecimalInput }[], total: DecimalInput) {
+  const suma = cuotas.reduce((acc, c) => acc.add(new Prisma.Decimal(c.amount)), new Prisma.Decimal(0));
+  const totalDecimal = new Prisma.Decimal(total);
+  if (!suma.equals(totalDecimal)) {
+    throw new Error(
+      `Las cuotas suman ${suma.toFixed(2)} pero la comisión total es ${totalDecimal.toFixed(2)} — tienen que coincidir.`
+    );
+  }
+}
+
+// Crea el cronograma de cobro (cuotas o "de contado", que acá es
+// simplemente un cronograma de una sola cuota) de una Venta o Alquiler
+// ya cargada — mismo mecanismo para las dos. Cada cuota marcada
+// `yaCobrada` genera su propio CashMovement en el momento; el resto
+// queda PENDIENTE para confirmarse después (ver marcarCuotaPagada). No
+// valida la suma acá — eso se hace antes, con validarSumaCuotas, porque
+// el llamador es quien sabe cuál es el total contra el que hay que
+// validar.
+export async function crearCronogramaCobroEnTx(
+  tx: Prisma.TransactionClient,
+  params: {
+    source: CommissionInstallmentSource;
+    saleId?: number | null;
+    rentalCommissionId?: number | null;
+    currency: string;
+    cuotas: CuotaEntrada[];
+    vendedorAgentId: string | null;
+    descriptionBase: string;
+    cashMovementSource: CashMovementSource;
+  }
+) {
+  const now = new Date();
+  const totalCuotas = params.cuotas.length;
+
+  for (let i = 0; i < params.cuotas.length; i++) {
+    const cuota = params.cuotas[i];
+
+    const installment = await tx.commissionInstallment.create({
+      data: {
+        source: params.source,
+        saleId: params.saleId ?? null,
+        rentalCommissionId: params.rentalCommissionId ?? null,
+        numeroCuota: i + 1,
+        totalCuotas,
+        amount: cuota.amount,
+        currency: params.currency,
+        dueDate: cuota.dueDate,
+        attributedTo: cuota.attributedTo,
+        pagareFirmado: cuota.pagareFirmado,
+        status: cuota.yaCobrada ? "PAGADA" : "PENDIENTE",
+        paidAt: cuota.yaCobrada ? now : null,
+        method: cuota.yaCobrada ? cuota.method : null,
+      },
+    });
+
+    if (cuota.yaCobrada) {
+      await tx.cashMovement.create({
+        data: {
+          source: params.cashMovementSource,
+          description:
+            totalCuotas > 1 ? `${params.descriptionBase} (cuota ${i + 1}/${totalCuotas})` : params.descriptionBase,
+          amount: cuota.amount,
+          currency: params.currency,
+          method: cuota.method,
+          commissionInstallmentId: installment.id,
+          vendedorAgentId: params.vendedorAgentId,
+        },
+      });
+    }
+  }
 }
