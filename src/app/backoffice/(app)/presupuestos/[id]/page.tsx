@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getBudgetById, creatorLabel, budgetItemsTotal, itemsByRecipient } from "@/lib/presupuestos";
 import { eliminarPresupuesto } from "../actions";
+import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -45,14 +46,12 @@ export default async function PresupuestoDetailPage({ params }: PageProps) {
             >
               Editar
             </Link>
-            <form action={eliminarPresupuesto.bind(null, budget.id)}>
-              <button
-                type="submit"
-                className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface hover:text-foreground"
-              >
-                Eliminar
-              </button>
-            </form>
+            <ConfirmDeleteButton
+              action={eliminarPresupuesto.bind(null, budget.id)}
+              triggerClassName="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
+              title="¿Eliminar este presupuesto?"
+              description={`Se va a borrar "${budget.unitDetail}" y todos sus conceptos cargados. Esta acción no se puede deshacer.`}
+            />
           </div>
         )}
       </div>

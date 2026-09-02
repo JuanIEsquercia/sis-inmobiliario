@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { buscarGlobal, type GlobalSearchResult } from "@/app/backoffice/(app)/actions";
 
 const kindLabels: Record<GlobalSearchResult["kind"], string> = {
+  seccion: "Secciones",
   contrato: "Contratos",
   cliente: "Clientes",
   unidad: "Propiedades",
@@ -72,7 +73,7 @@ export function GlobalSearch() {
     }
   }
 
-  const groups = (["contrato", "cliente", "unidad", "venta", "presupuesto"] as const)
+  const groups = (["seccion", "contrato", "cliente", "unidad", "venta", "presupuesto"] as const)
     .map((kind) => ({ kind, items: visibleResults.filter((r) => r.kind === kind) }))
     .filter((g) => g.items.length > 0);
 
@@ -122,7 +123,7 @@ export function GlobalSearch() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder="Buscar contratos, clientes, propiedades, ventas o presupuestos..."
+            placeholder="Buscar una sección, contrato, cliente, propiedad, venta o presupuesto..."
             className="flex-1 bg-transparent text-base font-semibold text-foreground outline-none placeholder:text-muted/60"
           />
           {query && (
@@ -157,7 +158,10 @@ export function GlobalSearch() {
           {!pending && query.trim().length < 2 && (
             <div className="px-4 py-8 text-center text-xs font-medium text-muted/70 flex flex-col items-center gap-1">
               <span>Escribí al menos 2 letras para buscar en todo el sistema</span>
-              <span className="text-[10px] text-muted/50">Podés buscar por DNI, dirección, apellido o código de propiedad</span>
+              <span className="text-[10px] text-muted/50">
+                Podés buscar por DNI, dirección, apellido, código de propiedad o el nombre de una sección (ej.
+                &quot;liquidaciones&quot;)
+              </span>
             </div>
           )}
 

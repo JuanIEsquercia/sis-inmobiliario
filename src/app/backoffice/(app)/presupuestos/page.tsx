@@ -3,6 +3,8 @@ import { requirePermission } from "@/lib/auth";
 import { getBudgets, creatorLabel, budgetItemsTotal, itemsByRecipient } from "@/lib/presupuestos";
 import { PresupuestosTabs } from "@/components/backoffice/PresupuestosTabs";
 import { SearchField } from "@/components/backoffice/SearchField";
+import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
+import { eliminarPresupuesto } from "./actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -21,6 +23,7 @@ export default async function PresupuestosPage({ searchParams }: PageProps) {
   const { q } = await searchParams;
   const budgets = await getBudgets(q);
   const canManageConceptos = profile.permissions.includes("presupuestos.conceptos.gestionar");
+  const canManage = profile.permissions.includes("presupuestos.crear");
 
   return (
     <div>
@@ -56,6 +59,7 @@ export default async function PresupuestosPage({ searchParams }: PageProps) {
                 <th className="px-4 py-3">Partes</th>
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Hecho por</th>
+                {canManage && <th className="px-4 py-3">Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -88,6 +92,16 @@ export default async function PresupuestosPage({ searchParams }: PageProps) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-muted">{creatorLabel(b.createdBy)}</td>
+                    {canManage && (
+                      <td className="px-4 py-3">
+                        <ConfirmDeleteButton
+                          action={eliminarPresupuesto.bind(null, b.id)}
+                          triggerClassName="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
+                          title="¿Eliminar este presupuesto?"
+                          description={`Se va a borrar "${b.unitDetail}" y todos sus conceptos cargados. Esta acción no se puede deshacer.`}
+                        />
+                      </td>
+                    )}
                   </tr>
                 );
               })}

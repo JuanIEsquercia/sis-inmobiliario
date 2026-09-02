@@ -2,6 +2,7 @@ import { requirePermission } from "@/lib/auth";
 import { getBudgetConcepts } from "@/lib/presupuestos";
 import { PresupuestosTabs } from "@/components/backoffice/PresupuestosTabs";
 import { SearchField } from "@/components/backoffice/SearchField";
+import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 import { crearConcepto, actualizarConcepto, eliminarConcepto } from "../actions";
 
 interface PageProps {
@@ -80,11 +81,12 @@ export default async function ConceptosPage({ searchParams }: PageProps) {
                   Guardar
                 </button>
               </form>
-              <form action={eliminarConcepto.bind(null, c.id)}>
-                <button type="submit" className="rounded-lg border border-border px-3 py-2 text-xs text-muted hover:bg-surface hover:text-foreground">
-                  Eliminar
-                </button>
-              </form>
+              <ConfirmDeleteButton
+                action={eliminarConcepto.bind(null, c.id)}
+                triggerClassName="rounded-lg border border-border px-3 py-2 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
+                title="¿Eliminar este concepto?"
+                description={`"${c.name}" va a dejar de sugerirse al cargar presupuestos. Los presupuestos que ya lo usaron no se ven afectados.`}
+              />
             </div>
           ))}
         </div>

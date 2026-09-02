@@ -3,168 +3,79 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { NAV_SECTIONS, type NavChild } from "@/lib/nav-links";
 
-interface SubLink {
-  href: string;
-  label: string;
-  permission?: string;
-}
-
-interface NavLink {
-  href: string;
-  label: string;
-  permission: string | null;
-  icon: (className: string) => React.ReactNode;
-  children?: SubLink[];
-}
-
-const links: NavLink[] = [
-  {
-    href: "/backoffice",
-    label: "Panel",
-    permission: null,
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <rect x="3" y="3" width="7" height="9" rx="1.5" />
-        <rect x="14" y="3" width="7" height="5" rx="1.5" />
-        <rect x="14" y="12" width="7" height="9" rx="1.5" />
-        <rect x="3" y="16" width="7" height="5" rx="1.5" />
-      </svg>
-    )
-  },
-  {
-    href: "/backoffice/pedidos",
-    label: "Pedidos",
-    permission: "pedidos.ver",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <rect x="3" y="3" width="18" height="18" rx="2.5" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 8h8M8 12h8M8 16h5" />
-      </svg>
-    )
-  },
-  {
-    href: "/backoffice/administraciones",
-    label: "Administraciones",
-    permission: "administraciones.ver",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0h2M5 21H3m4 0h10M9 7h1m-1 4h1m4-4h1m-1 4h1M9 15h1m4 0h1" />
-      </svg>
-    ),
-    children: [
-      { href: "/backoffice/administraciones", label: "Contratos" },
-      { href: "/backoffice/administraciones/liquidaciones", label: "Liquidaciones" },
-      { href: "/backoffice/administraciones/actualizaciones", label: "Actualizaciones" },
-      { href: "/backoffice/administraciones/morosidad", label: "Morosidad" },
-    ],
-  },
-  {
-    href: "/backoffice/caja",
-    label: "Caja",
-    permission: "caja.ver",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <rect x="2" y="6" width="20" height="12" rx="2" />
-        <circle cx="12" cy="12" r="2.5" />
-        <path strokeLinecap="round" d="M6 6v0M18 18v0" />
-      </svg>
-    ),
-    children: [
-      { href: "/backoffice/caja", label: "Movimientos" },
-      { href: "/backoffice/caja/ventas", label: "Ventas" },
-      { href: "/backoffice/caja/tasaciones", label: "Tasaciones" },
-      { href: "/backoffice/caja/comisiones", label: "Comisión alquileres" },
-      { href: "/backoffice/caja/administracion", label: "Administración" },
-      { href: "/backoffice/caja/egresos", label: "Egresos" },
-      { href: "/backoffice/caja/consolidado", label: "Consolidado" },
-      { href: "/backoffice/caja/proyeccion", label: "Proyección" },
-    ],
-  },
-  {
-    href: "/backoffice/historial",
-    label: "Historial",
-    permission: "historial.ver",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <circle cx="12" cy="12" r="9" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3.5 2M3.5 9A9 9 0 0 1 12 3" />
-      </svg>
-    )
-  },
-  {
-    href: "/backoffice/clientes",
-    label: "Clientes",
-    permission: "clientes.ver",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm14 10v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75" />
-      </svg>
-    )
-  },
-  {
-    href: "/backoffice/presupuestos",
-    label: "Presupuestador",
-    permission: "presupuestos.ver",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 8h6M9 12h6M9 16h3" />
-      </svg>
-    ),
-    children: [
-      { href: "/backoffice/presupuestos", label: "Presupuestos" },
-      { href: "/backoffice/presupuestos/conceptos", label: "Conceptos", permission: "presupuestos.conceptos.gestionar" },
-    ],
-  },
-  {
-    href: "/backoffice/agentes",
-    label: "Pagos a agentes",
-    permission: null,
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <rect x="2.5" y="6.5" width="19" height="13" rx="2" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 10.5h19" />
-        <circle cx="7" cy="15" r="1.1" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-    children: [
-      { href: "/backoffice/agentes", label: "Saldos" },
-      { href: "/backoffice/agentes/esquema", label: "Esquema de comisiones", permission: "comisiones.ver" },
-    ],
-  },
-  {
-    href: "/backoffice/usuarios",
-    label: "Usuarios",
-    permission: "usuarios.ver",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 0v6M9.75 21h4.5M3 18c0-3.3 5-4 9-4s9 .7 9 4" />
-      </svg>
-    ),
-    children: [
-      { href: "/backoffice/usuarios", label: "Usuarios" },
-      { href: "/backoffice/usuarios/grupos", label: "Grupos de contratos", permission: "administraciones.grupos.gestionar" },
-    ],
-  },
-  {
-    href: "/backoffice/sitio",
-    label: "Sitio público",
-    permission: "sitio.gestionar",
-    icon: (className: string) => (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
-        <circle cx="12" cy="12" r="9" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M12 3c2.5 2.7 3.8 6 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-6-3.8-9s1.3-6.3 3.8-9Z" />
-      </svg>
-    )
-  },
-];
+// Íconos por href — separados de NAV_SECTIONS porque esa data también la
+// usa el buscador global (Ctrl+K), que no necesita renderizar SVGs.
+const icons: Record<string, (className: string) => React.ReactNode> = {
+  "/backoffice": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <rect x="3" y="3" width="7" height="9" rx="1.5" />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" />
+      <rect x="3" y="16" width="7" height="5" rx="1.5" />
+    </svg>
+  ),
+  "/backoffice/pedidos": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 8h8M8 12h8M8 16h5" />
+    </svg>
+  ),
+  "/backoffice/administraciones": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0h2M5 21H3m4 0h10M9 7h1m-1 4h1m4-4h1m-1 4h1M9 15h1m4 0h1" />
+    </svg>
+  ),
+  "/backoffice/caja": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path strokeLinecap="round" d="M6 6v0M18 18v0" />
+    </svg>
+  ),
+  "/backoffice/historial": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3.5 2M3.5 9A9 9 0 0 1 12 3" />
+    </svg>
+  ),
+  "/backoffice/clientes": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm14 10v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  "/backoffice/presupuestos": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 8h6M9 12h6M9 16h3" />
+    </svg>
+  ),
+  "/backoffice/agentes": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <rect x="2.5" y="6.5" width="19" height="13" rx="2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 10.5h19" />
+      <circle cx="7" cy="15" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  "/backoffice/usuarios": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 0v6M9.75 21h4.5M3 18c0-3.3 5-4 9-4s9 .7 9 4" />
+    </svg>
+  ),
+  "/backoffice/sitio": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M12 3c2.5 2.7 3.8 6 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-6-3.8-9s1.3-6.3 3.8-9Z" />
+    </svg>
+  ),
+};
 
 // Un link "hijo" está activo si es el de prefijo más largo que matchea
 // el pathname actual — necesario porque el href de la sección (ej.
 // "/backoffice/administraciones") es también prefijo de sus propios
 // hermanos ("/backoffice/administraciones/liquidaciones").
-function activeChildHref(pathname: string, children: SubLink[]): string | null {
+function activeChildHref(pathname: string, children: NavChild[]): string | null {
   const matches = children.filter((c) => pathname === c.href || pathname.startsWith(`${c.href}/`));
   if (matches.length === 0) return null;
   return matches.reduce((longest, c) => (c.href.length > longest.href.length ? c : longest)).href;
@@ -187,7 +98,7 @@ export function Sidebar({ permissions, className, onLinkClick }: SidebarProps) {
 
   return (
     <nav className={`flex flex-col gap-1.5 px-4 py-8 ${className || ""}`}>
-      {links
+      {NAV_SECTIONS
         .filter((link) => !link.permission || permissions.includes(link.permission))
         .map((link) => {
           const isActive = link.href === "/backoffice"
@@ -223,7 +134,7 @@ export function Sidebar({ permissions, className, onLinkClick }: SidebarProps) {
                   }}
                   className="flex flex-1 items-center gap-3 px-4 py-3 text-xs font-bold uppercase tracking-wider cursor-pointer"
                 >
-                  {link.icon(`h-[16px] w-[16px] flex-none ${isActive ? "text-accent" : "text-muted/70"}`)}
+                  {icons[link.href]?.(`h-[16px] w-[16px] flex-none ${isActive ? "text-accent" : "text-muted/70"}`)}
                   <span>{link.label}</span>
                 </Link>
                 {hasChildren && (
