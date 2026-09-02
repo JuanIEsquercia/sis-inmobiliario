@@ -1,0 +1,206 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { withRetry } from "@/lib/db-retry";
+import { requirePermission } from "@/lib/auth";
+import { optionalDecimal, optionalStr, requiredStr } from "@/lib/form-utils";
+import type { BudgetRecipient, BudgetType } from "@/generated/prisma/client";
+
+interface ItemRow {
+  description: string;
+  amount: string;
+}
+
+// Filas repetibles cargadas del lado del cliente (BudgetItemsFields) con
+// nombres `${prefix}.${indice}.description` / `.amount` — mismo criterio
+// que guarantorIndices (administraciones/actions.ts) para reconstruir la
+// lista sin depender de que los índices sean consecutivos (una fila
+// borrada en el medio no corre a las demás). Filas sin describir o sin
+// monto se descartan en silencio: son las que quedaron "agregadas" pero
+// nunca se llegaron a completar.
+function parseItemRows(formData: FormData, prefix: string): ItemRow[] {
+  const indices = new Set<number>();
+  const re = new RegExp(`^${prefix}\\.(\\d+)\\.description$`);
+  for (const key of formData.keys()) {
+    const match = key.match(re);
+    if (match) indices.add(Number(match[1]));
+  }
+  return [...indices]
+    .sort((a, b) => a - b)
+    .map((i) => ({
+      description: String(formData.get(`${prefix}.${i}.description`) ?? "").trim(),
+      amount: String(formData.get(`${prefix}.${i}.amount`) ?? "").trim(),
+    }))
+    .filter((row) => row.description !== "" && row.amount !== "");
+}
+
+function toItemsData(rows: ItemRow[], recipient: BudgetRecipient, roleLabel: string) {
+  return rows.map((row, i) => {
+    const amount = optionalDecimal(row.amount);
+    if (amount === null) {
+      throw new Error(`El importe de "${row.description}" (${roleLabel}) no es un número válido.`);
+    }
+    return { recipient, description: row.description, amount, sortOrder: i };
+  });
+}
+
+// Lectura + validación común a alta y edición: unitDetail y los nombres
+// de las partes son texto libre (ver comentario en el modelo Budget) —
+// sin FK a Unit/Client, se puede armar sin que exista todavía un
+// Contract/Sale real. Alquiler carga una sola lista de ítems
+// (INQUILINO); Venta carga dos listas independientes (COMPRADOR y
+// PROPIETARIO), cada una con sus propios gastos.
+function parseBudgetForm(formData: FormData) {
+  const type = requiredStr(formData.get("type"), "Tipo") as BudgetType;
+  if (type !== "ALQUILER" && type !== "VENTA") throw new Error("Tipo de presupuesto inválido.");
+
+  const unitDetail = requiredStr(formData.get("unitDetail"), "Detalle de la propiedad");
+  const currency = requiredStr(formData.get("currency"), "Moneda");
+  const notes = optionalStr(formData.get("notes"));
+
+  let tenantName: string | null = null;
+  let buyerName: string | null = null;
+  let ownerName: string | null = null;
+  let itemsData: ReturnType<typeof toItemsData> = [];
+
+  if (type === "ALQUILER") {
+    tenantName = optionalStr(formData.get("tenantName"));
+    const rows = parseItemRows(formData, "items");
+    if (rows.length === 0) throw new Error("Cargá al menos un concepto.");
+    itemsData = toItemsData(rows, "INQUILINO", "Inquilino");
+  } else {
+    buyerName = optionalStr(formData.get("buyerName"));
+    ownerName = optionalStr(formData.get("ownerName"));
+    const buyerRows = parseItemRows(formData, "itemsComprador");
+    const ownerRows = parseItemRows(formData, "itemsPropietario");
+    if (buyerRows.length === 0 && ownerRows.length === 0) {
+      throw new Error("Cargá al menos un concepto, para el comprador o para el propietario.");
+    }
+    itemsData = [
+      ...toItemsData(buyerRows, "COMPRADOR", "Comprador"),
+      ...toItemsData(ownerRows, "PROPIETARIO", "Propietario"),
+    ];
+  }
+
+  return { type, unitDetail, currency, notes, tenantName, buyerName, ownerName, itemsData };
+}
+
+export async function crearPresupuesto(formData: FormData) {
+  const profile = await requirePermission("presupuestos.crear");
+  const data = parseBudgetForm(formData);
+
+  const budget = await withRetry(() =>
+    prisma.budget.create({
+      data: { ...data, createdById: profile.id, items: { createMany: { data: data.itemsData } } },
+    })
+  );
+
+  revalidatePath("/backoffice/presupuestos");
+  redirect(`/backoffice/presupuestos/${budget.id}`);
+}
+
+// Reemplaza el presupuesto entero (datos + ítems) por lo que venga en el
+// formulario — no hay ninguna otra tabla que referencie un BudgetItem
+// puntual (a diferencia de, por ejemplo, un Payment ya cobrado), así que
+// borrar todo y recrear es más simple y seguro que tratar de diffear fila
+// por fila. El tipo (Alquiler/Venta) no se puede cambiar acá — cambiaría
+// qué campos/roles tiene sentido guardar; para eso hay que cargar un
+// presupuesto nuevo.
+export async function actualizarPresupuesto(id: number, formData: FormData) {
+  await requirePermission("presupuestos.crear");
+  const existing = await withRetry(() => prisma.budget.findUniqueOrThrow({ where: { id }, select: { type: true } }));
+
+  const data = parseBudgetForm(formData);
+  if (data.type !== existing.type) {
+    throw new Error("No se puede cambiar el tipo de un presupuesto ya creado.");
+  }
+
+  await withRetry(() =>
+    prisma.$transaction([
+      prisma.budgetItem.deleteMany({ where: { budgetId: id } }),
+      prisma.budget.update({
+        where: { id },
+        data: {
+          unitDetail: data.unitDetail,
+          currency: data.currency,
+          notes: data.notes,
+          tenantName: data.tenantName,
+          buyerName: data.buyerName,
+          ownerName: data.ownerName,
+          items: { createMany: { data: data.itemsData } },
+        },
+      }),
+    ])
+  );
+
+  revalidatePath("/backoffice/presupuestos");
+  revalidatePath(`/backoffice/presupuestos/${id}`);
+  redirect(`/backoffice/presupuestos/${id}`);
+}
+
+// Un presupuesto no mueve plata ni queda referenciado desde ningún otro
+// registro (a diferencia de anularContrato) — borrarlo es una operación
+// simple, sin resguardos especiales.
+export async function eliminarPresupuesto(id: number) {
+  await requirePermission("presupuestos.crear");
+  await withRetry(() => prisma.budget.delete({ where: { id } }));
+  revalidatePath("/backoffice/presupuestos");
+  redirect("/backoffice/presupuestos");
+}
+
+export interface ConceptOption {
+  id: number;
+  name: string;
+  defaultAmount: number | null;
+}
+
+// Autocompletado del catálogo al cargar un ítem — mismo patrón que
+// buscarClientes. Devuelve `defaultAmount` ya convertido a number: un
+// Decimal de Prisma no cruza la frontera server action → client
+// component (mismo motivo por el que toRepartoSchemeInfo convierte los
+// porcentajes del esquema de comisiones antes de devolverlos).
+export async function buscarConceptos(query: string): Promise<ConceptOption[]> {
+  await requirePermission("presupuestos.crear");
+  const q = query.trim();
+  if (q.length < 1) return [];
+
+  const results = await withRetry(() =>
+    prisma.budgetConcept.findMany({
+      where: { name: { contains: q, mode: "insensitive" } },
+      orderBy: { name: "asc" },
+      take: 8,
+    })
+  );
+
+  return results.map((c) => ({ id: c.id, name: c.name, defaultAmount: c.defaultAmount ? Number(c.defaultAmount) : null }));
+}
+
+export async function crearConcepto(formData: FormData) {
+  const profile = await requirePermission("presupuestos.conceptos.gestionar");
+  const name = requiredStr(formData.get("name"), "Concepto");
+  const defaultAmount = optionalDecimal(formData.get("defaultAmount"));
+
+  await withRetry(() =>
+    prisma.budgetConcept.create({ data: { name, defaultAmount, createdById: profile.id } })
+  );
+
+  revalidatePath("/backoffice/presupuestos/conceptos");
+}
+
+export async function actualizarConcepto(id: number, formData: FormData) {
+  await requirePermission("presupuestos.conceptos.gestionar");
+  const name = requiredStr(formData.get("name"), "Concepto");
+  const defaultAmount = optionalDecimal(formData.get("defaultAmount"));
+
+  await withRetry(() => prisma.budgetConcept.update({ where: { id }, data: { name, defaultAmount } }));
+
+  revalidatePath("/backoffice/presupuestos/conceptos");
+}
+
+export async function eliminarConcepto(id: number) {
+  await requirePermission("presupuestos.conceptos.gestionar");
+  await withRetry(() => prisma.budgetConcept.delete({ where: { id } }));
+  revalidatePath("/backoffice/presupuestos/conceptos");
+}

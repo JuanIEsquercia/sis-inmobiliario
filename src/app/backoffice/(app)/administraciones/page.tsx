@@ -45,7 +45,7 @@ export default async function AdministracionesPage({ searchParams }: PageProps) 
         )}
       </div>
 
-      <form className="mb-6 max-w-md">
+      <form className="mb-7 max-w-xl">
         <SearchField defaultValue={q} placeholder="Buscar por código, dirección, inquilino o propietario..." />
       </form>
 

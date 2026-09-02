@@ -207,6 +207,8 @@ model Profile {
   expensesCreadas             Expense[]              @relation("ExpenseCreadoPor")
   partnerLogosCreados         PartnerLogo[]          @relation("PartnerLogoCreadoPor")
   cashMovementsAsVendedor     CashMovement[]         @relation("CashMovementVendedor")
+  budgetsCreados              Budget[]               @relation("BudgetCreadoPor")
+  budgetConceptsCreados       BudgetConcept[]        @relation("BudgetConceptCreadoPor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1174,4 +1176,89 @@ model PartnerLogo {
   updatedAt DateTime @updatedAt
 
   @@index([isActive, sortOrder])
+}
+
+enum BudgetType {
+  ALQUILER
+  VENTA
+}
+
+// A qué copia impresa pertenece un ítem — INQUILINO es la única que
+// existe en un presupuesto de Alquiler; COMPRADOR/PROPIETARIO son las
+// dos copias independientes de un presupuesto de Venta (ver comentario
+// en Budget).
+enum BudgetRecipient {
+  INQUILINO
+  COMPRADOR
+  PROPIETARIO
+}
+
+// Presupuesto imprimible — se arma para negociar, antes (o en vez) de
+// que exista un Contract/Sale real. A propósito sin FK a Unit/Client:
+// `unitDetail` es texto libre (código Adinco, dirección, lo que sea) y
+// los nombres de las partes también, porque no siempre hay una unidad
+// cargada como Unit ni un Client registrado en este punto — ver
+// resolveClientOptional para el mismo criterio aplicado a Contract/Sale
+// una vez que la operación sí se concreta.
+//
+// Alquiler genera una sola copia (tenantName + items con recipient
+// INQUILINO). Venta genera dos copias independientes con gastos propios
+// cada una (buyerName + items COMPRADOR, ownerName + items PROPIETARIO)
+// — no es el mismo ítem mostrado con otra cuenta, son conceptos
+// distintos para cada parte.
+model Budget {
+  id   Int        @id @default(autoincrement())
+  type BudgetType
+
+  unitDetail String
+
+  tenantName String? // solo type = ALQUILER
+  buyerName  String? // solo type = VENTA
+  ownerName  String? // solo type = VENTA
+
+  currency String
+  notes    String? @db.Text
+
+  items BudgetItem[]
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("BudgetCreadoPor", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([createdById])
+}
+
+model BudgetItem {
+  id       Int    @id @default(autoincrement())
+  budgetId Int
+  budget   Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  recipient   BudgetRecipient
+  description String
+  amount      Decimal @db.Decimal(14, 2)
+  // Orden de carga — se preserva tal cual se tipeó, no se reordena
+  // alfabéticamente ni por monto.
+  sortOrder   Int
+
+  @@index([budgetId])
+}
+
+// Catálogo administrable de conceptos frecuentes (ej. "Sellado de
+// contrato", "Comisión inmobiliaria") — autocompleta concepto + precio
+// sugerido al cargar un ítem, para no reescribir lo mismo en cada
+// presupuesto. Simple CRUD editable en el momento, sin versionado: a
+// diferencia de CommissionScheme, acá no hay ninguna operación ya
+// cerrada que dependa de un valor congelado — BudgetItem siempre guarda
+// su propio texto/monto, independiente de si el concepto del catálogo
+// cambia o se borra después.
+model BudgetConcept {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  defaultAmount Decimal? @db.Decimal(14, 2)
+
+  createdById String  @db.Uuid
+  createdBy   Profile @relation("BudgetConceptCreadoPor", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

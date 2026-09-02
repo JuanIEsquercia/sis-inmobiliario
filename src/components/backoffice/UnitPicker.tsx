@@ -82,12 +82,24 @@ export function UnitPicker({
 
       {!showNew && (
         <>
-          <div className="relative w-full">
+          <div className="relative flex items-center w-full">
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className="pointer-events-none absolute left-4 text-accent"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path strokeLinecap="round" d="m21 21-4.3-4.3" />
+            </svg>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por código de propiedad (Adinco) o dirección..."
-              className="field w-full"
+              className="w-full h-12 sm:h-13 pl-11 pr-4 rounded-2xl border border-border/80 bg-background/70 text-sm font-semibold text-foreground placeholder:text-muted/60 shadow-xs transition-all duration-200 focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent-soft/40 outline-none"
             />
           </div>
           {pending && <p className="text-xs text-muted">Buscando…</p>}

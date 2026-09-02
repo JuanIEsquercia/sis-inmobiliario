@@ -16,8 +16,8 @@ export default async function ClientesPage({ searchParams }: PageProps) {
     <div>
       <h1 className="mb-8 text-xl font-bold tracking-tight text-foreground uppercase">Clientes</h1>
 
-      <form className="mb-6 max-w-md">
-        <SearchField defaultValue={q} placeholder="Buscar por nombre o DNI..." />
+      <form className="mb-7 max-w-xl">
+        <SearchField defaultValue={q} placeholder="Buscar cliente por nombre o DNI..." />
       </form>
 
       {clients.length === 0 ? (

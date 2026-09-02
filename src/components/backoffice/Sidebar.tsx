@@ -103,6 +103,21 @@ const links: NavLink[] = [
     )
   },
   {
+    href: "/backoffice/presupuestos",
+    label: "Presupuestador",
+    permission: "presupuestos.ver",
+    icon: (className: string) => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 8h6M9 12h6M9 16h3" />
+      </svg>
+    ),
+    children: [
+      { href: "/backoffice/presupuestos", label: "Presupuestos" },
+      { href: "/backoffice/presupuestos/conceptos", label: "Conceptos", permission: "presupuestos.conceptos.gestionar" },
+    ],
+  },
+  {
     href: "/backoffice/agentes",
     label: "Pagos a agentes",
     permission: null,

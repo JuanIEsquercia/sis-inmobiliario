@@ -72,6 +72,15 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     children: [{ key: "historial.ver", label: "Ver historial de propiedades (incluye montos de ventas y tasaciones)" }],
   },
   {
+    key: "presupuestos",
+    label: "Presupuestador",
+    children: [
+      { key: "presupuestos.ver", label: "Ver presupuestos" },
+      { key: "presupuestos.crear", label: "Crear presupuestos" },
+      { key: "presupuestos.conceptos.gestionar", label: "Gestionar catálogo de conceptos" },
+    ],
+  },
+  {
     key: "usuarios",
     label: "Usuarios",
     children: [
@@ -104,5 +113,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     "caja.ventas.crear",
     "caja.tasaciones.crear",
     "caja.comisiones.crear",
+    "presupuestos.ver",
+    "presupuestos.crear",
   ],
 };

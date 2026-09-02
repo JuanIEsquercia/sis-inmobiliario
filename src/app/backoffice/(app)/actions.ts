@@ -6,14 +6,14 @@ import { requireProfile, getContractGroupScope, contractGroupWhere } from "@/lib
 import { clientLabel } from "@/lib/alquileres";
 
 export interface GlobalSearchResult {
-  kind: "contrato" | "cliente" | "unidad" | "venta";
+  kind: "contrato" | "cliente" | "unidad" | "venta" | "presupuesto";
   id: number;
   title: string;
   subtitle: string;
   href: string;
 }
 
-const kindOrder: GlobalSearchResult["kind"][] = ["contrato", "cliente", "unidad", "venta"];
+const kindOrder: GlobalSearchResult["kind"][] = ["contrato", "cliente", "unidad", "venta", "presupuesto"];
 
 // Buscador global del header (Ctrl+K) — busca en paralelo en cada
 // sección que el usuario puede ver, respetando los mismos permisos y el
@@ -133,6 +133,32 @@ export async function buscarGlobal(query: string): Promise<GlobalSearchResult[]>
           title: `${s.unit.propertyCode} — ${s.unit.address}`,
           subtitle: `Vendedor: ${clientLabel(s.seller)} · Comprador: ${clientLabel(s.buyer)}`,
           href: `/backoffice/caja/ventas/${s.id}`,
+        }))
+      )
+    );
+  }
+
+  if (perms.includes("presupuestos.ver")) {
+    tasks.push(
+      withRetry(() =>
+        prisma.budget.findMany({
+          where: {
+            OR: [
+              { unitDetail: { contains: q, mode: "insensitive" } },
+              { tenantName: { contains: q, mode: "insensitive" } },
+              { buyerName: { contains: q, mode: "insensitive" } },
+              { ownerName: { contains: q, mode: "insensitive" } },
+            ],
+          },
+          take: 5,
+        })
+      ).then((rows) =>
+        rows.map((b) => ({
+          kind: "presupuesto" as const,
+          id: b.id,
+          title: b.unitDetail,
+          subtitle: b.type === "VENTA" ? `Venta — ${b.buyerName ?? "A completar"} / ${b.ownerName ?? "A completar"}` : `Alquiler — ${b.tenantName ?? "A completar"}`,
+          href: `/backoffice/presupuestos/${b.id}`,
         }))
       )
     );
