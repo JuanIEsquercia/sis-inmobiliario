@@ -503,27 +503,32 @@ export default async function ContractDetailPage({ params }: PageProps) {
             </form>
           </div>
 
-          {/* Grupo de Contrato */}
-          <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Grupo Asignado</h2>
-            {canManageGroups ? (
-              <form action={asignarGrupoContrato.bind(null, contract.id)} className="flex flex-col gap-3">
-                <select name="groupId" defaultValue={contract.groupId ?? ""} className="field w-full text-xs py-1.5">
-                  <option value="">— Sin grupo asignado —</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-                <button type="submit" className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors">
-                  Guardar Grupo
-                </button>
-              </form>
-            ) : (
-              <p className="text-xs text-foreground font-semibold">{contract.group?.name ?? "Sin grupo asignado"}</p>
-            )}
-          </div>
+          {/* Grupo de Contrato — no aplica a una colocación sin
+              administración: el grupo es la cartera que un administrador
+              gestiona (liquidaciones, indexación), y una colocación no
+              tiene nada de eso para gestionar (ver getContracts). */}
+          {contract.isAdministered && (
+            <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Grupo Asignado</h2>
+              {canManageGroups ? (
+                <form action={asignarGrupoContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                  <select name="groupId" defaultValue={contract.groupId ?? ""} className="field w-full text-xs py-1.5">
+                    <option value="">— Sin grupo asignado —</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors">
+                    Guardar Grupo
+                  </button>
+                </form>
+              ) : (
+                <p className="text-xs text-foreground font-semibold">{contract.group?.name ?? "Sin grupo asignado"}</p>
+              )}
+            </div>
+          )}
 
           {/* Comisión de renovación */}
           <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
@@ -598,64 +603,79 @@ export default async function ContractDetailPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Cierre / Finalización del Contrato */}
-          {profile.permissions.includes("administraciones.crear") && contract.status === "ACTIVO" && (
-            <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Finalizar o Anular</h2>
-              
-              <form action={finalizarContrato.bind(null, contract.id)} className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="terminationStatus" className="text-[10px] font-bold text-muted uppercase tracking-wider">
-                    Motivo de Cierre
-                  </label>
-                  <select id="terminationStatus" name="status" defaultValue="FINALIZADO" className="field w-full text-xs py-1.5">
-                    <option value="FINALIZADO">Finalizado (venció)</option>
-                    <option value="RESCINDIDO">Rescindido</option>
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="terminationReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
-                    Notas adicionales
-                  </label>
-                  <input id="terminationReason" name="terminationReason" className="field w-full text-xs" placeholder="Ej. Entrega llaves" />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors"
-                >
-                  Finalizar Contrato
-                </button>
-              </form>
+          {/* Cierre / Finalización del Contrato — "Finalizar" (venció,
+              rescindido) es un evento de la administración que llevamos
+              nosotros: en una colocación sin administración no hay
+              cronograma ni gestión que cerrar, así que ese estado no
+              cumple ninguna función — la ficha se queda como colocación,
+              sin necesidad de marcarla. "Anular" (cargado por error) sí
+              aplica a cualquier contrato, administrado o no. */}
+          {profile.permissions.includes("administraciones.crear") &&
+            contract.status === "ACTIVO" &&
+            (contract.isAdministered || canAnular) && (
+              <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">
+                  {contract.isAdministered ? "Finalizar o Anular" : "Anular"}
+                </h2>
 
-              {canAnular ? (
-                <div className="mt-4 border-t border-border/40 pt-4">
-                  <p className="mb-2 text-[10px] text-muted leading-relaxed">
-                    Si el contrato se cargó por error y nunca debió existir, puedes anularlo. Se eliminarán sus liquidaciones.
-                  </p>
-                  <form action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                {contract.isAdministered && (
+                  <form action={finalizarContrato.bind(null, contract.id)} className="flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
-                      <label htmlFor="anularReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
-                        Motivo de Anulación
+                      <label htmlFor="terminationStatus" className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                        Motivo de Cierre
                       </label>
-                      <input id="anularReason" name="terminationReason" className="field w-full text-xs" placeholder="Cargado por error" />
+                      <select id="terminationStatus" name="status" defaultValue="FINALIZADO" className="field w-full text-xs py-1.5">
+                        <option value="FINALIZADO">Finalizado (venció)</option>
+                        <option value="RESCINDIDO">Rescindido</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor="terminationReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                        Notas adicionales
+                      </label>
+                      <input id="terminationReason" name="terminationReason" className="field w-full text-xs" placeholder="Ej. Entrega llaves" />
                     </div>
                     <button
                       type="submit"
-                      className="w-full rounded-lg border border-accent/40 bg-accent-soft px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors shadow-xs"
+                      className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors"
                     >
-                      Anular Contrato
+                      Finalizar Contrato
                     </button>
                   </form>
-                </div>
-              ) : (
-                yaMovioPlata && (
-                  <p className="mt-3 text-[10px] text-muted leading-relaxed italic">
-                    Este contrato ya cuenta con movimientos monetarios (comisión o cobros) por lo que no se puede anular, únicamente finalizar.
-                  </p>
-                )
-              )}
-            </div>
-          )}
+                )}
+
+                {canAnular ? (
+                  <div className={contract.isAdministered ? "mt-4 border-t border-border/40 pt-4" : ""}>
+                    <p className="mb-2 text-[10px] text-muted leading-relaxed">
+                      {contract.isAdministered
+                        ? "Si el contrato se cargó por error y nunca debió existir, puedes anularlo. Se eliminarán sus liquidaciones."
+                        : "Si esta colocación se cargó por error y nunca debió existir, podés anularla."}
+                    </p>
+                    <form action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor="anularReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                          Motivo de Anulación
+                        </label>
+                        <input id="anularReason" name="terminationReason" className="field w-full text-xs" placeholder="Cargado por error" />
+                      </div>
+                      <button
+                        type="submit"
+                        className="w-full rounded-lg border border-accent/40 bg-accent-soft px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors shadow-xs"
+                      >
+                        Anular Contrato
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  contract.isAdministered &&
+                  yaMovioPlata && (
+                    <p className="mt-3 text-[10px] text-muted leading-relaxed italic">
+                      Este contrato ya cuenta con movimientos monetarios (comisión o cobros) por lo que no se puede anular, únicamente finalizar.
+                    </p>
+                  )
+                )}
+              </div>
+            )}
         </div>
       </div>
     </div>

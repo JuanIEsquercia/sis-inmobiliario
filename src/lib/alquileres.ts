@@ -71,9 +71,18 @@ export function buildPaymentSchedule(startDate: Date, durationMonths: number): P
 // filtro por scope — un contrato fuera de tu(s) grupo(s) da `null`,
 // igual que si no existiera, para no filtrar si existe o no.
 export async function getContractById(id: number, scope: ContractGroupScope) {
+  const groupWhere = contractGroupWhere(scope);
   return withRetry(() =>
     prisma.contract.findFirst({
-      where: { id, ...(contractGroupWhere(scope) ?? {}) },
+      // Una colocación sin administración (ver getContracts) no pertenece
+      // a ninguna cartera — el scope por grupo solo tiene sentido para lo
+      // que sí se administra, así que acá se ignora para cualquier
+      // contrato con isAdministered false, sea cual sea su groupId (que
+      // de hecho siempre nace null). Sin este bypass, un agente sin
+      // administraciones.ver_todos jamás podría entrar a la ficha de una
+      // colocación recién cargada — quedaba sin grupo y sin grupo es
+      // invisible para su scope.
+      where: { id, ...(groupWhere ? { OR: [{ isAdministered: false }, groupWhere] } : {}) },
       include: {
         unit: true,
         owner: true,
