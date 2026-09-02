@@ -3,6 +3,7 @@ import { getContracts, getContractGroups, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { SelectAllCheckbox } from "@/components/backoffice/SelectAllCheckbox";
+import { SearchField } from "@/components/backoffice/SearchField";
 import { asignarContratosAGrupo, finalizarContrato } from "./actions";
 
 const statusLabels: Record<string, string> = {
@@ -14,13 +15,18 @@ const statusLabels: Record<string, string> = {
 
 const BULK_FORM_ID = "asignar-grupo-form";
 
-export default async function AdministracionesPage() {
+interface PageProps {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function AdministracionesPage({ searchParams }: PageProps) {
   const profile = await requirePermission("administraciones.ver");
   const scope = await getContractGroupScope(profile);
+  const { q } = await searchParams;
   const canManageGroups = profile.permissions.includes("administraciones.grupos.gestionar");
   const canFinalizar = profile.permissions.includes("administraciones.crear");
   const [contracts, groups] = await Promise.all([
-    getContracts(scope),
+    getContracts(scope, q),
     canManageGroups ? getContractGroups() : Promise.resolve([]),
   ]);
 
@@ -39,8 +45,14 @@ export default async function AdministracionesPage() {
         )}
       </div>
 
+      <form className="mb-6 max-w-md">
+        <SearchField defaultValue={q} placeholder="Buscar por código, dirección, inquilino o propietario..." />
+      </form>
+
       {contracts.length === 0 ? (
-        <p className="text-sm text-muted">Todavía no hay contratos cargados.</p>
+        <p className="text-sm text-muted">
+          {q ? "No se encontraron contratos con esa búsqueda." : "Todavía no hay contratos cargados."}
+        </p>
       ) : (
         <>
           {/* Form "vacío": los checkboxes de cada fila viven en la tabla

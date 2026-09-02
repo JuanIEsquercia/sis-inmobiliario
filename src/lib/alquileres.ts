@@ -14,10 +14,26 @@ export function clientLabel(client: { firstName: string; lastName: string } | nu
 // gestionar acá, vive únicamente en Caja > Comisión alquileres. Sigue
 // existiendo como Contract (para el historial de la unidad) y su ficha
 // sigue siendo accesible, solo no aparece en este listado.
-export async function getContracts(scope: ContractGroupScope) {
+export async function getContracts(scope: ContractGroupScope, query?: string) {
+  const q = query?.trim();
   return withRetry(() =>
     prisma.contract.findMany({
-      where: { isAdministered: true, ...(contractGroupWhere(scope) ?? {}) },
+      where: {
+        isAdministered: true,
+        ...(contractGroupWhere(scope) ?? {}),
+        ...(q
+          ? {
+              OR: [
+                { unit: { propertyCode: { contains: q, mode: "insensitive" } } },
+                { unit: { address: { contains: q, mode: "insensitive" } } },
+                { tenant: { firstName: { contains: q, mode: "insensitive" } } },
+                { tenant: { lastName: { contains: q, mode: "insensitive" } } },
+                { owner: { firstName: { contains: q, mode: "insensitive" } } },
+                { owner: { lastName: { contains: q, mode: "insensitive" } } },
+              ],
+            }
+          : {}),
+      },
       include: { unit: true, owner: true, tenant: true, group: true },
       orderBy: { createdAt: "desc" },
     })
@@ -453,9 +469,19 @@ export async function getClientById(id: number) {
 
 // Catálogo de propiedades para el módulo de Historial — todas las
 // unidades cargadas, tengan o no contrato activo hoy.
-export async function getUnits() {
+export async function getUnits(query?: string) {
+  const q = query?.trim();
   return withRetry(() =>
     prisma.unit.findMany({
+      where: q
+        ? {
+            OR: [
+              { propertyCode: { contains: q, mode: "insensitive" } },
+              { address: { contains: q, mode: "insensitive" } },
+              { city: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
       include: { _count: { select: { contracts: true, sales: true, appraisals: true } } },
       orderBy: { propertyCode: "asc" },
     })

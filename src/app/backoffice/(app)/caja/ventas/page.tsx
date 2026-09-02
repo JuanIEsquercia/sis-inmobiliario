@@ -2,13 +2,19 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getSales, agentLabel } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
+import { SearchField } from "@/components/backoffice/SearchField";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
-export default async function VentasPage() {
+interface PageProps {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function VentasPage({ searchParams }: PageProps) {
   const profile = await requirePermission("caja.ver");
-  const sales = await getSales();
+  const { q } = await searchParams;
+  const sales = await getSales(q);
 
   return (
     <div>
@@ -25,8 +31,14 @@ export default async function VentasPage() {
         )}
       </div>
 
+      <form className="mb-6 max-w-md">
+        <SearchField defaultValue={q} placeholder="Buscar por propiedad, vendedor o comprador..." />
+      </form>
+
       {sales.length === 0 ? (
-        <p className="text-sm text-muted">Todavía no hay ventas cargadas.</p>
+        <p className="text-sm text-muted">
+          {q ? "No se encontraron ventas con esa búsqueda." : "Todavía no hay ventas cargadas."}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">

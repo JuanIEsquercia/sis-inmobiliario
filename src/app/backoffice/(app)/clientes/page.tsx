@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { listClients } from "@/lib/alquileres";
+import { SearchField } from "@/components/backoffice/SearchField";
 
 interface PageProps {
   searchParams: Promise<{ q?: string }>;
@@ -16,20 +17,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
       <h1 className="mb-8 text-xl font-bold tracking-tight text-foreground uppercase">Clientes</h1>
 
       <form className="mb-6 max-w-md">
-        <div className="relative w-full">
-          <input
-            name="q"
-            defaultValue={q ?? ""}
-            placeholder="Buscar por nombre o DNI..."
-            className="field w-full pl-10"
-          />
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/70">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="11" cy="11" r="8" />
-              <path strokeLinecap="round" d="m21 21-4.3-4.3" />
-            </svg>
-          </div>
-        </div>
+        <SearchField defaultValue={q} placeholder="Buscar por nombre o DNI..." />
       </form>
 
       {clients.length === 0 ? (

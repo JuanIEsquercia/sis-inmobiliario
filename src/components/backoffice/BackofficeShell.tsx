@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { LogoutButton } from "./LogoutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { GlobalSearch } from "./GlobalSearch";
 
 interface Profile {
   username: string;
@@ -44,6 +45,7 @@ export function BackofficeShell({ profile, children }: BackofficeShellProps) {
         </div>
         
         <div className="flex items-center gap-2 sm:gap-4">
+          <GlobalSearch />
           <div className="flex items-center gap-2.5 pr-3 sm:pr-4 border-r border-border/60">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/5 border border-accent/15 text-accent text-xs font-bold shadow-sm select-none flex-none">
               {userInitials}

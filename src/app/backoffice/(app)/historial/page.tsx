@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getUnits } from "@/lib/alquileres";
+import { SearchField } from "@/components/backoffice/SearchField";
 
-export default async function HistorialPage() {
+interface PageProps {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function HistorialPage({ searchParams }: PageProps) {
   await requirePermission("historial.ver");
-  const units = await getUnits();
+  const { q } = await searchParams;
+  const units = await getUnits(q);
 
   return (
     <div>
@@ -14,8 +20,14 @@ export default async function HistorialPage() {
         vigente hoy.
       </p>
 
+      <form className="mb-6 max-w-md">
+        <SearchField defaultValue={q} placeholder="Buscar por código, dirección o localidad..." />
+      </form>
+
       {units.length === 0 ? (
-        <p className="text-sm text-muted">Todavía no hay propiedades cargadas.</p>
+        <p className="text-sm text-muted">
+          {q ? "No se encontraron propiedades con esa búsqueda." : "Todavía no hay propiedades cargadas."}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">

@@ -2,13 +2,19 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getAppraisals } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
+import { SearchField } from "@/components/backoffice/SearchField";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
-export default async function TasacionesPage() {
+interface PageProps {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function TasacionesPage({ searchParams }: PageProps) {
   const profile = await requirePermission("caja.ver");
-  const appraisals = await getAppraisals();
+  const { q } = await searchParams;
+  const appraisals = await getAppraisals(q);
 
   return (
     <div>
@@ -29,8 +35,14 @@ export default async function TasacionesPage() {
         Cargar la tasación no la da por cobrada — el cobro se confirma aparte, desde la ficha de cada una.
       </p>
 
+      <form className="mb-6 max-w-md">
+        <SearchField defaultValue={q} placeholder="Buscar por código o dirección..." />
+      </form>
+
       {appraisals.length === 0 ? (
-        <p className="text-sm text-muted">Todavía no hay tasaciones cargadas.</p>
+        <p className="text-sm text-muted">
+          {q ? "No se encontraron tasaciones con esa búsqueda." : "Todavía no hay tasaciones cargadas."}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">

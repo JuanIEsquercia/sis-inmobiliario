@@ -145,9 +145,22 @@ export async function getCashMovementTotals() {
   );
 }
 
-export async function getSales() {
+export async function getSales(query?: string) {
+  const q = query?.trim();
   return withRetry(() =>
     prisma.sale.findMany({
+      where: q
+        ? {
+            OR: [
+              { unit: { propertyCode: { contains: q, mode: "insensitive" } } },
+              { unit: { address: { contains: q, mode: "insensitive" } } },
+              { seller: { firstName: { contains: q, mode: "insensitive" } } },
+              { seller: { lastName: { contains: q, mode: "insensitive" } } },
+              { buyer: { firstName: { contains: q, mode: "insensitive" } } },
+              { buyer: { lastName: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : undefined,
       include: { unit: true, seller: true, buyer: true, vendedorAgent: true, captadorAgent: true },
       orderBy: { closedAt: "desc" },
     })
@@ -172,9 +185,18 @@ export async function getSaleById(id: number) {
   );
 }
 
-export async function getAppraisals() {
+export async function getAppraisals(query?: string) {
+  const q = query?.trim();
   return withRetry(() =>
     prisma.appraisal.findMany({
+      where: q
+        ? {
+            OR: [
+              { unit: { propertyCode: { contains: q, mode: "insensitive" } } },
+              { unit: { address: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : undefined,
       include: { unit: true, vendedorAgent: true, cashMovement: true },
       orderBy: { completedAt: "desc" },
     })
