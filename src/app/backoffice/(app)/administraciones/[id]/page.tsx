@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getContractById, getContractGroups, getIndexTypes, paymentTotal } from "@/lib/alquileres";
+import { getContractById, getContractGroups, paymentTotal } from "@/lib/alquileres";
 import { getAgents, getActiveCommissionScheme, agentLabel, toRepartoSchemeInfo } from "@/lib/caja";
 import { getSignedDocumentUrl } from "@/lib/supabase/storage";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import {
   subirDocumento,
-  aplicarIndexacion,
   finalizarContrato,
   actualizarAgentesContrato,
   actualizarPartesContrato,
@@ -22,6 +21,8 @@ import { RepartoPreview } from "@/components/backoffice/RepartoPreview";
 import { DatePicker } from "@/components/backoffice/DatePicker";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
+import { EditableAgentesCard } from "@/components/backoffice/EditableAgentesCard";
+import { EditableRenovacionCard } from "@/components/backoffice/EditableRenovacionCard";
 
 const statusLabels: Record<string, string> = {
   BORRADOR: "Borrador",
@@ -69,10 +70,9 @@ export default async function ContractDetailPage({ params }: PageProps) {
   // en paralelo en vez de en cadena ahorra dos viajes de ida y vuelta a
   // la base por carga de página.
   const canManageGroups = profile.permissions.includes("administraciones.grupos.gestionar");
-  const [contract, groups, indexTypes] = await Promise.all([
+  const [contract, groups] = await Promise.all([
     getContractById(numericId, scope),
     canManageGroups ? getContractGroups() : Promise.resolve([]),
-    getIndexTypes(),
   ]);
   if (!contract) notFound();
 
@@ -409,57 +409,48 @@ export default async function ContractDetailPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Indexaciones / Actualizaciones */}
+          {/* Indexaciones / Actualizaciones — de solo lectura acá a
+              propósito: aplicar una actualización nueva se hace desde
+              Administraciones > Actualizaciones (la lista de tareas), no
+              desde acá. Tenerlo en los dos lados invitaba a aplicarla dos
+              veces por error sin darse cuenta. Lo que sí vale la pena
+              conservar acá es el historial con el comprobante de cada
+              una, para que no se pierda. */}
           {contract.isAdministered && profile.permissions.includes("administraciones.indexacion") && (
             <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-muted mb-4">Actualizaciones e Indexación</h2>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-muted">Actualizaciones e Indexación</h2>
+                <Link
+                  href="/backoffice/administraciones/actualizaciones"
+                  className="text-xs font-semibold text-accent hover:underline whitespace-nowrap"
+                >
+                  Aplicar una nueva →
+                </Link>
+              </div>
 
-              {contract.indexations.length > 0 && (
-                <ul className="mb-4 flex flex-col gap-2 text-sm">
+              {contract.indexations.length > 0 ? (
+                <ul className="flex flex-col gap-2 text-sm">
                   {contract.indexations.map((i) => (
                     <li key={i.id} className="text-muted text-xs border-b border-border/40 pb-1.5 last:border-0 last:pb-0">
                       <strong>{fmtDate.format(i.appliedAt)}:</strong> {contract.currency} {i.previousAmount.toString()} →{" "}
                       <span className="text-foreground font-semibold">{contract.currency} {i.newAmount.toString()}</span>
-                      {i.indexType ? ` (${i.indexType.code})` : ""}
+                      {i.percentage !== null ? ` (${Number(i.percentage) > 0 ? "+" : ""}${i.percentage.toString()}%${i.indexType ? ` · ${i.indexType.code}` : ""})` : i.indexType ? ` (${i.indexType.code})` : ""}
                       {i.notes && <span className="block text-[10px] text-muted font-normal mt-0.5">Nota: {i.notes}</span>}
+                      {" · "}
+                      <Link
+                        href={`/backoffice/administraciones/${contract.id}/indexaciones/${i.id}/imprimir`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent hover:underline"
+                      >
+                        Comprobante
+                      </Link>
                     </li>
                   ))}
                 </ul>
+              ) : (
+                <p className="text-sm text-muted">Todavía no se aplicó ninguna actualización.</p>
               )}
-
-              <form action={aplicarIndexacion.bind(null, contract.id)} className="flex flex-wrap items-end gap-3 border-t border-border/40 pt-4">
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="newAmount" className="text-xs text-muted">
-                    Nuevo monto
-                  </label>
-                  <input id="newAmount" name="newAmount" type="number" step="0.01" required className="field w-32" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="idxTypeSelect" className="text-xs text-muted">
-                    Índice
-                  </label>
-                  <select id="idxTypeSelect" name="indexTypeId" defaultValue={contract.indexTypeId ?? ""} className="field">
-                    <option value="">Sin índice</option>
-                    {indexTypes.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.code}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="idxNotes" className="text-xs text-muted">
-                    Notas
-                  </label>
-                  <input id="idxNotes" name="notes" className="field placeholder:text-muted/60" placeholder="Ej. Según ICL" />
-                </div>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent-foreground hover:bg-accent-strong cursor-pointer shadow-xs transition-colors"
-                >
-                  Aplicar actualización
-                </button>
-              </form>
             </div>
           )}
         </div>
@@ -573,75 +564,28 @@ export default async function ContractDetailPage({ params }: PageProps) {
           {contract.isAdministered && (
           <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
             <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">¿Cobra comisión al renovar?</h2>
-            {canEditAgentes ? (
-              <form action={actualizarRenovacionEsperada.bind(null, contract.id)} className="flex flex-col gap-3">
-                <select
-                  name="renewalCommissionExpected"
-                  defaultValue={
-                    contract.renewalCommissionExpected === true
-                      ? "true"
-                      : contract.renewalCommissionExpected === false
-                        ? "false"
-                        : ""
-                  }
-                  className="field w-full text-xs py-1.5"
-                >
-                  <option value="">A confirmar</option>
-                  <option value="true">Sí</option>
-                  <option value="false">No</option>
-                </select>
-                <button type="submit" className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors">
-                  Guardar
-                </button>
-                <p className="text-[10px] text-muted leading-relaxed">
-                  Solo &quot;Sí&quot; entra a la proyección financiera, estimado como un mes de alquiler al monto
-                  vigente, en el mes de vencimiento de este contrato.
-                </p>
-              </form>
-            ) : (
-              <p className="text-xs text-foreground font-semibold">
-                {contract.renewalCommissionExpected === true
-                  ? "Sí"
-                  : contract.renewalCommissionExpected === false
-                    ? "No"
-                    : "A confirmar"}
-              </p>
-            )}
+            <EditableRenovacionCard
+              defaultValue={contract.renewalCommissionExpected}
+              canEdit={canEditAgentes}
+              action={actualizarRenovacionEsperada.bind(null, contract.id)}
+            />
           </div>
           )}
 
-          {/* Agentes */}
+          {/* Agentes — solo lectura por default (ya se cargan al alta del
+              contrato); "Editar" recién muestra el form si hace falta
+              corregir algo, en vez de tenerlo siempre abierto. */}
           <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
             <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Agentes Involucrados</h2>
-            {canEditAgentes ? (
-              <form action={actualizarAgentesContrato.bind(null, contract.id)} className="flex flex-col gap-3">
-                <AgentSelect
-                  agents={agents}
-                  defaultValue={contract.vendedorAgentId ?? undefined}
-                  name="vendedorAgentId"
-                  label="Agente vendedor"
-                  required={false}
-                />
-                <AgentSelect
-                  agents={agents}
-                  defaultValue={contract.captadorAgentId ?? undefined}
-                  name="captadorAgentId"
-                  label="Agente captador"
-                  required={false}
-                />
-                <button
-                  type="submit"
-                  className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors"
-                >
-                  Guardar Agentes
-                </button>
-              </form>
-            ) : (
-              <div className="text-xs text-muted flex flex-col gap-1">
-                <span><strong>Vendedor:</strong> {agentLabel(contract.vendedorAgent)}</span>
-                <span><strong>Captador:</strong> {agentLabel(contract.captadorAgent)}</span>
-              </div>
-            )}
+            <EditableAgentesCard
+              agents={agents}
+              defaultVendedorId={contract.vendedorAgentId ?? undefined}
+              defaultCaptadorId={contract.captadorAgentId ?? undefined}
+              vendedorLabel={agentLabel(contract.vendedorAgent)}
+              captadorLabel={agentLabel(contract.captadorAgent)}
+              canEdit={canEditAgentes}
+              action={actualizarAgentesContrato.bind(null, contract.id)}
+            />
           </div>
 
           {/* Cierre / Finalización — administrado y colocación siguen

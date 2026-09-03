@@ -134,6 +134,20 @@ export async function getPaymentById(id: number) {
   );
 }
 
+// Para el comprobante imprimible de una actualización puntual — mismo
+// criterio que getPaymentById.
+export async function getIndexationById(id: number) {
+  return withRetry(() =>
+    prisma.indexation.findUnique({
+      where: { id },
+      include: {
+        contract: { include: { unit: true, tenant: true, owner: true } },
+        indexType: true,
+      },
+    })
+  );
+}
+
 export function paymentTotal(items: { amount: unknown }[]): number {
   return items.reduce((sum, item) => sum + (item.amount ? Number(item.amount) : 0), 0);
 }

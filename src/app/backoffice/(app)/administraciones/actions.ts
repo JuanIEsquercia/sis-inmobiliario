@@ -17,7 +17,7 @@ import {
   requiredDecimal,
   requiredStr,
 } from "@/lib/form-utils";
-import type { DocumentType, Prisma } from "@/generated/prisma/client";
+import { Prisma, type DocumentType } from "@/generated/prisma/client";
 
 function guarantorIndices(formData: FormData): number[] {
   const indices = new Set<number>();
@@ -602,10 +602,19 @@ export async function registrarPagoPropietario(paymentId: number, formData: Form
   revalidatePath("/backoffice/administraciones/liquidaciones");
 }
 
+// La actualización se carga como % (no como un monto nuevo tipeado a
+// mano) — el sistema calcula el monto resultante y lo congela en
+// Indexation.newAmount, pero guarda también el % (Indexation.percentage)
+// para poder reimprimir después el comprobante ("Alquiler actual X,
+// actualización por índice Y%, valor actualizado Z" — ver
+// indexaciones/[indexationId]/imprimir).
 export async function aplicarIndexacion(contractId: number, formData: FormData) {
   await requirePermission("administraciones.indexacion");
 
-  const newAmount = requiredDecimal(formData.get("newAmount"), "Nuevo monto");
+  const percentage = requiredDecimal(formData.get("percentage"), "% de actualización");
+  if (Number(percentage) <= -100) {
+    throw new Error("El porcentaje no puede ser -100% o menos (dejaría el alquiler en cero o negativo).");
+  }
   const indexTypeId = optionalInt(formData.get("indexTypeId"));
   const notes = optionalStr(formData.get("notes"));
 
@@ -613,8 +622,13 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
     prisma.$transaction(async (tx) => {
       const contract = await tx.contract.findUniqueOrThrow({ where: { id: contractId } });
 
+      const previousAmount = new Prisma.Decimal(contract.rentAmount);
+      const newAmount = previousAmount
+        .mul(new Prisma.Decimal(1).add(new Prisma.Decimal(percentage).div(100)))
+        .toDecimalPlaces(2);
+
       await tx.indexation.create({
-        data: { contractId, previousAmount: contract.rentAmount, newAmount, indexTypeId, notes },
+        data: { contractId, previousAmount, newAmount, percentage, indexTypeId, notes },
       });
 
       const now = new Date();
@@ -665,6 +679,7 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
   );
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
+  revalidatePath("/backoffice/administraciones/actualizaciones");
 }
 
 export async function finalizarContrato(contractId: number, formData: FormData) {

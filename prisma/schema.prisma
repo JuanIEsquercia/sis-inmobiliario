@@ -676,6 +676,13 @@ model Indexation {
   appliedAt      DateTime @default(now())
   previousAmount Decimal  @db.Decimal(14, 2)
   newAmount      Decimal  @db.Decimal(14, 2)
+  // % aplicado sobre previousAmount para llegar a newAmount — se carga
+  // el % (no el monto directo), este campo es lo que se puede reimprimir
+  // como comprobante ("actualización periódica por índice X%"). Nullable
+  // por si alguna vez se necesita cargar un ajuste puntual sin
+  // porcentaje (ej. un monto pactado a mano), aunque el flujo normal
+  // siempre lo completa.
+  percentage     Decimal? @db.Decimal(6, 2)
 
   indexTypeId Int?
   indexType   IndexType? @relation(fields: [indexTypeId], references: [id])

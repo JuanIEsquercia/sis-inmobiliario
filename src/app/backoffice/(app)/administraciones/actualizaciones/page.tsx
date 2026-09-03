@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getContractsDueForIndexation, getContractsNearingEnd, getIndexTypes, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
+import { IndexacionPercentField } from "@/components/backoffice/IndexacionPercentField";
 import { actualizarRenovacionEsperada, aplicarIndexacion } from "../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -85,14 +86,11 @@ export default async function ActualizacionesPage() {
                           action={aplicarIndexacion.bind(null, c.id)}
                           className="flex flex-wrap items-center gap-1.5"
                         >
-                          <input
-                            name="newAmount"
-                            type="number"
-                            step="0.01"
-                            required
-                            placeholder="Nuevo monto"
-                            className="field w-28 py-1 text-xs"
-                            aria-label={`Nuevo monto para ${c.unit.propertyCode}`}
+                          <IndexacionPercentField
+                            currentAmount={Number(c.rentAmount)}
+                            currency={c.currency}
+                            compact
+                            ariaLabel={`% de actualización para ${c.unit.propertyCode}`}
                           />
                           <select
                             name="indexTypeId"
