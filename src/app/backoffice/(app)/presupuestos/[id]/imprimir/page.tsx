@@ -132,6 +132,13 @@ export default async function ImprimirPresupuestoPage({ params, searchParams }: 
         </div>
       </div>
 
+      {budget.observations && (
+        <div className="mb-8 rounded-2xl border border-neutral-200 bg-neutral-50/50 p-6 text-sm">
+          <h3 className="font-bold text-[#c52125] uppercase tracking-wider text-xs mb-2">Observaciones</h3>
+          <p className="text-neutral-700 whitespace-pre-line">{budget.observations}</p>
+        </div>
+      )}
+
       <p className="text-center text-[10px] text-neutral-400 uppercase tracking-widest">
         Presupuesto sin validez de factura — valores sujetos a confirmación
       </p>

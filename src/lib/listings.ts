@@ -105,11 +105,51 @@ export async function getFeaturedListings(take = 6) {
   );
 }
 
+// Select explícito, no `include` — a propósito nunca trae sellerName/
+// sellerEmail (datos personales de quien cargó el aviso en Adinco, no
+// para publicar) ni rawData (el <ad> crudo del feed, que los repite y
+// puede traer más campos no modelados). Es la ficha pública: que un
+// campo nuevo se agregue acá tiene que ser una decisión explícita, no
+// un efecto secundario de traer todo con include.
 export async function getListingById(id: number) {
   return withRetry(() =>
     prisma.listing.findFirst({
       where: { id, isActive: true },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        contentTitle: true,
+        description: true,
+        operationType: true,
+        propertyType: true,
+        priceAmount: true,
+        priceCurrency: true,
+        priceRaw: true,
+        pricePerHectare: true,
+        expenses: true,
+        address: true,
+        region: true,
+        city: true,
+        latitude: true,
+        longitude: true,
+        floorArea: true,
+        plotArea: true,
+        landArea: true,
+        rooms: true,
+        bathrooms: true,
+        condition: true,
+        year: true,
+        buildingFloors: true,
+        buildingMainElevators: true,
+        buildingCategory: true,
+        coveredGarages: true,
+        aptoCredito: true,
+        fieldLength: true,
+        fieldWidth: true,
+        countryType: true,
+        services: true,
+        otherData: true,
+        sourceUpdatedAt: true,
         images: { orderBy: { sortOrder: "asc" } },
         videos: true,
       },

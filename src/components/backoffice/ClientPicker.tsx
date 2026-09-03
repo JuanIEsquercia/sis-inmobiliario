@@ -34,6 +34,12 @@ export function ClientPicker({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Mismo DNI ya cargado en el sistema, detectado en vivo mientras se
+  // tipea el "cliente nuevo" — avisa ANTES de mandar el formulario, no
+  // recién cuando el server action lo rechaza (ver resolveClient).
+  const [docIdInput, setDocIdInput] = useState("");
+  const [docIdMatch, setDocIdMatch] = useState<ClientOption | null>(null);
+
   useEffect(() => {
     if (selected || query.trim().length < 2) return;
     const handle = setTimeout(() => {
@@ -47,6 +53,30 @@ export function ClientPicker({
     }, 300);
     return () => clearTimeout(handle);
   }, [query, selected, search]);
+
+  const docIdToCheck = docIdInput.trim();
+
+  useEffect(() => {
+    // Sin al menos 3 dígitos (o con el form de "nuevo" cerrado) no hay
+    // nada que chequear — se deja de largo sin tocar `docIdMatch` acá;
+    // `visibleDocIdMatch` más abajo es quien decide qué se muestra.
+    if (!showNew || docIdToCheck.length < 3) return;
+    const handle = setTimeout(() => {
+      startTransition(async () => {
+        try {
+          const found = await search(docIdToCheck);
+          setDocIdMatch(found.find((c) => c.docId === docIdToCheck) ?? null);
+        } catch {
+          // Si falla la búsqueda en vivo no bloquea la carga — el
+          // chequeo real y definitivo sigue siendo resolveClient del
+          // lado del servidor al mandar el formulario.
+        }
+      });
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [docIdToCheck, showNew, search]);
+
+  const visibleDocIdMatch = showNew && docIdToCheck.length >= 3 ? docIdMatch : null;
 
   const field = (suffix: string) => `${namePrefix}.${suffix}`;
 
@@ -148,7 +178,32 @@ export function ClientPicker({
             </div>
             <div className="flex flex-col gap-1 w-full">
               <label className="text-xs font-semibold text-foreground/80">DNI / CUIT</label>
-              <input name={field("docId")} placeholder="Número de documento sin puntos" className="field w-full" />
+              <input
+                name={field("docId")}
+                value={docIdInput}
+                onChange={(e) => setDocIdInput(e.target.value)}
+                placeholder="Número de documento sin puntos"
+                className="field w-full"
+              />
+              {visibleDocIdMatch && (
+                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent-soft/30 px-3 py-2.5 text-xs">
+                  <span className="text-foreground">
+                    Ya existe <strong>{visibleDocIdMatch.firstName} {visibleDocIdMatch.lastName}</strong> con este DNI.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelected(visibleDocIdMatch);
+                      setShowNew(false);
+                      setDocIdInput("");
+                      setDocIdMatch(null);
+                    }}
+                    className="font-semibold text-accent hover:text-accent-strong hover:underline cursor-pointer"
+                  >
+                    Usar este cliente
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-1 w-full">
               <label className="text-xs font-semibold text-foreground/80">Teléfono</label>
@@ -168,7 +223,11 @@ export function ClientPicker({
 
           <button
             type="button"
-            onClick={() => setShowNew(false)}
+            onClick={() => {
+              setShowNew(false);
+              setDocIdInput("");
+              setDocIdMatch(null);
+            }}
             className="w-fit text-xs font-semibold text-muted hover:text-foreground transition-colors cursor-pointer pt-1"
           >
             ← Volver a buscar cliente existente

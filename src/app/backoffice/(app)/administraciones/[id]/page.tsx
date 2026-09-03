@@ -11,6 +11,8 @@ import {
   actualizarAgentesContrato,
   actualizarPartesContrato,
   anularContrato,
+  eliminarContratoDefinitivo,
+  marcarContratoFirmado,
   asignarGrupoContrato,
   actualizarRenovacionEsperada,
 } from "../actions";
@@ -19,8 +21,11 @@ import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { RepartoPreview } from "@/components/backoffice/RepartoPreview";
 import { DatePicker } from "@/components/backoffice/DatePicker";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
+import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 
 const statusLabels: Record<string, string> = {
+  BORRADOR: "Borrador",
+  FIRMADO: "Firmado",
   ACTIVO: "Activo",
   FINALIZADO: "Finalizado",
   RESCINDIDO: "Rescindido",
@@ -76,8 +81,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
   // comentario en RentalCommission.origin.
   const isRenewal = !!contract.renewedFromContractId;
   const canCreateCommission = profile.permissions.includes("caja.comisiones.crear");
-  const canEditAgentes = profile.permissions.includes("administraciones.crear");
   const needsCommissionForm = canCreateCommission && !contract.rentalCommission;
+
+  // Una colocación firmada queda cerrada — partes y agentes ya no se
+  // editan más (ver assertColocacionEditable del lado del servidor).
+  const isColocacionFirmada = !contract.isAdministered && contract.status === "FIRMADO";
+  const canEditAgentes = profile.permissions.includes("administraciones.crear") && !isColocacionFirmada;
+  const canMarcarFirmado =
+    !contract.isAdministered &&
+    contract.status === "BORRADOR" &&
+    profile.permissions.includes("administraciones.firmar");
 
   // Estas tres sí dependen de `contract` (recién resuelto arriba), pero
   // no dependen entre sí — misma idea, una sola tanda en paralelo.
@@ -88,10 +101,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
   ]);
 
   // Solo se puede anular si todavía no movió plata — ver anularContrato.
+  // El estado "vigente para anular" depende del tipo: un administrado es
+  // ACTIVO, una colocación es BORRADOR (FIRMADO ya está cerrada).
   const yaMovioPlata =
     !!contract.rentalCommission ||
     contract.payments.some((p) => p.status === "PAGADO" || p.status === "PARCIAL" || p.status === "ENVIADA");
-  const canAnular = profile.permissions.includes("administraciones.crear") && contract.status === "ACTIVO" && !yaMovioPlata;
+  const estadoVigenteParaAnular = contract.isAdministered ? "ACTIVO" : "BORRADOR";
+  const canAnular =
+    profile.permissions.includes("administraciones.crear") &&
+    contract.status === estadoVigenteParaAnular &&
+    !yaMovioPlata;
 
   return (
     <div className="max-w-6xl w-full mx-auto">
@@ -191,6 +210,12 @@ export default async function ContractDetailPage({ params }: PageProps) {
               </div>
               {contract.isAdministered && (
                 <div>
+                  <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Vencimiento mensual</dt>
+                  <dd className="text-foreground font-medium">Día {contract.paymentDueDay} de cada mes</dd>
+                </div>
+              )}
+              {contract.isAdministered && (
+                <div>
                   <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Actualización</dt>
                   <dd className="text-foreground font-medium">
                     {contract.indexationFrequencyMonths
@@ -216,10 +241,21 @@ export default async function ContractDetailPage({ params }: PageProps) {
               )}
               {(contract.paymentAlias || contract.paymentCBU) && (
                 <div className="col-span-2 sm:col-span-3 border-t border-border/40 pt-3 mt-1">
-                  <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Cuentas Bancarias</dt>
+                  <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Cuenta del alquiler (propietario)</dt>
                   <dd className="text-foreground font-medium flex flex-wrap gap-x-4">
                     {contract.paymentAlias && <span><strong>Alias:</strong> {contract.paymentAlias}</span>}
                     {contract.paymentCBU && <span><strong>CBU:</strong> {contract.paymentCBU}</span>}
+                  </dd>
+                </div>
+              )}
+              {contract.tenantPaysCommission && (contract.commissionAlias || contract.commissionCBU) && (
+                <div className="col-span-2 sm:col-span-3 pt-1">
+                  <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">
+                    Cuenta de la comisión (inmobiliaria) — la transfiere el inquilino
+                  </dt>
+                  <dd className="text-foreground font-medium flex flex-wrap gap-x-4">
+                    {contract.commissionAlias && <span><strong>Alias:</strong> {contract.commissionAlias}</span>}
+                    {contract.commissionCBU && <span><strong>CBU:</strong> {contract.commissionCBU}</span>}
                   </dd>
                 </div>
               )}
@@ -530,7 +566,11 @@ export default async function ContractDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Comisión de renovación */}
+          {/* Comisión de renovación — solo aplica a lo que administramos:
+              alimenta la proyección financiera de contratos ACTIVO
+              (getContractsNearingEnd), y una colocación nunca pasa por
+              ese estado. */}
+          {contract.isAdministered && (
           <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
             <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">¿Cobra comisión al renovar?</h2>
             {canEditAgentes ? (
@@ -568,6 +608,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
               </p>
             )}
           </div>
+          )}
 
           {/* Agentes */}
           <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
@@ -603,53 +644,47 @@ export default async function ContractDetailPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Cierre / Finalización del Contrato — "Finalizar" (venció,
-              rescindido) es un evento de la administración que llevamos
-              nosotros: en una colocación sin administración no hay
-              cronograma ni gestión que cerrar, así que ese estado no
-              cumple ninguna función — la ficha se queda como colocación,
-              sin necesidad de marcarla. "Anular" (cargado por error) sí
-              aplica a cualquier contrato, administrado o no. */}
-          {profile.permissions.includes("administraciones.crear") &&
-            contract.status === "ACTIVO" &&
-            (contract.isAdministered || canAnular) && (
+          {/* Cierre / Finalización — administrado y colocación siguen
+              ciclos de vida completamente distintos a partir de acá, así
+              que van en bloques separados en vez de compartir uno con
+              ramas. */}
+          {contract.isAdministered ? (
+            // "Finalizar" (venció, rescindido) es un evento del alquiler
+            // que administramos; "Anular" (cargado por error) solo si
+            // todavía no movió plata.
+            profile.permissions.includes("administraciones.crear") &&
+            contract.status === "ACTIVO" && (
               <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">
-                  {contract.isAdministered ? "Finalizar o Anular" : "Anular"}
-                </h2>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Finalizar o Anular</h2>
 
-                {contract.isAdministered && (
-                  <form action={finalizarContrato.bind(null, contract.id)} className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="terminationStatus" className="text-[10px] font-bold text-muted uppercase tracking-wider">
-                        Motivo de Cierre
-                      </label>
-                      <select id="terminationStatus" name="status" defaultValue="FINALIZADO" className="field w-full text-xs py-1.5">
-                        <option value="FINALIZADO">Finalizado (venció)</option>
-                        <option value="RESCINDIDO">Rescindido</option>
-                      </select>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="terminationReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
-                        Notas adicionales
-                      </label>
-                      <input id="terminationReason" name="terminationReason" className="field w-full text-xs" placeholder="Ej. Entrega llaves" />
-                    </div>
-                    <button
-                      type="submit"
-                      className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors"
-                    >
-                      Finalizar Contrato
-                    </button>
-                  </form>
-                )}
+                <form action={finalizarContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label htmlFor="terminationStatus" className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                      Motivo de Cierre
+                    </label>
+                    <select id="terminationStatus" name="status" defaultValue="FINALIZADO" className="field w-full text-xs py-1.5">
+                      <option value="FINALIZADO">Finalizado (venció)</option>
+                      <option value="RESCINDIDO">Rescindido</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label htmlFor="terminationReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                      Notas adicionales
+                    </label>
+                    <input id="terminationReason" name="terminationReason" className="field w-full text-xs" placeholder="Ej. Entrega llaves" />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors"
+                  >
+                    Finalizar Contrato
+                  </button>
+                </form>
 
                 {canAnular ? (
-                  <div className={contract.isAdministered ? "mt-4 border-t border-border/40 pt-4" : ""}>
+                  <div className="mt-4 border-t border-border/40 pt-4">
                     <p className="mb-2 text-[10px] text-muted leading-relaxed">
-                      {contract.isAdministered
-                        ? "Si el contrato se cargó por error y nunca debió existir, puedes anularlo. Se eliminarán sus liquidaciones."
-                        : "Si esta colocación se cargó por error y nunca debió existir, podés anularla."}
+                      Si el contrato se cargó por error y nunca debió existir, puedes anularlo. Se eliminarán sus liquidaciones.
                     </p>
                     <form action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
                       <div className="flex flex-col gap-1">
@@ -667,7 +702,6 @@ export default async function ContractDetailPage({ params }: PageProps) {
                     </form>
                   </div>
                 ) : (
-                  contract.isAdministered &&
                   yaMovioPlata && (
                     <p className="mt-3 text-[10px] text-muted leading-relaxed italic">
                       Este contrato ya cuenta con movimientos monetarios (comisión o cobros) por lo que no se puede anular, únicamente finalizar.
@@ -675,7 +709,81 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   )
                 )}
               </div>
-            )}
+            )
+          ) : (
+            // Colocación: BORRADOR (se puede seguir cargando, marcar como
+            // firmada, o anular si no se cargó comisión todavía) vs.
+            // FIRMADO (cerrada — no hay nada que hacer acá, para corregirla
+            // está "Eliminar definitivamente" más abajo).
+            (canMarcarFirmado || canAnular) && (
+              <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Firmar o Anular</h2>
+
+                {canMarcarFirmado && (
+                  <form action={marcarContratoFirmado.bind(null, contract.id)} className="flex flex-col gap-2">
+                    <p className="text-[10px] text-muted leading-relaxed">
+                      Marcala como firmada cuando la operación ya cerró — a partir de ahí, partes y agentes quedan
+                      bloqueados (el cobro de la comisión sigue funcionando igual).
+                    </p>
+                    <button
+                      type="submit"
+                      className="w-full rounded-lg bg-accent text-accent-foreground py-2 text-xs font-bold uppercase tracking-wider hover:bg-accent-strong cursor-pointer shadow-xs transition-colors"
+                    >
+                      Marcar como Firmado
+                    </button>
+                  </form>
+                )}
+
+                {canAnular && (
+                  <div className={canMarcarFirmado ? "mt-4 border-t border-border/40 pt-4" : ""}>
+                    <p className="mb-2 text-[10px] text-muted leading-relaxed">
+                      Si esta colocación se cargó por error y nunca debió existir, podés anularla.
+                    </p>
+                    <form action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor="anularReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                          Motivo de Anulación
+                        </label>
+                        <input id="anularReason" name="terminationReason" className="field w-full text-xs" placeholder="Cargado por error" />
+                      </div>
+                      <button
+                        type="submit"
+                        className="w-full rounded-lg border border-accent/40 bg-accent-soft px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors shadow-xs"
+                      >
+                        Anular Contrato
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          {/* Eliminar definitivamente — a diferencia de Anular (que solo
+              deshace un alta reciente sin plata movida) o Finalizar (el
+              contrato terminó de verdad), esto borra todo lo cargado
+              encima aunque ya se haya operado: liquidaciones, cobros,
+              comisión de alquiler y sus cuotas, pagos a agentes por esa
+              comisión, documentos. Permiso aparte a propósito — no es
+              para el uso normal, es para corregir una carga errónea. */}
+          {profile.permissions.includes("administraciones.eliminar") && (
+            <div className="rounded-xl border border-accent/30 bg-accent-soft/10 p-5 shadow-xs">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-2">Eliminar definitivamente</h2>
+              <p className="mb-3 text-[10px] text-muted leading-relaxed">
+                Borra el contrato entero junto con todo lo que tenga cargado encima — liquidaciones, cobros,
+                indexaciones, comisión de alquiler y sus cuotas/cobros, pagos ya hechos a agentes por esa comisión, y
+                los documentos subidos. No hay forma de deshacerlo. Usalo solo para corregir una carga errónea.
+              </p>
+              <ConfirmDeleteButton
+                action={eliminarContratoDefinitivo.bind(null, contract.id)}
+                triggerLabel="Eliminar contrato definitivamente"
+                triggerClassName="w-full rounded-lg border border-accent/50 bg-transparent py-2 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors shadow-xs"
+                title={`¿Eliminar el contrato de ${contract.unit.address} por completo?`}
+                description="Se van a borrar TODAS las operaciones vinculadas a este contrato (liquidaciones, cobros, comisión, pagos a agentes, documentos). Esta acción no se puede deshacer."
+                confirmLabel="Sí, eliminar todo"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

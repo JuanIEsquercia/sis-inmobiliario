@@ -56,6 +56,15 @@ export default async function PresupuestoDetailPage({ params }: PageProps) {
         )}
       </div>
 
+      {budget.observations && (
+        <div className="mb-4 rounded-xl border border-accent/30 bg-accent-soft/10 p-4 text-sm text-foreground">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-accent mb-1">
+            Observaciones (salen impresas)
+          </span>
+          {budget.observations}
+        </div>
+      )}
+
       {budget.notes && (
         <div className="mb-6 rounded-xl border border-border bg-surface/30 p-4 text-sm text-muted">
           <span className="block text-[10px] font-bold uppercase tracking-wider text-muted/70 mb-1">Notas internas</span>

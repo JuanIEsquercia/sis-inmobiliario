@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { timingSafeEqual } from "crypto";
 import { runSync } from "@/lib/sync";
+
+// Comparación en tiempo constante — con `!==` común, el tiempo de
+// respuesta varía según cuántos caracteres iniciales coinciden con el
+// secreto real, lo que en teoría permite reconstruirlo byte a byte
+// probando muchas veces. timingSafeEqual siempre tarda lo mismo sin
+// importar en qué posición difieren.
+function secretsMatch(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  // Los buffers deben tener el mismo largo para timingSafeEqual — si no
+  // coincide, ya sabemos que no matchea (comparar el largo no filtra
+  // nada útil sobre el contenido del secreto).
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function POST(request: NextRequest) {
   const secret = process.env.SYNC_SECRET;
@@ -9,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   const provided = request.headers.get("x-sync-secret");
-  if (provided !== secret) {
+  if (!provided || !secretsMatch(provided, secret)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 

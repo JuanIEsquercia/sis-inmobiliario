@@ -110,6 +110,20 @@ export default async function EditarPresupuestoPage({ params }: PageProps) {
         )}
 
         <div className="flex flex-col gap-1.5">
+          <label htmlFor="observations" className="text-sm font-medium text-foreground">
+            Observaciones
+          </label>
+          <textarea
+            id="observations"
+            name="observations"
+            rows={2}
+            defaultValue={budget.observations ?? ""}
+            placeholder="Salen impresas en el presupuesto — ej. &quot;Precio sujeto a confirmación&quot;, &quot;Incluye gastos de escritura&quot;, &quot;Válido por 15 días&quot;"
+            className="field"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
           <label htmlFor="notes" className="text-sm font-medium text-foreground">
             Notas internas
           </label>

@@ -30,6 +30,8 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       { key: "administraciones.crear", label: "Crear contratos" },
       { key: "administraciones.pagos", label: "Registrar pagos" },
       { key: "administraciones.indexacion", label: "Aplicar indexaciones" },
+      { key: "administraciones.firmar", label: "Marcar una colocación como firmada" },
+      { key: "administraciones.eliminar", label: "Eliminar contratos definitivamente (con todo lo vinculado)" },
       { key: "administraciones.grupos.gestionar", label: "Crear grupos y asignar contratos/miembros" },
     ],
   },

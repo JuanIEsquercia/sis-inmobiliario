@@ -98,16 +98,6 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
             <option value="ARS">ARS</option>
             <option value="USD">USD</option>
           </select>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="renewalCommissionExpected" className="text-xs text-muted">
-              ¿Se cobra comisión en la renovación?
-            </label>
-            <select id="renewalCommissionExpected" name="renewalCommissionExpected" defaultValue="" className="field">
-              <option value="">A confirmar</option>
-              <option value="true">Sí</option>
-              <option value="false">No</option>
-            </select>
-          </div>
         </fieldset>
 
         <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -155,6 +145,11 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
           }
           defaultPaymentAlias={sourceContract?.paymentAlias ?? ""}
           defaultPaymentCBU={sourceContract?.paymentCBU ?? ""}
+          defaultPaymentDueDay={sourceContract?.paymentDueDay}
+          defaultTenantPaysCommission={sourceContract?.tenantPaysCommission ?? false}
+          defaultCommissionAlias={sourceContract?.commissionAlias ?? ""}
+          defaultCommissionCBU={sourceContract?.commissionCBU ?? ""}
+          defaultRenewalCommissionExpected={sourceContract?.renewalCommissionExpected}
         />
 
         <div className="flex flex-col gap-1.5">

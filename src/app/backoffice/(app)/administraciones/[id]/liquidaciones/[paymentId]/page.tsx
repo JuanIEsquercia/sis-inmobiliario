@@ -126,7 +126,14 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                 <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1.5fr_120px_2fr_auto] items-center gap-3 border-b border-border/40 pb-4 last:border-0 last:pb-0">
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-foreground">{item.concept.name}</span>
-                    {item.concept.isSystem && <span className="text-[10px] text-muted font-medium uppercase tracking-wider mt-0.5">Automático</span>}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {item.concept.isSystem && <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Automático</span>}
+                      {item.amount !== null && Number(item.amount) < 0 && (
+                        <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
+                          Descuento
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <input type="hidden" form="guardar-montos-form" name="itemId" value={item.id} />
                   
@@ -193,24 +200,37 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Agregar Concepto Extra</h3>
               <form
                 action={agregarConceptoLiquidacion.bind(null, payment.id)}
-                className="grid grid-cols-1 sm:grid-cols-[1.5fr_120px_auto] items-end gap-3"
+                className="grid grid-cols-1 sm:grid-cols-[1.3fr_110px_100px_auto] items-end gap-3"
               >
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="conceptName" className="text-xs text-muted">
-                    Concepto (ej. Mora, Expensas extraordinarias)
+                    Concepto (ej. Mora, Descuento por gasto a cargo del inquilino)
                   </label>
                   <input id="conceptName" name="conceptName" required className="field w-full" placeholder="Mora" />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="conceptAmount" className="text-xs text-muted">
-                    Monto inicial
+                    Monto
                   </label>
-                  <input id="conceptAmount" name="amount" type="number" step="0.01" className="field w-full" placeholder="0.00" />
+                  <input id="conceptAmount" name="amount" type="number" step="0.01" min={0} className="field w-full" placeholder="0.00" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="itemType" className="text-xs text-muted">
+                    Tipo
+                  </label>
+                  <select id="itemType" name="itemType" defaultValue="CARGO" className="field w-full">
+                    <option value="CARGO" className="bg-surface text-foreground">Cargo (+)</option>
+                    <option value="DESCUENTO" className="bg-surface text-foreground">Descuento (−)</option>
+                  </select>
                 </div>
                 <button type="submit" className="rounded-lg border border-border bg-surface px-4 py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs">
                   Agregar
                 </button>
               </form>
+              <p className="mt-2 text-[11px] text-muted leading-relaxed">
+                Un descuento resta del total a pagar — por ejemplo, si el inquilino se hizo cargo de un gasto del
+                propietario durante el mes.
+              </p>
             </div>
           )}
         </div>

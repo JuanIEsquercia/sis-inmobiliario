@@ -129,69 +129,134 @@ export default async function ImprimirLiquidacionPage({ params, searchParams }: 
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200 bg-white">
-            {payment.items.map((item) => (
-              <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
-                <td className="px-6 py-4 text-neutral-800 font-medium">{item.concept.name}</td>
-                <td className="px-6 py-4 text-right text-neutral-900 font-semibold">
-                  {item.amount ? `${payment.currency} ${fmtMoney(Number(item.amount))}` : "—"}
-                </td>
-              </tr>
-            ))}
+            {payment.items.map((item) => {
+              const amount = item.amount ? Number(item.amount) : null;
+              const isDiscount = amount !== null && amount < 0;
+              return (
+                <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
+                  <td className="px-6 py-4 text-neutral-800 font-medium">
+                    {item.concept.name}
+                    {isDiscount && <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-[#c52125]">Descuento</span>}
+                  </td>
+                  <td className={`px-6 py-4 text-right font-semibold ${isDiscount ? "text-[#c52125]" : "text-neutral-900"}`}>
+                    {amount !== null ? `${isDiscount ? "− " : ""}${payment.currency} ${fmtMoney(Math.abs(amount))}` : "—"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Sección de Totales */}
+      {/* Sección de Totales — igual para las dos copias: el inquilino
+          también tiene que ver cuánto se retiene y cuánto le corresponde
+          al propietario, sobre todo cuando es él quien divide la
+          transferencia (ver tenantPaysCommission más abajo). */}
       <div className="mb-10 flex flex-col items-end">
         <div className="w-full sm:w-80 bg-neutral-50 rounded-2xl p-6 border border-neutral-200">
-          {isPropietario ? (
-            <div className="flex flex-col gap-3 text-sm">
-              <div className="flex justify-between text-neutral-600">
-                <span>Total Alquiler Cobrado</span>
-                <span className="font-medium text-neutral-800">{payment.currency} {fmtMoney(total)}</span>
-              </div>
-              <div className="flex justify-between text-neutral-500">
-                <span>Comisión de Administración ({payment.contract.managementFeePercent?.toString() ?? "0"}%)</span>
-                <span>− {payment.currency} {fmtMoney(managementFee)}</span>
-              </div>
-              <div className="border-t border-neutral-200 pt-3 flex justify-between items-center">
-                <span className="font-bold text-neutral-800 text-base">Neto Propietario</span>
-                <span className="text-xl font-bold text-[#c52125]">
-                  {payment.currency} {fmtMoney(netForOwner)}
-                </span>
-              </div>
+          <div className="flex flex-col gap-3 text-sm">
+            <div className="flex justify-between text-neutral-600">
+              <span>Total Alquiler / Liquidación</span>
+              <span className="font-medium text-neutral-800">{payment.currency} {fmtMoney(total)}</span>
             </div>
-          ) : (
-            <div className="flex justify-between items-center text-sm">
-              <span className="font-bold text-neutral-800 text-base">Total a Pagar</span>
-              <span className="text-2xl font-bold text-[#c52125]">
-                {payment.currency} {fmtMoney(total)}
+            <div className="flex justify-between text-neutral-500">
+              <span>Comisión de Administración ({payment.contract.managementFeePercent?.toString() ?? "0"}%)</span>
+              <span>− {payment.currency} {fmtMoney(managementFee)}</span>
+            </div>
+            <div className="border-t border-neutral-200 pt-3 flex justify-between items-center">
+              <span className="font-bold text-neutral-800 text-base">
+                {isPropietario ? "Neto Propietario" : "Total a Pagar"}
+              </span>
+              <span className="text-xl font-bold text-[#c52125]">
+                {payment.currency} {fmtMoney(isPropietario ? netForOwner : total)}
               </span>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Datos Bancarios para Transferencia (Solo Inquilino si no está pagado) */}
-      {!isPropietario && !isPaid && (payment.contract.paymentAlias || payment.contract.paymentCBU) && (
-        <div className="rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50/50 p-6 text-sm">
-          <h3 className="font-bold text-[#c52125] uppercase tracking-wider text-xs mb-3">Instrucciones de Pago</h3>
-          <p className="text-neutral-600 mb-3 font-normal">Por favor realiza una transferencia bancaria a los siguientes datos y envía el comprobante de pago.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white rounded-xl border border-neutral-100 p-4 font-mono text-xs">
-            {payment.contract.paymentAlias && (
-              <div>
-                <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Alias</span>
-                <span className="text-neutral-800 font-semibold selection:bg-[#c52125]/10">{payment.contract.paymentAlias}</span>
+      {/* Datos Bancarios para Transferencia (Solo Inquilino si no está pagado) —
+          si el inquilino transfiere la comisión directo a la inmobiliaria
+          (tenantPaysCommission), son DOS cuentas y DOS montos distintos,
+          no una transferencia única por el total. */}
+      {!isPropietario && !isPaid && (
+        <>
+          {payment.contract.tenantPaysCommission ? (
+            <div className="rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50/50 p-6 text-sm">
+              <h3 className="font-bold text-[#c52125] uppercase tracking-wider text-xs mb-3">Instrucciones de Pago</h3>
+              <p className="text-neutral-600 mb-4 font-normal">
+                Este pago se divide en dos transferencias — por favor envía el comprobante de cada una.
+              </p>
+              <div className="flex flex-col gap-4">
+                {(payment.contract.paymentAlias || payment.contract.paymentCBU) && (
+                  <div className="bg-white rounded-xl border border-neutral-100 p-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Al propietario</span>
+                      <span className="text-sm font-bold text-neutral-800">{payment.currency} {fmtMoney(netForOwner)}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
+                      {payment.contract.paymentAlias && (
+                        <div>
+                          <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Alias</span>
+                          <span className="text-neutral-800 font-semibold">{payment.contract.paymentAlias}</span>
+                        </div>
+                      )}
+                      {payment.contract.paymentCBU && (
+                        <div>
+                          <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">CBU</span>
+                          <span className="text-neutral-800 font-semibold">{payment.contract.paymentCBU}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {(payment.contract.commissionAlias || payment.contract.commissionCBU) && (
+                  <div className="bg-white rounded-xl border border-neutral-100 p-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">A la inmobiliaria (comisión)</span>
+                      <span className="text-sm font-bold text-neutral-800">{payment.currency} {fmtMoney(managementFee)}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
+                      {payment.contract.commissionAlias && (
+                        <div>
+                          <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Alias</span>
+                          <span className="text-neutral-800 font-semibold">{payment.contract.commissionAlias}</span>
+                        </div>
+                      )}
+                      {payment.contract.commissionCBU && (
+                        <div>
+                          <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">CBU</span>
+                          <span className="text-neutral-800 font-semibold">{payment.contract.commissionCBU}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {payment.contract.paymentCBU && (
-              <div>
-                <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">CBU</span>
-                <span className="text-neutral-800 font-semibold selection:bg-[#c52125]/10">{payment.contract.paymentCBU}</span>
+            </div>
+          ) : (
+            (payment.contract.paymentAlias || payment.contract.paymentCBU) && (
+              <div className="rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50/50 p-6 text-sm">
+                <h3 className="font-bold text-[#c52125] uppercase tracking-wider text-xs mb-3">Instrucciones de Pago</h3>
+                <p className="text-neutral-600 mb-3 font-normal">Por favor realiza una transferencia bancaria a los siguientes datos y envía el comprobante de pago.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white rounded-xl border border-neutral-100 p-4 font-mono text-xs">
+                  {payment.contract.paymentAlias && (
+                    <div>
+                      <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Alias</span>
+                      <span className="text-neutral-800 font-semibold selection:bg-[#c52125]/10">{payment.contract.paymentAlias}</span>
+                    </div>
+                  )}
+                  {payment.contract.paymentCBU && (
+                    <div>
+                      <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">CBU</span>
+                      <span className="text-neutral-800 font-semibold selection:bg-[#c52125]/10">{payment.contract.paymentCBU}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
+            )
+          )}
+        </>
       )}
     </div>
   );

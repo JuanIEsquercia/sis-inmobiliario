@@ -59,6 +59,7 @@ function parseBudgetForm(formData: FormData) {
   const unitDetail = requiredStr(formData.get("unitDetail"), "Detalle de la propiedad");
   const currency = requiredStr(formData.get("currency"), "Moneda");
   const notes = optionalStr(formData.get("notes"));
+  const observations = optionalStr(formData.get("observations"));
 
   let tenantName: string | null = null;
   let buyerName: string | null = null;
@@ -84,16 +85,21 @@ function parseBudgetForm(formData: FormData) {
     ];
   }
 
-  return { type, unitDetail, currency, notes, tenantName, buyerName, ownerName, itemsData };
+  return { type, unitDetail, currency, notes, observations, tenantName, buyerName, ownerName, itemsData };
 }
 
 export async function crearPresupuesto(formData: FormData) {
   const profile = await requirePermission("presupuestos.crear");
-  const data = parseBudgetForm(formData);
+  // `itemsData` se separa a propósito antes de spreadear el resto — no
+  // es un campo de Budget (es la lista de BudgetItem a crear aparte), y
+  // colarlo en `data` hace que Prisma tire "Unknown argument itemsData"
+  // en tiempo de ejecución. tsc no lo detecta: los excess-property-checks
+  // de TypeScript no aplican a propiedades que vienen de un spread.
+  const { itemsData, ...data } = parseBudgetForm(formData);
 
   const budget = await withRetry(() =>
     prisma.budget.create({
-      data: { ...data, createdById: profile.id, items: { createMany: { data: data.itemsData } } },
+      data: { ...data, createdById: profile.id, items: { createMany: { data: itemsData } } },
     })
   );
 
@@ -126,6 +132,7 @@ export async function actualizarPresupuesto(id: number, formData: FormData) {
           unitDetail: data.unitDetail,
           currency: data.currency,
           notes: data.notes,
+          observations: data.observations,
           tenantName: data.tenantName,
           buyerName: data.buyerName,
           ownerName: data.ownerName,

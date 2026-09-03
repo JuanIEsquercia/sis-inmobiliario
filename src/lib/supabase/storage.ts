@@ -44,6 +44,16 @@ export async function getSignedDocumentUrl(storagePath: string, expiresInSeconds
   return data.signedUrl;
 }
 
+// Para eliminarContratoDefinitivo — borrar las filas de ContractDocument
+// no borra los archivos reales del bucket, hay que sacarlos aparte. No
+// tira si algún path ya no existe (mismo criterio tolerante que
+// deletePublicImage).
+export async function deleteContractDocuments(storagePaths: string[]): Promise<void> {
+  if (storagePaths.length === 0) return;
+  const admin = createAdminClient();
+  await admin.storage.from(BUCKET).remove(storagePaths);
+}
+
 // Buckets PÚBLICOS aparte del de documentos — son imágenes de marketing
 // (logos de marcas, fotos de personal para el sitio), no hace falta URL
 // firmada ni ocultarlas: al contrario, tienen que poder cachearse en el

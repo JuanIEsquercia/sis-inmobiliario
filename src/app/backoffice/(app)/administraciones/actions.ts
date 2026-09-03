@@ -7,7 +7,7 @@ import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
 import { addMonths, buildPaymentSchedule, computeEndDate, paymentTotal } from "@/lib/alquileres";
 import { resolveClient, resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
-import { uploadContractDocument } from "@/lib/supabase/storage";
+import { uploadContractDocument, deleteContractDocuments } from "@/lib/supabase/storage";
 import { crearRentalCommissionEnTx } from "@/lib/comisiones";
 import {
   optionalDecimal,
@@ -17,7 +17,7 @@ import {
   requiredDecimal,
   requiredStr,
 } from "@/lib/form-utils";
-import type { DocumentType } from "@/generated/prisma/client";
+import type { DocumentType, Prisma } from "@/generated/prisma/client";
 
 function guarantorIndices(formData: FormData): number[] {
   const indices = new Set<number>();
@@ -26,6 +26,22 @@ function guarantorIndices(formData: FormData): number[] {
     if (match) indices.add(Number(match[1]));
   }
   return [...indices].sort((a, b) => a - b);
+}
+
+// Una colocación FIRMADA queda cerrada — partes y agentes ya no se
+// tocan más (si hay que corregir algo, es "eliminar definitivamente" y
+// recargar, ver eliminarContratoDefinitivo). No aplica a un contrato
+// administrado: ese sigue su propio ciclo (ACTIVO/FINALIZADO/...), acá
+// solo se corta cuando es una colocación (isAdministered false) ya
+// firmada.
+async function assertColocacionEditable(tx: Prisma.TransactionClient, contractId: number) {
+  const contract = await tx.contract.findUniqueOrThrow({
+    where: { id: contractId },
+    select: { isAdministered: true, status: true },
+  });
+  if (!contract.isAdministered && contract.status === "FIRMADO") {
+    throw new Error("Esta colocación ya está firmada — no se puede editar. Si hay que corregir algo, eliminala y volvé a cargarla.");
+  }
 }
 
 export async function buscarClientes(query: string) {
@@ -94,6 +110,23 @@ export async function createContract(formData: FormData) {
   const paymentAlias = optionalStr(formData.get("paymentAlias"));
   const paymentCBU = optionalStr(formData.get("paymentCBU"));
 
+  // Día de vencimiento del alquiler mensual — lo pacta cada contrato,
+  // nunca se deriva del día en que arrancó (ver comentario en
+  // buildPaymentSchedule). Si se deja vacío, cae al día de `startDate`
+  // como fallback (mismo comportamiento que había antes de este campo).
+  const paymentDueDayRaw = optionalInt(formData.get("paymentDueDay"));
+  if (paymentDueDayRaw !== null && (paymentDueDayRaw < 1 || paymentDueDayRaw > 31)) {
+    throw new Error("El día de vencimiento debe estar entre 1 y 31.");
+  }
+  const paymentDueDay = paymentDueDayRaw ?? startDate.getUTCDate();
+
+  // El inquilino transfiere la comisión de administración directo a la
+  // inmobiliaria (por separado de lo que le paga al propietario) — ver
+  // comentario en el modelo Contract. Solo tiene sentido si se administra.
+  const tenantPaysCommission = isAdministered && formData.get("tenantPaysCommission") === "on";
+  const commissionAlias = tenantPaysCommission ? optionalStr(formData.get("commissionAlias")) : null;
+  const commissionCBU = tenantPaysCommission ? optionalStr(formData.get("commissionCBU")) : null;
+
   // "A confirmar" (sin marcar) queda como null a propósito — recién se
   // sabe si esta renovación puntual va a cobrar comisión o no, y eso se
   // puede definir en cualquier momento, no solo al crear el contrato.
@@ -143,6 +176,11 @@ export async function createContract(formData: FormData) {
           endDate,
           rentAmount,
           currency,
+          // Una colocación no tiene el ciclo de vida de un alquiler
+          // administrado (nunca pasa por ACTIVO) — es un hecho puntual:
+          // se cargó (BORRADOR, todavía editable) y alguien la marca
+          // como firmada después (ver marcarContratoFirmado).
+          status: isAdministered ? "ACTIVO" : "BORRADOR",
           isAdministered,
           managementFeePercent,
           indexationFrequencyMonths,
@@ -151,6 +189,10 @@ export async function createContract(formData: FormData) {
           notes: optionalStr(formData.get("notes")),
           paymentAlias,
           paymentCBU,
+          paymentDueDay,
+          tenantPaysCommission,
+          commissionAlias,
+          commissionCBU,
           renewedFromContractId,
           renewalCommissionExpected,
           groupId,
@@ -181,7 +223,7 @@ export async function createContract(formData: FormData) {
       // contrato queda solo como el registro del alquiler que cerramos.
       if (isAdministered) {
         const alquilerConcept = await tx.concept.findFirstOrThrow({ where: { isSystem: true } });
-        const schedule = buildPaymentSchedule(startDate, durationMonths);
+        const schedule = buildPaymentSchedule(startDate, durationMonths, paymentDueDay);
 
         // Todo en bloque (createMany + un findMany para recuperar los ids)
         // en vez de una fila a la vez: con contratos largos (24 meses x
@@ -271,6 +313,7 @@ export async function actualizarPartesContrato(contractId: number, formData: For
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
+      await assertColocacionEditable(tx, contractId);
       const ownerId = await resolveClientOptional(tx, formData, "owner", "Propietario");
       const tenantId = await resolveClientOptional(tx, formData, "tenant", "Inquilino");
       await tx.contract.update({ where: { id: contractId }, data: { ownerId, tenantId } });
@@ -372,7 +415,13 @@ export async function agregarConceptoLiquidacion(paymentId: number, formData: Fo
   await requirePermission("administraciones.pagos");
 
   const conceptName = requiredStr(formData.get("conceptName"), "Concepto");
-  const amount = optionalDecimal(formData.get("amount"));
+  const rawAmount = optionalDecimal(formData.get("amount"));
+  // "Descuento" (ej. el inquilino se hizo cargo de un gasto del
+  // propietario ese mes) resta del total en vez de sumar — nunca se le
+  // pide a quien carga que tipee el signo, se toma el valor absoluto y
+  // se le aplica el signo según el tipo elegido.
+  const isDiscount = formData.get("itemType") === "DESCUENTO";
+  const amount = rawAmount === null ? null : isDiscount ? (-Math.abs(Number(rawAmount))).toFixed(2) : rawAmount;
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -652,6 +701,33 @@ export async function finalizarContrato(contractId: number, formData: FormData) 
   revalidatePath("/backoffice/administraciones/liquidaciones");
 }
 
+// Cierra una colocación (isAdministered false) — el encargado de
+// coordinar el cierre con la escribana confirma que ya se firmó. A
+// partir de acá, partes y agentes quedan bloqueados (ver
+// assertColocacionEditable); el cobro de la comisión de colocación
+// sigue funcionando exactamente igual, nunca se bloquea.
+export async function marcarContratoFirmado(contractId: number) {
+  await requirePermission("administraciones.firmar");
+
+  await withRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const contract = await tx.contract.findUniqueOrThrow({
+        where: { id: contractId },
+        select: { isAdministered: true, status: true },
+      });
+      if (contract.isAdministered) {
+        throw new Error("Un contrato administrado no usa este estado — esto es solo para colocaciones.");
+      }
+      if (contract.status !== "BORRADOR") {
+        throw new Error("Esta colocación ya está firmada.");
+      }
+      await tx.contract.update({ where: { id: contractId }, data: { status: "FIRMADO" } });
+    })
+  );
+
+  revalidatePath(`/backoffice/administraciones/${contractId}`);
+}
+
 // Anula un contrato cargado por error — a diferencia de finalizarContrato
 // (el alquiler pasó de verdad y terminó), esto es "nunca debió existir".
 // Solo se permite si todavía no movió plata: sin comisión de alquiler
@@ -670,6 +746,10 @@ export async function anularContrato(contractId: number, formData: FormData) {
         where: { id: contractId },
         include: { rentalCommission: true, payments: { select: { status: true } } },
       });
+
+      if (!contract.isAdministered && contract.status === "FIRMADO") {
+        throw new Error("Esta colocación ya está firmada — no se puede anular. Para corregirla, usá \"Eliminar definitivamente\".");
+      }
 
       if (contract.rentalCommission) {
         throw new Error("Este contrato ya tiene una comisión de alquiler cargada — no se puede anular, hay que finalizarlo.");
@@ -694,6 +774,114 @@ export async function anularContrato(contractId: number, formData: FormData) {
   revalidatePath("/backoffice/administraciones");
 }
 
+// Elimina un contrato POR COMPLETO, con todo lo que tenga cargado
+// encima: liquidaciones, cobros, indexaciones, comisión de alquiler y
+// sus cuotas/cobros, pagos ya hechos a agentes por esa comisión,
+// documentos (fila + archivo real del bucket). A diferencia de
+// anularContrato (que solo deshace un alta reciente sin plata movida
+// todavía), esto sirve para corregir una carga errónea aunque YA se
+// haya operado sobre el contrato — el costo es perder ese historial
+// para siempre, por eso pide un permiso aparte de
+// administraciones.crear, pensado para no dárselo a cualquiera.
+//
+// Orden de borrado dentro de la transacción: primero los CashMovement
+// que referencian liquidaciones/comisión/cuotas (nada más los bloquea,
+// pero ninguno de esos tiene onDelete Cascade), después lo que sí
+// cascadea solo una vez despejado ese bloqueo. AgentDebtPayment no tiene
+// FK real (sourceId es polimórfico) así que se limpia a mano aparte.
+export async function eliminarContratoDefinitivo(contractId: number, formData: FormData) {
+  const profile = await requirePermission("administraciones.eliminar");
+  const reason = optionalStr(formData.get("reason"));
+  // No hay tabla de auditoría en este sistema todavía — el registro
+  // queda al menos en los logs del servidor, ya que de la fila misma no
+  // va a quedar nada.
+  console.log(`[eliminarContratoDefinitivo] contrato ${contractId} eliminado por ${profile.id}. Motivo: ${reason ?? "(sin motivo)"}`);
+
+  const contract = await withRetry(() =>
+    prisma.contract.findUniqueOrThrow({
+      where: { id: contractId },
+      select: {
+        unitId: true,
+        renewals: { select: { id: true } },
+        documents: { select: { storagePath: true } },
+      },
+    })
+  );
+
+  if (contract.renewals.length > 0) {
+    throw new Error(
+      "Este contrato tiene una renovación cargada que depende de él — hay que eliminar (o desvincular) esa renovación primero."
+    );
+  }
+
+  await withRetry(() =>
+    prisma.$transaction(
+      async (tx) => {
+        const payments = await tx.payment.findMany({ where: { contractId }, select: { id: true } });
+        const paymentIds = payments.map((p) => p.id);
+        if (paymentIds.length > 0) {
+          await tx.cashMovement.deleteMany({ where: { paymentId: { in: paymentIds } } });
+        }
+
+        const rentalCommission = await tx.rentalCommission.findUnique({
+          where: { contractId },
+          select: { id: true },
+        });
+
+        if (rentalCommission) {
+          const installments = await tx.commissionInstallment.findMany({
+            where: { rentalCommissionId: rentalCommission.id },
+            select: { id: true },
+          });
+          const installmentIds = installments.map((i) => i.id);
+          if (installmentIds.length > 0) {
+            await tx.cashMovement.deleteMany({ where: { commissionInstallmentId: { in: installmentIds } } });
+          }
+          await tx.cashMovement.deleteMany({ where: { rentalCommissionId: rentalCommission.id } });
+
+          // Lo ya pagado a agentes por esta comisión deja de tener a qué
+          // referirse si la comisión desaparece — no es un FK real
+          // (sourceId es polimórfico), Prisma no lo cascadea solo.
+          await tx.agentDebtPayment.deleteMany({
+            where: { sourceType: "RENTAL_COMMISSION", sourceId: rentalCommission.id },
+          });
+
+          // CommissionInstallment cascadea solo al borrar RentalCommission
+          // (onDelete: Cascade), pero recién ahora que sus propios
+          // CashMovement ya no existen.
+          await tx.rentalCommission.delete({ where: { id: rentalCommission.id } });
+        }
+
+        // Payment cascadea PaymentItem/PaymentPartialPayment solos, pero
+        // recién ahora que su CashMovement ya no existe.
+        await tx.payment.deleteMany({ where: { contractId } });
+
+        await tx.indexation.deleteMany({ where: { contractId } });
+
+        // Guarantors/Concepts/Documents ya cascadean solos al borrar el
+        // contrato (onDelete: Cascade) — los archivos reales de
+        // Documents en el bucket se limpian aparte, después de que esta
+        // transacción confirme.
+        await tx.contract.delete({ where: { id: contractId } });
+      },
+      { timeout: 30000, maxWait: 15000 }
+    )
+  );
+
+  if (contract.documents.length > 0) {
+    await deleteContractDocuments(contract.documents.map((d) => d.storagePath)).catch((err) => {
+      console.error(`No se pudieron borrar los archivos del contrato ${contractId} del bucket:`, err);
+    });
+  }
+
+  revalidatePath("/backoffice/administraciones");
+  revalidatePath("/backoffice/administraciones/liquidaciones");
+  revalidatePath("/backoffice/administraciones/actualizaciones");
+  revalidatePath("/backoffice/caja");
+  revalidatePath(`/backoffice/historial/${contract.unitId}`);
+  redirect("/backoffice/administraciones");
+}
+
 // Corrige/completa el vendedor y captador de un contrato ya cargado —
 // necesario para contratos viejos, dados de alta antes de que estos
 // campos existieran, o para arreglar un error de carga.
@@ -704,9 +892,12 @@ export async function actualizarAgentesContrato(contractId: number, formData: Fo
   const captadorAgentId = optionalStr(formData.get("captadorAgentId"));
 
   await withRetry(() =>
-    prisma.contract.update({
-      where: { id: contractId },
-      data: { vendedorAgentId, captadorAgentId },
+    prisma.$transaction(async (tx) => {
+      await assertColocacionEditable(tx, contractId);
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { vendedorAgentId, captadorAgentId },
+      });
     })
   );
 

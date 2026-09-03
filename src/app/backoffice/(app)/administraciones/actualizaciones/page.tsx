@@ -1,34 +1,40 @@
 import Link from "next/link";
-import { getContractsDueForIndexation, getContractsNearingEnd, clientLabel } from "@/lib/alquileres";
+import { getContractsDueForIndexation, getContractsNearingEnd, getIndexTypes, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
-import { actualizarRenovacionEsperada } from "../actions";
+import { actualizarRenovacionEsperada, aplicarIndexacion } from "../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 
-// Diferencia en días de calendario (no horas exactas) — una actualización
-// que vence "hoy" siempre muestra 0, nunca un número negativo.
+// Diferencia en días de calendario (no horas exactas) — puede dar
+// negativo (ya venció y sigue sin aplicarse), a propósito: es la señal
+// de "atrasada" que antes esta lista perdía silenciosamente.
 function daysUntil(date: Date): number {
   const now = new Date();
   const startOfToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const target = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  return Math.max(0, Math.round((target - startOfToday) / (1000 * 60 * 60 * 24)));
+  return Math.round((target - startOfToday) / (1000 * 60 * 60 * 24));
 }
 
 export default async function ActualizacionesPage() {
   const profile = await requirePermission("administraciones.ver");
   const canEdit = profile.permissions.includes("administraciones.crear");
+  const canIndexar = profile.permissions.includes("administraciones.indexacion");
   const scope = await getContractGroupScope(profile);
-  const [contracts, nearingEnd] = await Promise.all([
+  const [contracts, nearingEnd, indexTypes] = await Promise.all([
     getContractsDueForIndexation(scope, 30),
     getContractsNearingEnd(scope, 60),
+    getIndexTypes(),
   ]);
 
   return (
     <div>
       <AdministracionesTabs active="actualizaciones" />
       <h1 className="mb-2 text-xl font-semibold text-foreground">Actualizaciones</h1>
-      <p className="mb-6 text-sm text-muted">Contratos que actualizan el alquiler en los próximos 30 días.</p>
+      <p className="mb-6 text-sm text-muted">
+        Contratos que actualizan el alquiler en los próximos 30 días — las ya vencidas y sin aplicar quedan arriba,
+        marcadas como atrasadas, hasta que se apliquen.
+      </p>
 
       {contracts.length === 0 ? (
         <p className="text-sm text-muted">No hay actualizaciones pendientes en los próximos 30 días.</p>
@@ -43,27 +49,73 @@ export default async function ActualizacionesPage() {
                 <th className="px-4 py-3">Alquiler actual</th>
                 <th className="px-4 py-3">Índice</th>
                 <th className="px-4 py-3">Actualiza el</th>
-                <th className="px-4 py-3">Faltan</th>
+                {canIndexar && <th className="px-4 py-3">Aplicar actualización</th>}
               </tr>
             </thead>
             <tbody>
-              {contracts.map((c) => (
-                <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface">
-                  <td className="px-4 py-3 text-muted">{c.unit.propertyCode}</td>
-                  <td className="px-4 py-3">
-                    <Link href={`/backoffice/administraciones/${c.id}`} className="font-medium text-foreground hover:underline">
-                      {c.unit.address}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-muted">{clientLabel(c.tenant)}</td>
-                  <td className="px-4 py-3 text-foreground">
-                    {c.currency} {c.rentAmount.toString()}
-                  </td>
-                  <td className="px-4 py-3 text-muted">{c.indexType?.code ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted">{fmtDate.format(c.nextIndexationDueAt!)}</td>
-                  <td className="px-4 py-3 text-foreground">{daysUntil(c.nextIndexationDueAt!)} días</td>
-                </tr>
-              ))}
+              {contracts.map((c) => {
+                const days = daysUntil(c.nextIndexationDueAt!);
+                const isOverdue = days < 0;
+                return (
+                  <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface">
+                    <td className="px-4 py-3 text-muted">{c.unit.propertyCode}</td>
+                    <td className="px-4 py-3">
+                      <Link href={`/backoffice/administraciones/${c.id}`} className="font-medium text-foreground hover:underline">
+                        {c.unit.address}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-muted">{clientLabel(c.tenant)}</td>
+                    <td className="px-4 py-3 text-foreground">
+                      {c.currency} {c.rentAmount.toString()}
+                    </td>
+                    <td className="px-4 py-3 text-muted">{c.indexType?.code ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-muted">{fmtDate.format(c.nextIndexationDueAt!)}</span>
+                      {isOverdue ? (
+                        <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
+                          Atrasada {Math.abs(days)}d
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-[10px] text-muted/70">({days === 0 ? "hoy" : `en ${days}d`})</span>
+                      )}
+                    </td>
+                    {canIndexar && (
+                      <td className="px-4 py-3">
+                        <form
+                          action={aplicarIndexacion.bind(null, c.id)}
+                          className="flex flex-wrap items-center gap-1.5"
+                        >
+                          <input
+                            name="newAmount"
+                            type="number"
+                            step="0.01"
+                            required
+                            placeholder="Nuevo monto"
+                            className="field w-28 py-1 text-xs"
+                            aria-label={`Nuevo monto para ${c.unit.propertyCode}`}
+                          />
+                          <select
+                            name="indexTypeId"
+                            defaultValue={c.indexTypeId ?? ""}
+                            className="field w-24 py-1 text-xs"
+                            aria-label={`Índice para ${c.unit.propertyCode}`}
+                          >
+                            <option value="">Sin índice</option>
+                            {indexTypes.map((i) => (
+                              <option key={i.id} value={i.id}>
+                                {i.code}
+                              </option>
+                            ))}
+                          </select>
+                          <button type="submit" className="rounded-lg bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground hover:bg-accent-strong">
+                            Aplicar
+                          </button>
+                        </form>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

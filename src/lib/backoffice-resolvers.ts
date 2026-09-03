@@ -14,13 +14,33 @@ export async function resolveClient(
   const existingId = optionalInt(formData.get(`${prefix}.clientId`));
   if (existingId) return existingId;
 
+  const docId = optionalStr(formData.get(`${prefix}.docId`));
+
+  // El error más común al cargar "cliente nuevo" a mano en vez de
+  // buscarlo: la misma persona termina duplicada porque nadie la buscó
+  // primero. El DNI es la clave real de identidad acá — si ya existe un
+  // Client con este DNI, no se crea uno nuevo (nunca se fusiona solo:
+  // podría ser un tipeo real de otro DNI), se corta con un error claro
+  // para que se busque y se elija el que ya existe.
+  if (docId) {
+    const existing = await tx.client.findFirst({
+      where: { docId },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (existing) {
+      throw new Error(
+        `Ya existe un cliente con DNI ${docId}: ${existing.firstName} ${existing.lastName}. Buscalo por nombre o DNI en "${roleLabel}" en vez de cargarlo de nuevo.`
+      );
+    }
+  }
+
   const birthDateRaw = optionalStr(formData.get(`${prefix}.birthDate`));
 
   const client = await tx.client.create({
     data: {
       firstName: requiredStr(formData.get(`${prefix}.firstName`), `Nombre (${roleLabel})`),
       lastName: requiredStr(formData.get(`${prefix}.lastName`), `Apellido (${roleLabel})`),
-      docId: optionalStr(formData.get(`${prefix}.docId`)),
+      docId,
       phone: optionalStr(formData.get(`${prefix}.phone`)),
       email: optionalStr(formData.get(`${prefix}.email`)),
       birthDate: birthDateRaw ? new Date(birthDateRaw) : null,

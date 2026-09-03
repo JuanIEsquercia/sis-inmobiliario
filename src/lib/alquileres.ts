@@ -59,10 +59,10 @@ export function computeEndDate(startDate: Date, durationMonths: number): Date {
 // Un período por cada mes de la duración del contrato (un contrato de
 // 12 meses genera exactamente 12 liquidaciones, no 13 — el mes de
 // endDate ya es el día de entrega, no un mes más de ocupación), con
-// vencimiento en el mismo día del mes que el inicio.
-export function buildPaymentSchedule(startDate: Date, durationMonths: number): PaymentPeriod[] {
+// vencimiento en `dueDay` de cada mes — el día que pactó ESE contrato
+// (Contract.paymentDueDay), no necesariamente el día en que arrancó.
+export function buildPaymentSchedule(startDate: Date, durationMonths: number, dueDay: number): PaymentPeriod[] {
   const entries: PaymentPeriod[] = [];
-  const dueDay = startDate.getUTCDate();
   const startMonth = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1));
 
   for (let i = 0; i < durationMonths; i++) {
@@ -157,12 +157,13 @@ export function paymentBreakdown(
   return { total, managementFee, netForOwner: total - managementFee };
 }
 
-// Contratos activos cuya próxima indexación cae dentro de los próximos
-// `withinDays` días (por defecto 30), ordenados por fecha más próxima.
+// Contratos activos cuya próxima indexación vence dentro de los
+// próximos `withinDays` días (por defecto 30) O YA VENCIÓ y todavía no
+// se aplicó — es una lista de tareas, no un calendario: una actualización
+// vencida no se aplicó sola, así que nunca se filtra por "ya pasó", se
+// muestra atrasada hasta que alguien la aplique (ver aplicarIndexacion,
+// que es quien recién mueve `nextIndexationDueAt` para adelante).
 export async function getContractsDueForIndexation(scope: ContractGroupScope, withinDays = 30) {
-  // Arranca del inicio del día de hoy, no de la hora exacta actual — una
-  // actualización que vence "hoy" no puede quedar afuera solo porque ya
-  // pasó la medianoche.
   const now = new Date();
   const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const limit = new Date(startOfToday);
@@ -172,7 +173,7 @@ export async function getContractsDueForIndexation(scope: ContractGroupScope, wi
     prisma.contract.findMany({
       where: {
         status: "ACTIVO",
-        nextIndexationDueAt: { gte: startOfToday, lte: limit },
+        nextIndexationDueAt: { lte: limit },
         ...(contractGroupWhere(scope) ?? {}),
       },
       include: { unit: true, tenant: true, owner: true, indexType: true },

@@ -303,7 +303,12 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([docId])
+  // Respaldo final contra duplicados además del chequeo de
+  // resolveClient (que ya bloquea la carga con un DNI repetido) — cubre
+  // la carrera de dos altas simultáneas con el mismo DNI. Postgres no
+  // choca dos NULL entre sí, así que sigue permitiendo cualquier
+  // cantidad de clientes sin DNI cargado todavía.
+  @@unique([docId])
   @@index([lastName, firstName])
 }
 
@@ -372,7 +377,15 @@ model ContractConcept {
 // anularContrato) porque no representan nada real. Solo se puede anular
 // si no movió plata todavía (sin RentalCommission y sin liquidaciones
 // Cargadas/Pagadas) — si ya movió plata, corresponde finalizarlo.
+// BORRADOR/FIRMADO son exclusivos de una colocación sin administración
+// (isAdministered false) — no tiene el ciclo de vida de un alquiler que
+// administramos (nunca pasa por ACTIVO), es un hecho puntual: se cargó
+// (BORRADOR, todavía editable) y se firmó (FIRMADO, cerrado — ver
+// marcarContratoFirmado). ACTIVO/FINALIZADO/RESCINDIDO son exclusivos de
+// un contrato administrado. ANULADO aplica a cualquiera de los dos.
 enum ContractStatus {
+  BORRADOR
+  FIRMADO
   ACTIVO
   FINALIZADO
   RESCINDIDO
@@ -403,9 +416,31 @@ model Contract {
 
   // Transferencias — se cargan por contrato (no por cliente): cada
   // contrato puede tener una cuenta de cobro distinta, y el agente que
-  // liquida necesita tenerla a mano en ese contrato puntual.
+  // liquida necesita tenerla a mano en ese contrato puntual. Esta es la
+  // cuenta del ALQUILER (típicamente la del propietario) — ver más abajo
+  // la cuenta aparte para cuando el inquilino transfiere la comisión de
+  // administración directo a la inmobiliaria.
   paymentAlias String?
   paymentCBU   String?
+
+  // Día del mes en que vence el alquiler mensual — cada contrato pacta
+  // el suyo (5, 8, 10...), independiente del día en que arrancó. Antes
+  // de este campo, buildPaymentSchedule usaba el día de `startDate` para
+  // todo el cronograma; ahora se carga a mano al alta (con esa opción
+  // como fallback si se deja vacío) y se congela en cada Payment.dueDate
+  // ya generado, no se recalcula retroactivamente si cambia después.
+  paymentDueDay Int
+
+  // El dinero de un alquiler administrado nunca pasa por la inmobiliaria
+  // salvo por su comisión — normalmente el inquilino transfiere el neto
+  // directo al propietario y, aparte, transfiere el % de comisión a la
+  // inmobiliaria (no hay un cobro único que después se reparte). Cuando
+  // pasa así, la liquidación necesita mostrarle al inquilino a qué
+  // cuenta va cada transferencia — esta es la de la inmobiliaria, no la
+  // de arriba (que es la del alquiler/propietario).
+  tenantPaysCommission Boolean @default(false)
+  commissionAlias      String?
+  commissionCBU        String?
 
   // Renovación = contrato nuevo enlazado al anterior, nunca se estira
   // la fecha de fin de uno existente (ya tiene su propio cronograma de
@@ -1217,7 +1252,14 @@ model Budget {
   ownerName  String? // solo type = VENTA
 
   currency String
+  // Uso interno — nunca sale en el PDF (ver observations más abajo para
+  // lo que sí tiene que verlo el cliente).
   notes    String? @db.Text
+
+  // Texto libre que SÍ sale impreso en el presupuesto (ej. "precio
+  // sujeto a confirmación", "incluye gastos de escritura", "válido por
+  // 15 días") — a diferencia de `notes`, que es solo para uso interno.
+  observations String? @db.Text
 
   items BudgetItem[]
 
