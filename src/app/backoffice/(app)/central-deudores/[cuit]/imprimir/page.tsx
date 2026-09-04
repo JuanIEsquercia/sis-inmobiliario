@@ -5,6 +5,7 @@ import {
   getCreditCheckByCuit,
   ultimoPeriodo,
   totalChequesRechazados,
+  resumenChequesRechazados,
   consultantLabel,
   groupHistoricoByEntidad,
 } from "@/lib/central-deudores";
@@ -37,6 +38,7 @@ export default async function ImprimirCreditCheckPage({ params }: PageProps) {
   const cheques = check.chequesRechazadosData as unknown as ChequesResult | null;
   const periodoActual = ultimoPeriodo(deuda);
   const cantidadCheques = totalChequesRechazados(cheques);
+  const resumenCheques = resumenChequesRechazados(cheques);
   const historicoPorBanco = groupHistoricoByEntidad(historico);
 
   return (
@@ -178,36 +180,71 @@ export default async function ImprimirCreditCheckPage({ params }: PageProps) {
             {!cheques || cantidadCheques === 0 ? (
               <p className="text-sm text-neutral-500">Sin cheques rechazados informados.</p>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-neutral-200">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-neutral-100/80 border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wider text-neutral-600">
-                      <th className="px-4 py-3">Causal</th>
-                      <th className="px-4 py-3">N° Cheque</th>
-                      <th className="px-4 py-3">Fecha rechazo</th>
-                      <th className="px-4 py-3 text-right">Monto</th>
-                      <th className="px-4 py-3">Multa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-200 bg-white">
-                    {cheques.causales.flatMap((c) =>
-                      c.entidades.flatMap((e) =>
-                        e.detalle.map((d) => (
-                          <tr key={d.nroCheque}>
-                            <td className="px-4 py-3 text-neutral-800">{c.causal}</td>
-                            <td className="px-4 py-3 text-neutral-800">{d.nroCheque}</td>
-                            <td className="px-4 py-3 text-neutral-800">{fmtDate.format(new Date(d.fechaRechazo))}</td>
-                            <td className="px-4 py-3 text-right text-neutral-800">$ {fmtMoney(d.monto)}</td>
-                            <td className="px-4 py-3 text-neutral-800">
-                              {d.fechaPagoMulta ? `Paga (${fmtDate.format(new Date(d.fechaPagoMulta))})` : d.estadoMulta ?? "—"}
-                            </td>
-                          </tr>
-                        ))
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {/* Resumen calculado acá — la API no lo trae armado, a
+                    diferencia del reporte que publica la propia web del
+                    BCRA (ver comentario en resumenChequesRechazados). */}
+                <div className="mb-4 grid grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-neutral-500">Total rechazados</p>
+                    <p className="text-base font-bold text-neutral-800">{resumenCheques.totalCantidad}</p>
+                    <p className="text-xs text-neutral-500">$ {fmtMoney(resumenCheques.totalMonto)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-neutral-500">Abonados (levantados)</p>
+                    <p className="text-base font-bold text-neutral-800">{resumenCheques.abonadosCantidad}</p>
+                    <p className="text-xs text-neutral-500">$ {fmtMoney(resumenCheques.abonadosMonto)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-neutral-500">% abonados</p>
+                    <p className="text-base font-bold text-neutral-800">
+                      {resumenCheques.totalCantidad > 0
+                        ? `${((resumenCheques.abonadosCantidad / resumenCheques.totalCantidad) * 100).toFixed(2)}%`
+                        : "—"}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {resumenCheques.totalMonto > 0
+                        ? `${((resumenCheques.abonadosMonto / resumenCheques.totalMonto) * 100).toFixed(2)}% en monto`
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-neutral-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-neutral-100/80 border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wider text-neutral-600">
+                        <th className="px-4 py-3">Causal</th>
+                        <th className="px-4 py-3">N° Cheque</th>
+                        <th className="px-4 py-3">Fecha rechazo</th>
+                        <th className="px-4 py-3 text-right">Monto</th>
+                        <th className="px-4 py-3">Fecha de pago (cheque)</th>
+                        <th className="px-4 py-3">Multa</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200 bg-white">
+                      {cheques.causales.flatMap((c) =>
+                        c.entidades.flatMap((e) =>
+                          e.detalle.map((d) => (
+                            <tr key={d.nroCheque}>
+                              <td className="px-4 py-3 text-neutral-800">{c.causal}</td>
+                              <td className="px-4 py-3 text-neutral-800">{d.nroCheque}</td>
+                              <td className="px-4 py-3 text-neutral-800">{fmtDate.format(new Date(d.fechaRechazo))}</td>
+                              <td className="px-4 py-3 text-right text-neutral-800">$ {fmtMoney(d.monto)}</td>
+                              <td className="px-4 py-3 text-neutral-800">
+                                {d.fechaPago ? fmtDate.format(new Date(d.fechaPago)) : "Sin abonar"}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-800">
+                                {d.fechaPagoMulta ? `Paga (${fmtDate.format(new Date(d.fechaPagoMulta))})` : d.estadoMulta ?? "—"}
+                              </td>
+                            </tr>
+                          ))
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </>

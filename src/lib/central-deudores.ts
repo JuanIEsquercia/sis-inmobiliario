@@ -81,6 +81,31 @@ export function totalChequesRechazados(cheques: ChequesResult | null): number {
   );
 }
 
+export interface ResumenCheques {
+  totalCantidad: number;
+  totalMonto: number;
+  abonadosCantidad: number;
+  abonadosMonto: number;
+}
+
+// El endpoint ChequesRechazados del BCRA no trae este resumen agregado
+// (solo la lista de cheques uno por uno) — a diferencia del reporte que
+// publica la propia web del BCRA, que sí lo muestra. Se calcula acá con
+// los mismos cheques que ya trae la consulta: "abonado" = tiene
+// `fechaPago` cargada (el manual la define como "fecha que se realizó
+// el levantamiento del cheque"), no confundir con `fechaPagoMulta`
+// (que es la multa por el rechazo, un concepto aparte).
+export function resumenChequesRechazados(cheques: ChequesResult | null): ResumenCheques {
+  const detalles = cheques ? cheques.causales.flatMap((c) => c.entidades.flatMap((e) => e.detalle)) : [];
+  const abonados = detalles.filter((d) => d.fechaPago !== null);
+  return {
+    totalCantidad: detalles.length,
+    totalMonto: detalles.reduce((acc, d) => acc + d.monto, 0),
+    abonadosCantidad: abonados.length,
+    abonadosMonto: abonados.reduce((acc, d) => acc + d.monto, 0),
+  };
+}
+
 export function consultantLabel(p: { firstName: string | null; lastName: string | null; username: string } | null): string {
   if (!p) return "—";
   const name = [p.firstName, p.lastName].filter(Boolean).join(" ");
