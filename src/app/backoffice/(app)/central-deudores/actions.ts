@@ -23,7 +23,11 @@ import { ultimoPeriodo, peorSituacion } from "@/lib/central-deudores";
 const PERMISSION = "administraciones.crear";
 
 // Dispara las 3 consultas (situación actual, histórico 24 meses,
-// cheques rechazados) y guarda/pisa la última fila por CUIT. No hay
+// cheques rechazados) y guarda SIEMPRE una fila nueva — ya no se pisa
+// la anterior por CUIT (ver comentario en el modelo CreditCheck): es un
+// resguardo operativo ante el caso de que un agente se olvide de
+// adjuntar el PDF al contrato, así el historial completo de consultas
+// de esa persona sigue disponible para recuperarlo después. No hay
 // caché de "todavía vigente, no reconsultar": cada clic en "Consultar"
 // vuelve a golpear la API — el manual habla de un puñado de consultas
 // por día para esta agencia, muy lejos de cualquier límite de tráfico
@@ -55,10 +59,9 @@ export async function consultarCreditCheck(formData: FormData) {
   const historicoData = historicas.found ? (historicas.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
   const chequesRechazadosData = cheques.found ? (cheques.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
 
-  await withRetry(() =>
-    prisma.creditCheck.upsert({
-      where: { cuit },
-      create: {
+  const created = await withRetry(() =>
+    prisma.creditCheck.create({
+      data: {
         cuit,
         denominacion,
         found,
@@ -69,32 +72,23 @@ export async function consultarCreditCheck(formData: FormData) {
         chequesRechazadosData,
         consultedById: profile.id,
       },
-      update: {
-        denominacion,
-        found,
-        situacionActual,
-        periodoInformado: periodo?.periodo ?? null,
-        deudaData,
-        historicoData,
-        chequesRechazadosData,
-        consultedById: profile.id,
-        consultedAt: new Date(),
-      },
     })
   );
 
   revalidatePath("/backoffice/central-deudores");
   revalidatePath(`/backoffice/central-deudores/${cuit}`);
-  redirect(`/backoffice/central-deudores/${cuit}`);
+  redirect(`/backoffice/central-deudores/${cuit}/${created.id}`);
 }
 
 // Un CreditCheck no queda referenciado desde ningún otro registro (a
-// diferencia de un Contract) — es la misma consulta que se pisa sola al
-// reconsultar, así que borrarla del todo es una operación simple, sin
-// resguardos especiales. Mismo permiso que el resto del módulo.
-export async function eliminarCreditCheck(cuit: string) {
+// diferencia de un Contract) — borrar una consulta puntual es una
+// operación simple, sin resguardos especiales. Borra solo esa fila, no
+// el resto del historial de ese CUIT. Mismo permiso que el resto del
+// módulo.
+export async function eliminarCreditCheck(cuit: string, id: number) {
   await requirePermission(PERMISSION);
-  await withRetry(() => prisma.creditCheck.delete({ where: { cuit } }));
+  await withRetry(() => prisma.creditCheck.delete({ where: { id } }));
   revalidatePath("/backoffice/central-deudores");
-  redirect("/backoffice/central-deudores");
+  revalidatePath(`/backoffice/central-deudores/${cuit}`);
+  redirect(`/backoffice/central-deudores/${cuit}`);
 }

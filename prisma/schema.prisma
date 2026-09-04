@@ -1332,14 +1332,15 @@ model BudgetConcept {
 // a inquilino/garante ANTES de que exista un Contract o incluso un
 // Client — por eso se identifica por CUIT suelto, no por FK: el agente
 // puede consultar a alguien que todavía no cargó en ningún lado.
-// Se guarda solo la última consulta por CUIT (upsert, @@unique): si la
-// misma persona vuelve a aparecer meses después en otro contrato, se
-// vuelve a consultar y se pisa el resultado. No hay historial de
-// consultas anteriores a propósito — el respaldo de cada consulta
-// puntual es el PDF ya exportado en su momento, no esta tabla.
+// Cada consulta queda como fila propia (ya no se pisa por CUIT) — es un
+// resguardo operativo: si un agente se olvida de adjuntar el PDF al
+// contrato, el historial completo de consultas sigue disponible acá
+// para recuperarlo, en vez de depender de que ese archivo se haya
+// guardado bien en su momento. El listado agrupa por CUIT mostrando la
+// última consulta de cada persona (ver getLatestCreditChecksGrouped).
 model CreditCheck {
   id   Int    @id @default(autoincrement())
-  cuit String @unique @db.VarChar(11)
+  cuit String @db.VarChar(11)
 
   // Nombre/razón social que devuelve la propia API (padrón AFIP) — null
   // si found = false (el BCRA no tiene nada, ni siquiera para resolver
@@ -1371,5 +1372,9 @@ model CreditCheck {
   consultedById String   @db.Uuid
   consultedBy   Profile  @relation("CreditCheckConsultadoPor", fields: [consultedById], references: [id])
 
+  // (cuit, consultedAt) cubre tanto "todas las consultas de este CUIT
+  // ordenadas por fecha" (historial) como la base del distinct-por-cuit
+  // del listado agrupado.
+  @@index([cuit, consultedAt])
   @@index([consultedById])
 }

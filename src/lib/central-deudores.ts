@@ -2,23 +2,63 @@ import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import type { DeudaPeriodo, DeudaResult, ChequesResult } from "@/lib/bcra";
 
-export function getCreditCheckByCuit(cuit: string) {
+const consultedByLabelSelect = { select: { firstName: true, lastName: true, username: true } } as const;
+
+// Una consulta puntual por id — ya no hay "la" consulta de un CUIT, hay
+// varias en el tiempo; esta trae una en particular.
+export function getCreditCheckById(id: number) {
   return withRetry(() =>
     prisma.creditCheck.findUnique({
-      where: { cuit },
-      include: { consultedBy: { select: { firstName: true, lastName: true, username: true } } },
+      where: { id },
+      include: { consultedBy: consultedByLabelSelect },
     })
   );
 }
 
-export function getRecentCreditChecks(take = 30) {
+// Todo el historial de consultas de un mismo CUIT, de más reciente a
+// más vieja — la pantalla "historial de este CUIT".
+export function getCreditChecksByCuit(cuit: string) {
   return withRetry(() =>
     prisma.creditCheck.findMany({
+      where: { cuit },
       orderBy: { consultedAt: "desc" },
-      take,
-      include: { consultedBy: { select: { firstName: true, lastName: true, username: true } } },
+      include: { consultedBy: consultedByLabelSelect },
     })
   );
+}
+
+export interface CreditCheckGrouped {
+  id: number;
+  cuit: string;
+  denominacion: string | null;
+  found: boolean;
+  situacionActual: number | null;
+  consultedAt: Date;
+  consultedBy: { firstName: string | null; lastName: string | null; username: string } | null;
+  totalConsultas: number;
+}
+
+// Listado principal: una fila por CUIT (la consulta más reciente),
+// con la cantidad total de consultas guardadas para esa persona — el
+// historial completo se ve entrando a esa fila. `distinct` + `orderBy`
+// en Postgres devuelve, por cada valor de `cuit`, el primer registro
+// según ese orden — es la forma estándar de Prisma para "el último de
+// cada grupo" sin escribir SQL a mano.
+export async function getLatestCreditChecksGrouped(take = 30): Promise<CreditCheckGrouped[]> {
+  const [latest, counts] = await Promise.all([
+    withRetry(() =>
+      prisma.creditCheck.findMany({
+        distinct: ["cuit"],
+        orderBy: { consultedAt: "desc" },
+        take,
+        include: { consultedBy: consultedByLabelSelect },
+      })
+    ),
+    withRetry(() => prisma.creditCheck.groupBy({ by: ["cuit"], _count: { _all: true } })),
+  ]);
+
+  const countByCuit = new Map(counts.map((c) => [c.cuit, c._count._all]));
+  return latest.map((c) => ({ ...c, totalConsultas: countByCuit.get(c.cuit) ?? 1 }));
 }
 
 // El período más reciente del array `periodos` — la API no garantiza

@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
-import { getRecentCreditChecks, consultantLabel } from "@/lib/central-deudores";
+import { getLatestCreditChecksGrouped, consultantLabel } from "@/lib/central-deudores";
 import { SITUACION_LABELS, situacionColorClass } from "@/lib/bcra";
-import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
-import { consultarCreditCheck, eliminarCreditCheck } from "./actions";
+import { consultarCreditCheck } from "./actions";
 
 const fmtDateTime = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" });
 
 export default async function CentralDeDeudoresPage() {
   await requirePermission("administraciones.crear");
-  const checks = await getRecentCreditChecks();
+  const checks = await getLatestCreditChecksGrouped();
 
   return (
     <div>
@@ -41,6 +40,10 @@ export default async function CentralDeDeudoresPage() {
       </form>
 
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted">Consultas recientes</h2>
+      <p className="mb-3 text-xs text-muted">
+        Una fila por CUIT (la consulta más reciente) — cada consulta anterior queda guardada, entrá a &quot;Historial&quot;
+        para verlas todas.
+      </p>
       {checks.length === 0 ? (
         <p className="text-sm text-muted">Todavía no se hizo ninguna consulta.</p>
       ) : (
@@ -51,16 +54,16 @@ export default async function CentralDeDeudoresPage() {
                 <th className="px-4 py-3">CUIT/CUIL</th>
                 <th className="px-4 py-3">Nombre (AFIP)</th>
                 <th className="px-4 py-3">Situación</th>
-                <th className="px-4 py-3">Consultado</th>
+                <th className="px-4 py-3">Última consulta</th>
                 <th className="px-4 py-3">Por</th>
-                <th className="px-4 py-3">Acciones</th>
+                <th className="px-4 py-3">Historial</th>
               </tr>
             </thead>
             <tbody>
               {checks.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface">
                   <td className="px-4 py-3 font-mono text-muted">
-                    <Link href={`/backoffice/central-deudores/${c.cuit}`} className="font-medium text-foreground hover:underline">
+                    <Link href={`/backoffice/central-deudores/${c.cuit}/${c.id}`} className="font-medium text-foreground hover:underline">
                       {c.cuit}
                     </Link>
                   </td>
@@ -79,12 +82,12 @@ export default async function CentralDeDeudoresPage() {
                   <td className="px-4 py-3 text-muted">{fmtDateTime.format(c.consultedAt)}</td>
                   <td className="px-4 py-3 text-muted">{consultantLabel(c.consultedBy)}</td>
                   <td className="px-4 py-3">
-                    <ConfirmDeleteButton
-                      action={eliminarCreditCheck.bind(null, c.cuit)}
-                      triggerClassName="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
-                      title="¿Eliminar esta consulta?"
-                      description={`Se va a borrar la consulta guardada para ${c.denominacion ?? c.cuit} (CUIT ${c.cuit}). Si hace falta más adelante, se puede volver a consultar al BCRA.`}
-                    />
+                    <Link
+                      href={`/backoffice/central-deudores/${c.cuit}`}
+                      className="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground"
+                    >
+                      Ver historial {c.totalConsultas > 1 && `(${c.totalConsultas})`}
+                    </Link>
                   </td>
                 </tr>
               ))}

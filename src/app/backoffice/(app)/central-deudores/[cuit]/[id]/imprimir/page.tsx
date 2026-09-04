@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { requirePermission } from "@/lib/auth";
 import {
-  getCreditCheckByCuit,
+  getCreditCheckById,
   ultimoPeriodo,
   totalChequesRechazados,
   resumenChequesRechazados,
@@ -23,15 +23,17 @@ function periodoLabel(periodo: string): string {
 }
 
 interface PageProps {
-  params: Promise<{ cuit: string }>;
+  params: Promise<{ cuit: string; id: string }>;
 }
 
 export default async function ImprimirCreditCheckPage({ params }: PageProps) {
   await requirePermission("administraciones.crear");
-  const { cuit } = await params;
+  const { cuit, id } = await params;
+  const numericId = Number(id);
+  if (!Number.isFinite(numericId)) notFound();
 
-  const check = await getCreditCheckByCuit(cuit);
-  if (!check) notFound();
+  const check = await getCreditCheckById(numericId);
+  if (!check || check.cuit !== cuit) notFound();
 
   const deuda = check.deudaData as unknown as DeudaResult | null;
   const historico = check.historicoData as unknown as DeudaResult | null;
@@ -281,7 +283,7 @@ export default async function ImprimirCreditCheckPage({ params }: PageProps) {
         Fuente: Banco Central de la República Argentina — API pública Central de Deudores del Sistema Financiero.
         <br />
         Su difusión no implica conformidad por parte del Banco Central de la República Argentina.
-        Informe generado el {fmtDate.format(new Date())} a partir de la última consulta registrada.
+        Informe generado el {fmtDate.format(new Date())} a partir de esta consulta puntual.
       </p>
     </div>
   );
