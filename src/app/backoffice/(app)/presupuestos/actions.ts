@@ -164,24 +164,52 @@ export interface ConceptOption {
 }
 
 // Autocompletado del catálogo al cargar un ítem — mismo patrón que
-// buscarClientes. Devuelve `defaultAmount` ya convertido a number: un
-// Decimal de Prisma no cruza la frontera server action → client
-// component (mismo motivo por el que toRepartoSchemeInfo convierte los
-// porcentajes del esquema de comisiones antes de devolverlos).
+// buscarClientes, salvo que acá un query vacío trae el catálogo entero
+// (hasta el límite) en vez de nada: la idea es que al hacer foco en el
+// campo ya se vea la lista completa para elegir, sin tener que escribir
+// primero para "activar" la búsqueda. Devuelve `defaultAmount` ya
+// convertido a number: un Decimal de Prisma no cruza la frontera server
+// action → client component (mismo motivo por el que toRepartoSchemeInfo
+// convierte los porcentajes del esquema de comisiones antes de
+// devolverlos).
 export async function buscarConceptos(query: string): Promise<ConceptOption[]> {
   await requirePermission("presupuestos.crear");
   const q = query.trim();
-  if (q.length < 1) return [];
 
   const results = await withRetry(() =>
     prisma.budgetConcept.findMany({
-      where: { name: { contains: q, mode: "insensitive" } },
+      where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
       orderBy: { name: "asc" },
-      take: 8,
+      take: 20,
     })
   );
 
   return results.map((c) => ({ id: c.id, name: c.name, defaultAmount: c.defaultAmount ? Number(c.defaultAmount) : null }));
+}
+
+// Crear un concepto nuevo desde el mismo ítem del presupuesto, sin ir a
+// la pantalla de catálogo — a propósito con el mismo permiso que crear
+// presupuestos (presupuestos.crear), no el de gestionar el catálogo
+// (presupuestos.conceptos.gestionar): agregar un concepto nuevo mientras
+// se cotiza es parte del flujo normal de cualquiera que cotiza, no una
+// tarea administrativa aparte. Upsert por nombre (como resolveUnit con
+// propertyCode) — si dos personas escriben el mismo concepto nuevo casi
+// a la vez, o si ya existía con otra mayúscula/minúscula exacta, no se
+// duplica.
+export async function crearConceptoDesdeItem(name: string): Promise<ConceptOption> {
+  const profile = await requirePermission("presupuestos.crear");
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("El concepto no puede estar vacío.");
+
+  const concept = await withRetry(() =>
+    prisma.budgetConcept.upsert({
+      where: { name: trimmed },
+      create: { name: trimmed, createdById: profile.id },
+      update: {},
+    })
+  );
+
+  return { id: concept.id, name: concept.name, defaultAmount: concept.defaultAmount ? Number(concept.defaultAmount) : null };
 }
 
 export async function crearConcepto(formData: FormData) {

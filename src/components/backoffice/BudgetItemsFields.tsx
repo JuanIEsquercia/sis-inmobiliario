@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { buscarConceptos, type ConceptOption } from "@/app/backoffice/(app)/presupuestos/actions";
+import { buscarConceptos, crearConceptoDesdeItem, type ConceptOption } from "@/app/backoffice/(app)/presupuestos/actions";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
@@ -26,16 +26,20 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<ConceptOption[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
-    // Sin nada tipeado (o con el dropdown cerrado) no hay nada que
-    // buscar — se deja de largo sin tocar `results` acá; `visibleResults`
-    // más abajo es quien decide qué se pinta realmente. El try/catch es
-    // clave: sin él, un error acá (permisos, un hipo de red) rechaza la
-    // promesa en silencio y el dropdown simplemente nunca aparece, sin
-    // ningún aviso — mismo criterio que ClientPicker.
-    if (!open || description.trim().length < 1) return;
+    // Con el dropdown cerrado no hay nada que buscar — se deja de largo
+    // sin tocar `results` acá; `visibleResults` más abajo es quien
+    // decide qué se pinta realmente. A propósito NO exige nada tipeado:
+    // hacer foco con el campo vacío ya trae el catálogo entero para
+    // elegir, no hace falta escribir primero para "activar" la
+    // búsqueda. El try/catch es clave: sin él, un error acá (permisos,
+    // un hipo de red) rechaza la promesa en silencio y el dropdown
+    // simplemente nunca aparece, sin ningún aviso — mismo criterio que
+    // ClientPicker.
+    if (!open) return;
     const handle = setTimeout(() => {
       startTransition(async () => {
         try {
@@ -49,7 +53,15 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
     return () => clearTimeout(handle);
   }, [description, open]);
 
-  const visibleResults = open && description.trim().length >= 1 ? results : [];
+  const visibleResults = open ? results : [];
+  const trimmedDescription = description.trim();
+  // Solo ofrece "crear" si lo tipeado no matchea ya un concepto
+  // existente al pie de la letra — evita un "Crear X" al lado de un "X"
+  // ya elegible en la misma lista.
+  const canOfferCreate =
+    open &&
+    trimmedDescription.length > 0 &&
+    !visibleResults.some((c) => c.name.toLowerCase() === trimmedDescription.toLowerCase());
 
   function pick(concept: ConceptOption) {
     onChange({
@@ -57,6 +69,20 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
       amount: concept.defaultAmount !== null ? String(concept.defaultAmount) : amount,
     });
     setOpen(false);
+  }
+
+  function handleCreate() {
+    setCreating(true);
+    startTransition(async () => {
+      try {
+        const created = await crearConceptoDesdeItem(trimmedDescription);
+        pick(created);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo crear el concepto");
+      } finally {
+        setCreating(false);
+      }
+    });
   }
 
   return (
@@ -76,7 +102,7 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
           className="field w-full"
         />
         {open && error && <p className="mt-1 text-[11px] font-semibold text-accent">{error}</p>}
-        {visibleResults.length > 0 && (
+        {(visibleResults.length > 0 || canOfferCreate) && (
           <ul className="absolute z-10 mt-1 w-full rounded-xl border border-border/80 bg-surface p-1.5 shadow-sm max-h-48 overflow-y-auto">
             {visibleResults.map((c) => (
               <li key={c.id}>
@@ -93,6 +119,19 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
                 </button>
               </li>
             ))}
+            {canOfferCreate && (
+              <li className={visibleResults.length > 0 ? "mt-1 border-t border-border/50 pt-1" : ""}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleCreate}
+                  disabled={creating}
+                  className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-accent hover:bg-accent-soft/30 transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {creating ? "Creando…" : `+ Crear concepto "${trimmedDescription}"`}
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </div>
