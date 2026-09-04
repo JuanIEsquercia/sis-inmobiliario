@@ -103,7 +103,12 @@ export function BackofficeShell({ profile, children }: BackofficeShellProps) {
         </aside>
 
         {/* Contenido Principal */}
-        <main className="flex-1 px-4 py-6 sm:px-8 sm:py-8 bg-background/50 print:p-0 overflow-x-hidden w-full">
+        {/* min-w-0 es lo que realmente evita el scroll lateral de toda la
+            pantalla — sin esto, un hijo intrínsecamente ancho (una
+            tabla, un iframe) puede estirar este flex item más allá del
+            espacio disponible antes de que su propio overflow-x-hidden
+            llegue a recortar nada. */}
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8 bg-background/50 print:p-0 overflow-x-hidden w-full">
           {children}
         </main>
       </div>

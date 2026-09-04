@@ -3,6 +3,7 @@ import { getContractsDueForIndexation, getContractsNearingEnd, getIndexTypes, cl
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { IndexacionPercentField } from "@/components/backoffice/IndexacionPercentField";
+import { RentCalculatorEmbed } from "@/components/backoffice/RentCalculatorEmbed";
 import { actualizarRenovacionEsperada, aplicarIndexacion } from "../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -181,6 +182,22 @@ export default async function ActualizacionesPage() {
           </table>
         </div>
       )}
+
+      {/* Calculadora de arquiler.com, embebida acá para tenerla a mano
+          sin salir del sistema (no calcula nada del sistema en sí, es
+          un servicio externo). Tema y color de fondo siguen el modo
+          claro/oscuro del panel — ver RentCalculatorEmbed. El
+          overflow-x-auto es un resguardo puntual: si el contenido de
+          adentro del iframe no llega a achicarse del todo en pantallas
+          angostas, que scrollee esta tarjeta nada más, no la página
+          entera (el fix real es min-w-0 en <main>, ver BackofficeShell). */}
+      <div className="mt-10 rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
+        <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-muted">Calculadora de actualización</h2>
+        <p className="mb-4 text-xs text-muted">Vía arquiler.com.</p>
+        <div className="overflow-x-auto">
+          <RentCalculatorEmbed />
+        </div>
+      </div>
     </div>
   );
 }
