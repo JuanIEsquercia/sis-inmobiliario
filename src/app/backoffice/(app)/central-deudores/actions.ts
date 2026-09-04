@@ -87,3 +87,14 @@ export async function consultarCreditCheck(formData: FormData) {
   revalidatePath(`/backoffice/central-deudores/${cuit}`);
   redirect(`/backoffice/central-deudores/${cuit}`);
 }
+
+// Un CreditCheck no queda referenciado desde ningún otro registro (a
+// diferencia de un Contract) — es la misma consulta que se pisa sola al
+// reconsultar, así que borrarla del todo es una operación simple, sin
+// resguardos especiales. Mismo permiso que el resto del módulo.
+export async function eliminarCreditCheck(cuit: string) {
+  await requirePermission(PERMISSION);
+  await withRetry(() => prisma.creditCheck.delete({ where: { cuit } }));
+  revalidatePath("/backoffice/central-deudores");
+  redirect("/backoffice/central-deudores");
+}

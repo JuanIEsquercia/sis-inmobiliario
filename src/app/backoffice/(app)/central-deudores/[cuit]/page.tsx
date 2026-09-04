@@ -9,7 +9,8 @@ import {
   groupHistoricoByEntidad,
 } from "@/lib/central-deudores";
 import { SITUACION_LABELS, SITUACION_DETAIL, situacionColorClass, situacionRowClass, type DeudaResult, type ChequesResult } from "@/lib/bcra";
-import { consultarCreditCheck } from "../actions";
+import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
+import { consultarCreditCheck, eliminarCreditCheck } from "../actions";
 
 const fmtDateTime = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" });
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -65,6 +66,13 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
           >
             Exportar PDF
           </Link>
+          <ConfirmDeleteButton
+            action={eliminarCreditCheck.bind(null, check.cuit)}
+            triggerLabel="Eliminar"
+            triggerClassName="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-surface hover:text-foreground cursor-pointer"
+            title="¿Eliminar esta consulta?"
+            description={`Se va a borrar la consulta guardada para ${check.denominacion ?? check.cuit} (CUIT ${check.cuit}). Si hace falta más adelante, se puede volver a consultar al BCRA.`}
+          />
         </div>
       </div>
 
