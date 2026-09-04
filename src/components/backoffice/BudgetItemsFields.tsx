@@ -25,15 +25,26 @@ interface RowProps {
 function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: RowProps) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<ConceptOption[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     // Sin nada tipeado (o con el dropdown cerrado) no hay nada que
     // buscar — se deja de largo sin tocar `results` acá; `visibleResults`
-    // más abajo es quien decide qué se pinta realmente.
+    // más abajo es quien decide qué se pinta realmente. El try/catch es
+    // clave: sin él, un error acá (permisos, un hipo de red) rechaza la
+    // promesa en silencio y el dropdown simplemente nunca aparece, sin
+    // ningún aviso — mismo criterio que ClientPicker.
     if (!open || description.trim().length < 1) return;
     const handle = setTimeout(() => {
-      startTransition(async () => setResults(await buscarConceptos(description)));
+      startTransition(async () => {
+        try {
+          setResults(await buscarConceptos(description));
+          setError(null);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "No se pudo buscar conceptos");
+        }
+      });
     }, 250);
     return () => clearTimeout(handle);
   }, [description, open]);
@@ -61,8 +72,10 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Concepto (ej. Sellado de contrato)"
+          autoComplete="off"
           className="field w-full"
         />
+        {open && error && <p className="mt-1 text-[11px] font-semibold text-accent">{error}</p>}
         {visibleResults.length > 0 && (
           <ul className="absolute z-10 mt-1 w-full rounded-xl border border-border/80 bg-surface p-1.5 shadow-sm max-h-48 overflow-y-auto">
             {visibleResults.map((c) => (
