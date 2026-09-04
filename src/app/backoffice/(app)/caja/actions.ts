@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requirePermission, requireAnyPermission } from "@/lib/auth";
+import { requirePermission, requireAnyPermission, assertContractInScope } from "@/lib/auth";
 import { resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadAppraisalReport } from "@/lib/supabase/storage";
 import { paymentBreakdown } from "@/lib/alquileres";
@@ -403,6 +403,7 @@ export async function subirInformeTasacion(appraisalId: number, formData: FormDa
 // RentalCommission.contractId actúa como guarda contra doble alta.
 export async function crearComisionAlquiler(contractId: number, formData: FormData) {
   const profile = await requirePermission("caja.comisiones.crear");
+  await assertContractInScope(contractId, profile);
 
   const amount = requiredDecimal(formData.get("amount"), "Comisión de alquiler");
   const currency = requiredStr(formData.get("currency"), "Moneda");

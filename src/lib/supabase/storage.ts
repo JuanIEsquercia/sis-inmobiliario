@@ -6,15 +6,34 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const BUCKET = "contract-documents";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-async function uploadPdf(pathPrefix: string, file: File): Promise<{ storagePath: string }> {
+// Nombre seguro para usarlo como parte de la key del bucket — se sacan
+// separadores de path y caracteres raros y se acota el largo. El nombre
+// original se guarda aparte en la fila (fileName) para mostrarlo.
+function safeFileName(name: string): string {
+  const cleaned = name.replace(/[^\w.\-]+/g, "_").replace(/^\.+/, "");
+  return (cleaned || "archivo").slice(0, 100);
+}
+
+// El MIME que manda el navegador es lo que declare el cliente, no lo que
+// es el archivo — además se verifica la firma real: un PDF de verdad
+// siempre arranca con "%PDF-".
+async function assertIsPdf(file: File): Promise<void> {
   if (file.type !== "application/pdf") {
     throw new Error("Solo se aceptan archivos PDF");
   }
+  const head = Buffer.from(await file.slice(0, 5).arrayBuffer()).toString("latin1");
+  if (head !== "%PDF-") {
+    throw new Error("El archivo no es un PDF válido");
+  }
+}
+
+async function uploadPdf(pathPrefix: string, file: File): Promise<{ storagePath: string }> {
+  await assertIsPdf(file);
   if (file.size > MAX_FILE_SIZE) {
     throw new Error("El archivo no puede superar los 10MB");
   }
 
-  const storagePath = `${pathPrefix}/${crypto.randomUUID()}-${file.name}`;
+  const storagePath = `${pathPrefix}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
 
   const admin = createAdminClient();
   const { error } = await admin.storage.from(BUCKET).upload(storagePath, file, {
@@ -86,7 +105,7 @@ async function uploadPublicImage(
   const admin = createAdminClient();
   await ensurePublicBucketExists(admin, bucket);
 
-  const storagePath = `${crypto.randomUUID()}-${file.name}`;
+  const storagePath = `${crypto.randomUUID()}-${safeFileName(file.name)}`;
   const { error } = await admin.storage.from(bucket).upload(storagePath, file, {
     contentType: file.type,
   });

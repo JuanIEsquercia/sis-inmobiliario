@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, assertContractInScope, assertPaymentInScope } from "@/lib/auth";
 import { addMonths, buildPaymentSchedule, computeEndDate, paymentTotal } from "@/lib/alquileres";
 import { resolveClient, resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadContractDocument, deleteContractDocuments } from "@/lib/supabase/storage";
@@ -309,7 +309,8 @@ export async function createContract(formData: FormData) {
 // createContract): a veces se sabe el negocio antes de tener los datos
 // completos de las partes.
 export async function actualizarPartesContrato(contractId: number, formData: FormData) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("administraciones.crear");
+  await assertContractInScope(contractId, profile);
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -350,6 +351,7 @@ export async function crearIndexType(code: string) {
 
 export async function subirDocumento(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.crear");
+  await assertContractInScope(contractId, profile);
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Elegí un archivo PDF");
@@ -367,7 +369,8 @@ export async function subirDocumento(contractId: number, formData: FormData) {
 }
 
 export async function guardarLiquidacion(paymentId: number, formData: FormData) {
-  await requirePermission("administraciones.pagos");
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
 
   const itemIds = formData
     .getAll("itemId")
@@ -412,7 +415,8 @@ export async function guardarLiquidacion(paymentId: number, formData: FormData) 
 // es caso por caso. Reutiliza el catálogo de Concept (upsert por
 // nombre) para no duplicar "Mora" como texto suelto cada vez.
 export async function agregarConceptoLiquidacion(paymentId: number, formData: FormData) {
-  await requirePermission("administraciones.pagos");
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
 
   const conceptName = requiredStr(formData.get("conceptName"), "Concepto");
   const rawAmount = optionalDecimal(formData.get("amount"));
@@ -452,7 +456,8 @@ export async function agregarConceptoLiquidacion(paymentId: number, formData: Fo
 // Saca un concepto puntual de esta liquidación (ej. si se agregó Mora
 // por error) — nunca el de Alquiler, que es obligatorio.
 export async function quitarConceptoLiquidacion(paymentId: number, itemId: number) {
-  await requirePermission("administraciones.pagos");
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -478,7 +483,8 @@ export async function quitarConceptoLiquidacion(paymentId: number, itemId: numbe
 // al inquilino (ver el PDF exportable) — el paso intermedio entre "la
 // estoy armando" y "ya la cobré" que antes no existía.
 export async function marcarLiquidacionEnviada(paymentId: number) {
-  await requirePermission("administraciones.pagos");
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
 
   await withRetry(() =>
     prisma.payment.updateMany({
@@ -496,7 +502,8 @@ export async function marcarLiquidacionEnviada(paymentId: number) {
 // monto antes de que se cobre — no aplica una vez que ya recibió algún
 // cobro (Parcial o Pagada), porque ahí ya hay plata real de por medio.
 export async function reabrirLiquidacion(paymentId: number) {
-  await requirePermission("administraciones.pagos");
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
 
   await withRetry(() =>
     prisma.payment.updateMany({
@@ -517,7 +524,8 @@ export async function reabrirLiquidacion(paymentId: number) {
 // parcial, para no inventar un criterio de a qué concepto (alquiler,
 // expensas...) corresponde cada pago parcial.
 export async function registrarCobro(paymentId: number, formData: FormData) {
-  await requirePermission("administraciones.pagos");
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
 
   const amount = requiredDecimal(formData.get("amount"), "Monto cobrado");
   const paidAt = optionalStr(formData.get("paidAt")) ? requiredDate(formData.get("paidAt"), "Fecha") : new Date();
@@ -571,7 +579,8 @@ export async function registrarCobro(paymentId: number, formData: FormData) {
 // cobro de la comisión (confirmarCobroComision): suelen pasar en
 // momentos distintos. No admite parcial, es un solo evento.
 export async function registrarPagoPropietario(paymentId: number, formData: FormData) {
-  await requirePermission("administraciones.pagos");
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
 
   const paidAt = optionalStr(formData.get("ownerPaidAt"))
     ? requiredDate(formData.get("ownerPaidAt"), "Fecha")
@@ -609,7 +618,8 @@ export async function registrarPagoPropietario(paymentId: number, formData: Form
 // actualización por índice Y%, valor actualizado Z" — ver
 // indexaciones/[indexationId]/imprimir).
 export async function aplicarIndexacion(contractId: number, formData: FormData) {
-  await requirePermission("administraciones.indexacion");
+  const profile = await requirePermission("administraciones.indexacion");
+  await assertContractInScope(contractId, profile);
 
   const percentage = requiredDecimal(formData.get("percentage"), "% de actualización");
   if (Number(percentage) <= -100) {
@@ -683,7 +693,8 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
 }
 
 export async function finalizarContrato(contractId: number, formData: FormData) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("administraciones.crear");
+  await assertContractInScope(contractId, profile);
 
   const status = requiredStr(formData.get("status"), "Estado") as "FINALIZADO" | "RESCINDIDO";
   if (status !== "FINALIZADO" && status !== "RESCINDIDO") {
@@ -722,7 +733,8 @@ export async function finalizarContrato(contractId: number, formData: FormData) 
 // assertColocacionEditable); el cobro de la comisión de colocación
 // sigue funcionando exactamente igual, nunca se bloquea.
 export async function marcarContratoFirmado(contractId: number) {
-  await requirePermission("administraciones.firmar");
+  const profile = await requirePermission("administraciones.firmar");
+  await assertContractInScope(contractId, profile);
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -751,7 +763,8 @@ export async function marcarContratoFirmado(contractId: number) {
 // rompería la caja. Las liquidaciones que quedaban pendientes se borran
 // porque, al anular, nunca van a llegar a cobrarse.
 export async function anularContrato(contractId: number, formData: FormData) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("administraciones.crear");
+  await assertContractInScope(contractId, profile);
 
   const reason = optionalStr(formData.get("terminationReason"));
 
@@ -806,6 +819,7 @@ export async function anularContrato(contractId: number, formData: FormData) {
 // FK real (sourceId es polimórfico) así que se limpia a mano aparte.
 export async function eliminarContratoDefinitivo(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.eliminar");
+  await assertContractInScope(contractId, profile);
   const reason = optionalStr(formData.get("reason"));
   // No hay tabla de auditoría en este sistema todavía — el registro
   // queda al menos en los logs del servidor, ya que de la fila misma no
@@ -901,7 +915,8 @@ export async function eliminarContratoDefinitivo(contractId: number, formData: F
 // necesario para contratos viejos, dados de alta antes de que estos
 // campos existieran, o para arreglar un error de carga.
 export async function actualizarAgentesContrato(contractId: number, formData: FormData) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("administraciones.crear");
+  await assertContractInScope(contractId, profile);
 
   const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
   const captadorAgentId = optionalStr(formData.get("captadorAgentId"));
@@ -924,7 +939,8 @@ export async function actualizarAgentesContrato(contractId: number, formData: Fo
 // para poder deshacer una marca puesta de más. Solo "Sí" entra a la
 // proyección financiera (ver getProjection).
 export async function actualizarRenovacionEsperada(contractId: number, formData: FormData) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("administraciones.crear");
+  await assertContractInScope(contractId, profile);
 
   const raw = optionalStr(formData.get("renewalCommissionExpected"));
   const renewalCommissionExpected = raw === "true" ? true : raw === "false" ? false : null;

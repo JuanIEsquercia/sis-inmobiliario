@@ -9,26 +9,60 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadStaffPhoto, deleteStaffPhoto } from "@/lib/supabase/storage";
 import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { optionalStr, requiredStr } from "@/lib/form-utils";
-import type { StaffRole } from "@/generated/prisma/client";
+import type { Profile, StaffRole } from "@/generated/prisma/client";
 
 function parsePermissions(formData: FormData): string[] {
   const values = formData.getAll("permissions").map(String);
   return values.filter((v) => ALL_PERMISSION_KEYS.includes(v));
 }
 
+const VALID_ROLES: readonly StaffRole[] = ["ADMIN", "AGENTE"];
+
+function parseRole(v: FormDataEntryValue | null): StaffRole {
+  const role = requiredStr(v, "Rol");
+  if (!VALID_ROLES.includes(role as StaffRole)) throw new Error("Rol inválido.");
+  return role as StaffRole;
+}
+
+// Candado: dar el rol ADMIN o el permiso usuarios.gestionar equivale a
+// entregar el sistema entero (quien lo tiene puede crear/editar
+// cualquier usuario, incluido a sí mismo). Solo un ADMIN real puede
+// otorgarlos — un AGENTE con usuarios.gestionar puede dar de alta y
+// editar agentes, nada más.
+function assertCanGrant(actor: Profile, role: StaffRole, permissions: string[]) {
+  if (actor.role === "ADMIN") return;
+  if (role === "ADMIN" || permissions.includes("usuarios.gestionar")) {
+    throw new Error("Solo un administrador puede asignar el rol Admin o el permiso de gestionar usuarios.");
+  }
+}
+
+// Un no-ADMIN tampoco puede tocar la cuenta de un ADMIN (editarla,
+// desactivarla) — sería la otra forma de escalar: bajarle permisos o
+// dejar afuera al que sí manda.
+async function getTargetOrThrow(actor: Profile, userId: string) {
+  const target = await withRetry(() =>
+    prisma.profile.findUniqueOrThrow({ where: { id: userId }, select: { role: true, permissions: true } })
+  );
+  if (target.role === "ADMIN" && actor.role !== "ADMIN") {
+    throw new Error("Solo un administrador puede modificar la cuenta de otro administrador.");
+  }
+  return target;
+}
+
 export async function crearUsuario(formData: FormData) {
-  await requirePermission("usuarios.gestionar");
+  const actor = await requirePermission("usuarios.gestionar");
 
   const email = requiredStr(formData.get("email"), "Email");
   const username = requiredStr(formData.get("username"), "Nombre de usuario").toLowerCase();
   const password = requiredStr(formData.get("password"), "Contraseña");
-  const role = requiredStr(formData.get("role"), "Rol") as StaffRole;
+  const role = parseRole(formData.get("role"));
   const firstName = optionalStr(formData.get("firstName"));
   const lastName = optionalStr(formData.get("lastName"));
   const phone = optionalStr(formData.get("phone"));
   const bio = optionalStr(formData.get("bio"));
   const showOnPublicSite = formData.get("showOnPublicSite") === "on";
   const permissions = parsePermissions(formData);
+  assertCanGrant(actor, role, permissions);
 
   const admin = createAdminClient();
 
@@ -71,7 +105,17 @@ export async function crearUsuario(formData: FormData) {
 }
 
 export async function actualizarUsuario(userId: string, formData: FormData) {
-  await requirePermission("usuarios.gestionar");
+  const actor = await requirePermission("usuarios.gestionar");
+  const target = await getTargetOrThrow(actor, userId);
+
+  // Nadie se cambia el rol ni los permisos a sí mismo desde acá (el
+  // resto de los datos propios — nombre, foto, bio — sí se editan): lo
+  // que mande el form para esos dos campos se ignora y queda lo que ya
+  // tenía.
+  const isSelf = userId === actor.id;
+  const role = isSelf ? target.role : parseRole(formData.get("role"));
+  const permissions = isSelf ? target.permissions : parsePermissions(formData);
+  assertCanGrant(actor, role, permissions);
 
   // Si viene una foto nueva, reemplaza a la anterior — se borra el
   // archivo viejo del bucket para no dejar huérfanos. La subida y la
@@ -100,8 +144,8 @@ export async function actualizarUsuario(userId: string, formData: FormData) {
         username: requiredStr(formData.get("username"), "Nombre de usuario").toLowerCase(),
         firstName: optionalStr(formData.get("firstName")),
         lastName: optionalStr(formData.get("lastName")),
-        role: requiredStr(formData.get("role"), "Rol") as StaffRole,
-        permissions: parsePermissions(formData),
+        role,
+        permissions,
         phone: optionalStr(formData.get("phone")),
         bio: optionalStr(formData.get("bio")),
         showOnPublicSite: formData.get("showOnPublicSite") === "on",
@@ -116,7 +160,9 @@ export async function actualizarUsuario(userId: string, formData: FormData) {
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean) {
-  await requirePermission("usuarios.gestionar");
+  const actor = await requirePermission("usuarios.gestionar");
+  if (userId === actor.id) throw new Error("No podés desactivar tu propia cuenta.");
+  await getTargetOrThrow(actor, userId);
   await withRetry(() => prisma.profile.update({ where: { id: userId }, data: { isActive } }));
   revalidatePath("/backoffice/usuarios");
   revalidatePath("/equipo");

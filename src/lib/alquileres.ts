@@ -121,10 +121,14 @@ export async function getContractById(id: number, scope: ContractGroupScope) {
   );
 }
 
-export async function getPaymentById(id: number) {
+// Con scope, igual que getContractById — una liquidación de un contrato
+// fuera de tu cartera da `null`, como si no existiera. Sin esto, la
+// página se abría con cualquier id tipeado en la URL.
+export async function getPaymentById(id: number, scope: ContractGroupScope) {
+  const groupWhere = contractGroupWhere(scope);
   return withRetry(() =>
-    prisma.payment.findUnique({
-      where: { id },
+    prisma.payment.findFirst({
+      where: { id, ...(groupWhere ? { contract: { OR: [{ isAdministered: false }, groupWhere] } } : {}) },
       include: {
         contract: { include: { unit: true, tenant: true, owner: true } },
         items: { include: { concept: true }, orderBy: { id: "asc" } },
@@ -136,10 +140,11 @@ export async function getPaymentById(id: number) {
 
 // Para el comprobante imprimible de una actualización puntual — mismo
 // criterio que getPaymentById.
-export async function getIndexationById(id: number) {
+export async function getIndexationById(id: number, scope: ContractGroupScope) {
+  const groupWhere = contractGroupWhere(scope);
   return withRetry(() =>
-    prisma.indexation.findUnique({
-      where: { id },
+    prisma.indexation.findFirst({
+      where: { id, ...(groupWhere ? { contract: { OR: [{ isAdministered: false }, groupWhere] } } : {}) },
       include: {
         contract: { include: { unit: true, tenant: true, owner: true } },
         indexType: true,

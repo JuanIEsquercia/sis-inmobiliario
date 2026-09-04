@@ -35,7 +35,12 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
 
 export async function requireProfile(): Promise<Profile> {
   const profile = await getCurrentProfile();
-  if (!profile || !profile.isActive) redirect("/backoffice/login");
+  // Sesión de Supabase válida pero sin Profile (o desactivado): hay que
+  // CERRAR esa sesión, no solo mandar al login — el proxy ve la cookie
+  // viva y vuelve a meterlo adentro, y así queda en un loop. Un Server
+  // Component no puede escribir cookies, por eso pasa por la ruta
+  // /backoffice/logout, que sí puede.
+  if (!profile || !profile.isActive) redirect("/backoffice/logout?motivo=inactivo");
   return profile;
 }
 
@@ -72,6 +77,41 @@ export async function getContractGroupScope(profile: Profile): Promise<ContractG
 // query. `null` cuando el scope es "all" (sin filtro).
 export function contractGroupWhere(scope: ContractGroupScope): { groupId: { in: number[] } } | null {
   return scope === "all" ? null : { groupId: { in: scope } };
+}
+
+// Chequeo de cartera para OPERAR sobre un contrato (cobrar, liquidar,
+// actualizar, anular...), no solo para listarlo — mismo criterio que
+// getContractById: "all" pasa siempre; una colocación (isAdministered
+// false) no pertenece a ninguna cartera y pasa siempre; un administrado
+// pasa solo si su groupId está entre los grupos del usuario (sin grupo
+// no pasa para nadie que no sea "all", igual que en el listado). Tira
+// en vez de devolver false para usarse como una línea más al principio
+// de cada acción, justo después de requirePermission — sin esto, el
+// scope se saltaba armando la URL o el form con el id de otro contrato.
+export async function assertContractInScope(contractId: number, profile: Profile): Promise<void> {
+  const scope = await getContractGroupScope(profile);
+  if (scope === "all") return;
+
+  const contract = await withRetry(() =>
+    prisma.contract.findUnique({ where: { id: contractId }, select: { isAdministered: true, groupId: true } })
+  );
+  if (!contract) throw new Error("El contrato no existe.");
+  if (!contract.isAdministered) return;
+  if (contract.groupId === null || !scope.includes(contract.groupId)) {
+    throw new Error("No tenés acceso a este contrato — no pertenece a tu cartera.");
+  }
+}
+
+// Idem para una liquidación puntual: resuelve a qué contrato pertenece
+// y delega. Devuelve el contractId para que la acción no tenga que
+// volver a buscarlo.
+export async function assertPaymentInScope(paymentId: number, profile: Profile): Promise<number> {
+  const payment = await withRetry(() =>
+    prisma.payment.findUnique({ where: { id: paymentId }, select: { contractId: true } })
+  );
+  if (!payment) throw new Error("La liquidación no existe.");
+  await assertContractInScope(payment.contractId, profile);
+  return payment.contractId;
 }
 
 // Cualquier perfil puede ver su propio saldo en Pagos a agentes — ver

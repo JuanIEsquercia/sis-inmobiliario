@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getPaymentById, paymentBreakdown, clientLabel } from "@/lib/alquileres";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import {
   guardarLiquidacion,
   marcarLiquidacionEnviada,
@@ -38,7 +38,8 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
   const numericPaymentId = Number(paymentId);
   if (!Number.isFinite(numericPaymentId)) notFound();
 
-  const payment = await getPaymentById(numericPaymentId);
+  const scope = await getContractGroupScope(profile);
+  const payment = await getPaymentById(numericPaymentId, scope);
   if (!payment || String(payment.contractId) !== id) notFound();
 
   const canEdit = profile.permissions.includes("administraciones.pagos");

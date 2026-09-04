@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { getPaymentById, paymentBreakdown, clientLabel } from "@/lib/alquileres";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AutoPrint } from "@/components/backoffice/AutoPrint";
 import { PrintButton } from "@/components/backoffice/PrintButton";
 
@@ -19,12 +19,13 @@ interface PageProps {
 }
 
 export default async function ImprimirLiquidacionPage({ params, searchParams }: PageProps) {
-  await requirePermission("administraciones.ver");
+  const profile = await requirePermission("administraciones.ver");
+  const scope = await getContractGroupScope(profile);
   const { id, paymentId } = await params;
   const numericPaymentId = Number(paymentId);
   if (!Number.isFinite(numericPaymentId)) notFound();
 
-  const payment = await getPaymentById(numericPaymentId);
+  const payment = await getPaymentById(numericPaymentId, scope);
   if (!payment || String(payment.contractId) !== id) notFound();
 
   // Dos variantes del mismo comprobante: al inquilino solo le

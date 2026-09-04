@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { getIndexationById, clientLabel } from "@/lib/alquileres";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AutoPrint } from "@/components/backoffice/AutoPrint";
 import { PrintButton } from "@/components/backoffice/PrintButton";
 
@@ -17,12 +17,13 @@ interface PageProps {
 // mecanismo de impresión que las liquidaciones (AutoPrint + logo +
 // color de marca, sin librería de PDF).
 export default async function ImprimirIndexacionPage({ params }: PageProps) {
-  await requirePermission("administraciones.ver");
+  const profile = await requirePermission("administraciones.ver");
+  const scope = await getContractGroupScope(profile);
   const { id, indexationId } = await params;
   const numericIndexationId = Number(indexationId);
   if (!Number.isFinite(numericIndexationId)) notFound();
 
-  const indexation = await getIndexationById(numericIndexationId);
+  const indexation = await getIndexationById(numericIndexationId, scope);
   if (!indexation || String(indexation.contractId) !== id) notFound();
 
   const percentage = indexation.percentage !== null ? Number(indexation.percentage) : null;
