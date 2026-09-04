@@ -171,19 +171,19 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="dniInquilinoFile" className="text-xs text-muted">
-              DNI inquilino
+              DNI INQUILINO + INGRESOS + INFORME BCRA UNIFICADOS
             </label>
             <input id="dniInquilinoFile" name="dniInquilinoFile" type="file" accept="application/pdf" className="field" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="dniGaranteFile" className="text-xs text-muted">
-              DNI garante
+              DNI GARANTE + INGRESOS + INFORME BCRA UNIFICADOS
             </label>
             <input id="dniGaranteFile" name="dniGaranteFile" type="file" accept="application/pdf" className="field" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="otroFile" className="text-xs text-muted">
-              Otro
+              DOCUMENTACIÓN RESPALDATORIA EXTRA
             </label>
             <input id="otroFile" name="otroFile" type="file" accept="application/pdf" className="field" />
           </div>

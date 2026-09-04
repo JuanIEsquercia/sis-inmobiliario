@@ -42,9 +42,9 @@ const paymentStatusLabels: Record<string, string> = {
 
 const documentTypeLabels: Record<string, string> = {
   CONTRATO: "Contrato",
-  DNI_INQUILINO: "DNI inquilino",
-  DNI_GARANTE: "DNI garante",
-  OTRO: "Otro",
+  DNI_INQUILINO: "DNI INQUILINO + INGRESOS + INFORME BCRA UNIFICADOS",
+  DNI_GARANTE: "DNI GARANTE + INGRESOS + INFORME BCRA UNIFICADOS",
+  OTRO: "DOCUMENTACIÓN RESPALDATORIA EXTRA",
 };
 
 const monthNames = [
@@ -509,10 +509,11 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   Tipo de archivo
                 </label>
                 <select id="docType" name="type" defaultValue="CONTRATO" className="field w-full text-xs py-1.5">
-                  <option value="CONTRATO">Contrato</option>
-                  <option value="DNI_INQUILINO">DNI inquilino</option>
-                  <option value="DNI_GARANTE">DNI garante</option>
-                  <option value="OTRO">Otro</option>
+                  {Object.entries(documentTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
