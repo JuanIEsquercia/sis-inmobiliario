@@ -184,6 +184,7 @@ model Profile {
   showOnPublicSite Boolean @default(false)
 
   pedidosCreados      Pedido[]           @relation("PedidoCreadoPor")
+  pedidosTomados      Pedido[]           @relation("PedidoTomadoPor")
   contratosCreados    Contract[]         @relation("ContractCreadoPor")
   contractsAsVendedor Contract[]         @relation("ContractVendedor")
   contractsAsCaptador Contract[]         @relation("ContractCaptador")
@@ -242,8 +243,21 @@ model Pedido {
 
   estado PedidoEstado @default(ABIERTO)
 
-  creadoPorId String  @db.Uuid
-  creadoPor   Profile @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id])
+  // Nullable a propósito: un pedido cargado por un agente en el
+  // backoffice siempre tiene quién lo cargó, pero uno que entra por el
+  // formulario de contacto de la landing (sin login) no tiene ningún
+  // Profile detrás — null acá ES la marca de "vino de la web" (ver
+  // crearPedidoPublico), no hace falta un campo aparte para eso.
+  creadoPorId String?  @db.Uuid
+  creadoPor   Profile? @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id])
+
+  // Quién se hizo cargo de atender este pedido — exclusivo: una vez
+  // tomado, nadie más lo puede tomar (evita que dos agentes llamen al
+  // mismo cliente sin saberlo), hasta que quien lo tomó lo suelte. Ver
+  // tomarPedido/soltarPedido.
+  tomadoPorId String?   @db.Uuid
+  tomadoPor   Profile?  @relation("PedidoTomadoPor", fields: [tomadoPorId], references: [id])
+  tomadoAt    DateTime?
 
   matchedListingId Int?
   matchedListing   Listing? @relation(fields: [matchedListingId], references: [id])

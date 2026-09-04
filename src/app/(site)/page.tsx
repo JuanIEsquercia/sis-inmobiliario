@@ -3,6 +3,7 @@ import { Hero } from "@/components/Hero";
 import { PropertyCard } from "@/components/PropertyCard";
 import { ServiciosSection } from "@/components/ServiciosSection";
 import { PartnerLogosCarousel } from "@/components/PartnerLogosCarousel";
+import { ContactForm } from "@/components/ContactForm";
 import { getFeaturedListings, getFilterOptions } from "@/lib/listings";
 import { getActivePartnerLogos } from "@/lib/site";
 
@@ -37,6 +38,18 @@ export default async function HomePage() {
         </section>
 
         <ServiciosSection />
+
+        <section>
+          <div className="mb-6 text-center">
+            <h2 className="text-lg font-semibold text-foreground">¿No encontrás lo que buscás?</h2>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted">
+              Contanos qué necesitás y te avisamos apenas tengamos algo para vos.
+            </p>
+          </div>
+          <div className="mx-auto max-w-2xl">
+            <ContactForm />
+          </div>
+        </section>
 
         <PartnerLogosCarousel logos={partnerLogos} />
       </div>

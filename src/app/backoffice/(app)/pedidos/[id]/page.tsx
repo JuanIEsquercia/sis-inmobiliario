@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { getPedidoById } from "@/lib/pedidos";
+import { getPedidoById, tomadoLabel, creadoPorLabel } from "@/lib/pedidos";
 import { PedidoEstadoBadge } from "@/components/backoffice/PedidoEstadoBadge";
 import { requirePermission } from "@/lib/auth";
-import { updatePedidoEstado } from "../actions";
+import { updatePedidoEstado, tomarPedido, soltarPedido } from "../actions";
 import type { PedidoEstado } from "@/generated/prisma/client";
 
 const estadosDisponibles: { value: PedidoEstado; label: string }[] = [
@@ -30,10 +30,43 @@ export default async function PedidoDetailPage({ params }: PageProps) {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">{pedido.clienteNombre}</h1>
-          <p className="text-sm text-muted">Cargado por @{pedido.creadoPor.username}</p>
+          <p className="text-sm text-muted">Cargado por {creadoPorLabel(pedido.creadoPor)}</p>
         </div>
         <PedidoEstadoBadge estado={pedido.estado} />
       </div>
+
+      {/* Tomar/soltar — exclusivo: si ya lo tomó otro agente, acá se ve
+          quién fue en vez de dejar que otro lo tome sin saberlo. */}
+      {profile.permissions.includes("pedidos.estado") && (
+        <div className="mb-6 rounded-xl border border-border p-4 flex items-center justify-between gap-3 text-sm">
+          {pedido.tomadoPorId ? (
+            <>
+              <span className="text-foreground">
+                Tomado por <strong>{tomadoLabel(pedido.tomadoPor)}</strong>
+                {pedido.tomadoAt && (
+                  <span className="text-muted"> · {new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(pedido.tomadoAt)}</span>
+                )}
+              </span>
+              {pedido.tomadoPorId === profile.id && (
+                <form action={soltarPedido.bind(null, pedido.id)}>
+                  <button type="submit" className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-surface">
+                    Soltar
+                  </button>
+                </form>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-muted italic">Nadie lo tomó todavía</span>
+              <form action={tomarPedido.bind(null, pedido.id)}>
+                <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground hover:bg-accent-strong">
+                  Tomar pedido
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      )}
 
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-3 rounded-xl border border-border p-5 text-sm">
         <div>

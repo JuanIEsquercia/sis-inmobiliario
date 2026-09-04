@@ -117,6 +117,7 @@ export async function getListingById(id: number) {
       where: { id, isActive: true },
       select: {
         id: true,
+        externalId: true,
         title: true,
         contentTitle: true,
         description: true,

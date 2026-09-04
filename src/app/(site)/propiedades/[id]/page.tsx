@@ -59,8 +59,12 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
   // Mensaje preconfigurado para consulta — toWhatsAppLink hace su propio
   // encodeURIComponent, así que acá va el texto plano (encodearlo antes
-  // rompería el link con un doble encoding).
-  const whatsappMessage = `Hola! Me interesa obtener más información sobre la propiedad: "${displayTitle}" (ID #${listing.id}).`;
+  // rompería el link con un doble encoding). Se manda el Código (el
+  // mismo identificador Adinco que usa el equipo puertas adentro —
+  // Unit.propertyCode, Historial, etc.), no el id interno de la base:
+  // así quien atiende el WhatsApp puede ubicar la propiedad en el
+  // sistema sin tener que preguntar de cuál se trata.
+  const whatsappMessage = `Hola! Me interesa obtener más información sobre la propiedad: "${displayTitle}" (Código ${listing.externalId}).`;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10 space-y-8">

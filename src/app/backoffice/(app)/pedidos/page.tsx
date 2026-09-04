@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getPedidos } from "@/lib/pedidos";
+import { getPedidos, tomadoLabel, creadoPorLabel } from "@/lib/pedidos";
 import { PedidoEstadoBadge } from "@/components/backoffice/PedidoEstadoBadge";
 import { requirePermission } from "@/lib/auth";
+import { tomarPedido, soltarPedido } from "./actions";
 import type { PedidoEstado } from "@/generated/prisma/client";
 
 const estados: { value: PedidoEstado | undefined; label: string }[] = [
@@ -21,6 +22,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const estadoFiltro = sp.estado as PedidoEstado | undefined;
   const pedidos = await getPedidos(estadoFiltro);
+  const canTomar = profile.permissions.includes("pedidos.estado");
 
   return (
     <div>
@@ -65,6 +67,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                 <th className="px-5 py-4">Busca</th>
                 <th className="px-5 py-4">Zona</th>
                 <th className="px-5 py-4">Cargado por</th>
+                <th className="px-5 py-4">Tomado por</th>
                 <th className="px-5 py-4">Estado</th>
               </tr>
             </thead>
@@ -87,7 +90,30 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                     {p.propertyType ? ` · ${p.propertyType}` : ""}
                   </td>
                   <td className="px-5 py-4 text-muted font-medium">{p.zona ?? "—"}</td>
-                  <td className="px-5 py-4 text-muted/80 font-medium">@{p.creadoPor.username}</td>
+                  <td className="px-5 py-4 text-muted/80 font-medium">{creadoPorLabel(p.creadoPor)}</td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      {tomadoLabel(p.tomadoPor) ? (
+                        <span className="font-semibold text-foreground">{tomadoLabel(p.tomadoPor)}</span>
+                      ) : (
+                        <span className="text-muted/60 italic">Libre</span>
+                      )}
+                      {canTomar &&
+                        (p.tomadoPorId === profile.id ? (
+                          <form action={soltarPedido.bind(null, p.id)}>
+                            <button type="submit" className="rounded-lg border border-border px-2 py-1 text-[11px] font-semibold hover:bg-surface cursor-pointer">
+                              Soltar
+                            </button>
+                          </form>
+                        ) : !p.tomadoPorId ? (
+                          <form action={tomarPedido.bind(null, p.id)}>
+                            <button type="submit" className="rounded-lg bg-accent px-2 py-1 text-[11px] font-bold text-accent-foreground hover:bg-accent-strong cursor-pointer">
+                              Tomar
+                            </button>
+                          </form>
+                        ) : null)}
+                    </div>
+                  </td>
                   <td className="px-5 py-4">
                     <PedidoEstadoBadge estado={p.estado} />
                   </td>
