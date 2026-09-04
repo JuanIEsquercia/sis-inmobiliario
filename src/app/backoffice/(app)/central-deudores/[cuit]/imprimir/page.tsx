@@ -1,8 +1,14 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { requirePermission } from "@/lib/auth";
-import { getCreditCheckByCuit, ultimoPeriodo, totalChequesRechazados, consultantLabel } from "@/lib/central-deudores";
-import { SITUACION_LABELS, type DeudaResult, type ChequesResult } from "@/lib/bcra";
+import {
+  getCreditCheckByCuit,
+  ultimoPeriodo,
+  totalChequesRechazados,
+  consultantLabel,
+  groupHistoricoByEntidad,
+} from "@/lib/central-deudores";
+import { SITUACION_LABELS, SITUACION_DETAIL, situacionRowClass, type DeudaResult, type ChequesResult } from "@/lib/bcra";
 import { AutoPrint } from "@/components/backoffice/AutoPrint";
 import { PrintButton } from "@/components/backoffice/PrintButton";
 
@@ -31,6 +37,7 @@ export default async function ImprimirCreditCheckPage({ params }: PageProps) {
   const cheques = check.chequesRechazadosData as unknown as ChequesResult | null;
   const periodoActual = ultimoPeriodo(deuda);
   const cantidadCheques = totalChequesRechazados(cheques);
+  const historicoPorBanco = groupHistoricoByEntidad(historico);
 
   return (
     <div
@@ -109,7 +116,7 @@ export default async function ImprimirCreditCheckPage({ params }: PageProps) {
                   </thead>
                   <tbody className="divide-y divide-neutral-200 bg-white">
                     {periodoActual.entidades.map((e, i) => (
-                      <tr key={`${e.entidad}-${i}`}>
+                      <tr key={`${e.entidad}-${i}`} className={situacionRowClass(e.situacion)}>
                         <td className="px-4 py-3 text-neutral-800">{e.entidad}</td>
                         <td className="px-4 py-3 text-neutral-800">
                           {e.situacion} — {SITUACION_LABELS[e.situacion] ?? "—"}
@@ -124,37 +131,41 @@ export default async function ImprimirCreditCheckPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Histórico 24 meses */}
+          {/* Histórico 24 meses — agrupado por banco */}
           <div className="mb-8">
             <h3 className="font-bold text-[#c52125] uppercase tracking-wider text-xs mb-3">Histórico (24 meses)</h3>
-            {!historico || historico.periodos.length === 0 ? (
+            {historicoPorBanco.length === 0 ? (
               <p className="text-sm text-neutral-500">Sin historial informado.</p>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-neutral-200">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-neutral-100/80 border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wider text-neutral-600">
-                      <th className="px-4 py-3">Período</th>
-                      <th className="px-4 py-3">Entidad</th>
-                      <th className="px-4 py-3">Situación</th>
-                      <th className="px-4 py-3 text-right">Monto (miles $)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-200 bg-white">
-                    {[...historico.periodos]
-                      .sort((a, b) => b.periodo.localeCompare(a.periodo))
-                      .flatMap((p) =>
-                        p.entidades.map((e, i) => (
-                          <tr key={`${p.periodo}-${e.entidad}-${i}`}>
-                            <td className="px-4 py-3 text-neutral-800">{periodoLabel(p.periodo)}</td>
-                            <td className="px-4 py-3 text-neutral-800">{e.entidad}</td>
-                            <td className="px-4 py-3 text-neutral-800">{e.situacion}</td>
-                            <td className="px-4 py-3 text-right text-neutral-800">{fmtMoney(e.monto)}</td>
+              <div className="flex flex-col gap-4">
+                {historicoPorBanco.map((banco) => (
+                  <div key={banco.entidad} className="overflow-hidden rounded-2xl border border-neutral-200">
+                    <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-100/80 px-4 py-2.5">
+                      <span className="text-sm font-semibold text-neutral-800">{banco.entidad}</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                        Peor situación: {banco.peorSituacion}
+                      </span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wider text-neutral-600">
+                          <th className="px-4 py-2.5">Período</th>
+                          <th className="px-4 py-2.5">Situación</th>
+                          <th className="px-4 py-2.5 text-right">Monto (miles $)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-200 bg-white">
+                        {banco.periodos.map((p) => (
+                          <tr key={p.periodo} className={situacionRowClass(p.situacion)}>
+                            <td className="px-4 py-2.5 text-neutral-800">{periodoLabel(p.periodo)}</td>
+                            <td className="px-4 py-2.5 text-neutral-800">{p.situacion}</td>
+                            <td className="px-4 py-2.5 text-right text-neutral-800">{fmtMoney(p.monto)}</td>
                           </tr>
-                        ))
-                      )}
-                  </tbody>
-                </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -201,6 +212,33 @@ export default async function ImprimirCreditCheckPage({ params }: PageProps) {
           </div>
         </>
       )}
+
+      {/* Leyenda — texto oficial del BCRA, siempre impresa aunque no
+          haya antecedentes, para que el propietario sepa qué
+          significaría cada número si apareciera. */}
+      <div className="mb-8">
+        <h3 className="font-bold text-[#c52125] uppercase tracking-wider text-xs mb-3">¿Qué significa cada situación?</h3>
+        <div className="overflow-hidden rounded-2xl border border-neutral-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-neutral-100/80 border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wider text-neutral-600">
+                <th className="px-4 py-3">Situación</th>
+                <th className="px-4 py-3">Cartera comercial</th>
+                <th className="px-4 py-3">Cartera consumo o vivienda</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-200 bg-white">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <tr key={s}>
+                  <td className="px-4 py-3 font-semibold text-neutral-800">{s}</td>
+                  <td className="px-4 py-3 text-neutral-700">{SITUACION_DETAIL[s].comercial}</td>
+                  <td className="px-4 py-3 text-neutral-700">{SITUACION_DETAIL[s].consumo}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <p className="text-center text-[10px] text-neutral-400 uppercase tracking-widest leading-relaxed">
         Fuente: Banco Central de la República Argentina — API pública Central de Deudores del Sistema Financiero.

@@ -1,8 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
-import { getCreditCheckByCuit, ultimoPeriodo, totalChequesRechazados, consultantLabel } from "@/lib/central-deudores";
-import { SITUACION_LABELS, situacionColorClass, type DeudaResult, type ChequesResult } from "@/lib/bcra";
+import {
+  getCreditCheckByCuit,
+  ultimoPeriodo,
+  totalChequesRechazados,
+  consultantLabel,
+  groupHistoricoByEntidad,
+} from "@/lib/central-deudores";
+import { SITUACION_LABELS, SITUACION_DETAIL, situacionColorClass, situacionRowClass, type DeudaResult, type ChequesResult } from "@/lib/bcra";
 import { consultarCreditCheck } from "../actions";
 
 const fmtDateTime = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" });
@@ -33,6 +39,7 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
   const cheques = check.chequesRechazadosData as unknown as ChequesResult | null;
   const periodoActual = ultimoPeriodo(deuda);
   const cantidadCheques = totalChequesRechazados(cheques);
+  const historicoPorBanco = groupHistoricoByEntidad(historico);
 
   return (
     <div>
@@ -102,7 +109,10 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
                         e.procesoJud && "Proceso judicial",
                       ].filter(Boolean);
                       return (
-                        <tr key={`${e.entidad}-${i}`} className="border-b border-border last:border-0 hover:bg-surface">
+                        <tr
+                          key={`${e.entidad}-${i}`}
+                          className={`border-b border-border last:border-0 hover:bg-surface ${situacionRowClass(e.situacion)}`}
+                        >
                           <td className="px-4 py-3 text-foreground">{e.entidad}</td>
                           <td className="px-4 py-3">
                             <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${situacionColorClass(e.situacion)}`}>
@@ -121,41 +131,46 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
             )}
           </section>
 
-          {/* Histórico 24 meses */}
+          {/* Histórico 24 meses — agrupado por banco, no por período, así
+              se sigue la evolución de cada entidad de un vistazo */}
           <section>
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted">Histórico (24 meses)</h2>
-            {!historico || historico.periodos.length === 0 ? (
+            {historicoPorBanco.length === 0 ? (
               <p className="text-sm text-muted">Sin historial informado.</p>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                      <th className="px-4 py-3">Período</th>
-                      <th className="px-4 py-3">Entidad</th>
-                      <th className="px-4 py-3">Situación</th>
-                      <th className="px-4 py-3">Monto (miles $)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...historico.periodos]
-                      .sort((a, b) => b.periodo.localeCompare(a.periodo))
-                      .flatMap((p) =>
-                        p.entidades.map((e, i) => (
-                          <tr key={`${p.periodo}-${e.entidad}-${i}`} className="border-b border-border last:border-0 hover:bg-surface">
-                            <td className="px-4 py-3 text-muted">{periodoLabel(p.periodo)}</td>
-                            <td className="px-4 py-3 text-foreground">{e.entidad}</td>
-                            <td className="px-4 py-3">
-                              <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${situacionColorClass(e.situacion)}`}>
-                                {e.situacion}
+              <div className="flex flex-col gap-4">
+                {historicoPorBanco.map((banco) => (
+                  <div key={banco.entidad} className="overflow-x-auto rounded-xl border border-border">
+                    <div className="flex items-center justify-between border-b border-border bg-surface/40 px-4 py-2.5">
+                      <span className="text-sm font-semibold text-foreground">{banco.entidad}</span>
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${situacionColorClass(banco.peorSituacion)}`}>
+                        Peor situación: {banco.peorSituacion}
+                      </span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                          <th className="px-4 py-2.5">Período</th>
+                          <th className="px-4 py-2.5">Situación</th>
+                          <th className="px-4 py-2.5">Monto (miles $)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {banco.periodos.map((p) => (
+                          <tr key={p.periodo} className={`border-b border-border last:border-0 hover:bg-surface ${situacionRowClass(p.situacion)}`}>
+                            <td className="px-4 py-2.5 text-muted">{periodoLabel(p.periodo)}</td>
+                            <td className="px-4 py-2.5">
+                              <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${situacionColorClass(p.situacion)}`}>
+                                {p.situacion}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-muted">{fmtMoney(e.monto)}</td>
+                            <td className="px-4 py-2.5 text-muted">{fmtMoney(p.monto)}</td>
                           </tr>
-                        ))
-                      )}
-                  </tbody>
-                </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
               </div>
             )}
           </section>
@@ -202,6 +217,36 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
           </section>
         </div>
       )}
+
+      {/* Leyenda — texto oficial del BCRA (Texto ordenado de
+          Clasificación de deudores), siempre visible aunque no haya
+          antecedentes, para que quien lea el informe sepa qué
+          significaría cada número si apareciera. */}
+      <section className="mt-10">
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted">¿Qué significa cada situación?</h2>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-4 py-3">Situación</th>
+                <th className="px-4 py-3">Cartera comercial</th>
+                <th className="px-4 py-3">Cartera consumo o vivienda</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[1, 2, 3, 4, 5].map((s) => (
+                <tr key={s} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${situacionColorClass(s)}`}>{s}</span>
+                  </td>
+                  <td className="px-4 py-3 text-muted">{SITUACION_DETAIL[s].comercial}</td>
+                  <td className="px-4 py-3 text-muted">{SITUACION_DETAIL[s].consumo}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

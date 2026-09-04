@@ -151,3 +151,26 @@ export function situacionColorClass(situacion: number | null): string {
   if (situacion === 3) return "bg-orange-500/10 text-orange-700 border-orange-500/20";
   return "bg-red-500/10 text-red-600 border-red-500/20";
 }
+
+// Mismo criterio de color que el badge, pero como tinte suave de fondo
+// de fila completa — para resaltar de un vistazo qué filas de una tabla
+// no están en situación normal, sin depender de leer el número.
+// Situación 1 no se resalta (es el caso normal, no una alerta).
+export function situacionRowClass(situacion: number | null): string {
+  if (situacion === null || situacion <= 1) return "";
+  if (situacion === 2) return "bg-yellow-500/5";
+  if (situacion === 3) return "bg-orange-500/5";
+  return "bg-red-500/5";
+}
+
+// Texto oficial del BCRA (Texto ordenado de Clasificación de deudores,
+// citado en el manual de la API) — la clasificación es distinta según
+// sea cartera comercial o de consumo/vivienda, por eso son dos
+// columnas y no una sola etiqueta combinada como SITUACION_LABELS.
+export const SITUACION_DETAIL: Record<number, { comercial: string; consumo: string }> = {
+  1: { comercial: "En situación normal", consumo: "Situación normal" },
+  2: { comercial: "Con seguimiento especial", consumo: "Riesgo bajo" },
+  3: { comercial: "Con problemas", consumo: "Riesgo medio" },
+  4: { comercial: "Con alto riesgo de insolvencia", consumo: "Riesgo alto" },
+  5: { comercial: "Irrecuperable", consumo: "Irrecuperable" },
+};
