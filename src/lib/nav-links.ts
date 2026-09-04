@@ -47,6 +47,12 @@ export const NAV_SECTIONS: NavSection[] = [
   { href: "/backoffice/historial", label: "Historial", permission: "historial.ver" },
   { href: "/backoffice/clientes", label: "Clientes", permission: "clientes.ver" },
   {
+    href: "/backoffice/central-deudores",
+    label: "Central de Deudores",
+    // Mismo permiso que crear contratos — ver comentario en actions.ts.
+    permission: "administraciones.crear",
+  },
+  {
     href: "/backoffice/presupuestos",
     label: "Presupuestador",
     permission: "presupuestos.ver",

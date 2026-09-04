@@ -1,0 +1,89 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
+import { withRetry } from "@/lib/db-retry";
+import { requirePermission } from "@/lib/auth";
+import { requiredStr } from "@/lib/form-utils";
+import {
+  consultarDeudas,
+  consultarHistoricas,
+  consultarChequesRechazados,
+  normalizeCuit,
+  isValidCuit,
+} from "@/lib/bcra";
+import { ultimoPeriodo, peorSituacion } from "@/lib/central-deudores";
+
+// Mismo permiso que crear contratos — a propósito, no uno nuevo: es
+// exactamente el mismo agente que hoy tendría que entrar a mano a la
+// web del BCRA para evaluar a su propio postulante, así que consultar
+// acá es parte de la misma tarea, no una habilitación aparte.
+const PERMISSION = "administraciones.crear";
+
+// Dispara las 3 consultas (situación actual, histórico 24 meses,
+// cheques rechazados) y guarda/pisa la última fila por CUIT. No hay
+// caché de "todavía vigente, no reconsultar": cada clic en "Consultar"
+// vuelve a golpear la API — el manual habla de un puñado de consultas
+// por día para esta agencia, muy lejos de cualquier límite de tráfico
+// real.
+export async function consultarCreditCheck(formData: FormData) {
+  const profile = await requirePermission(PERMISSION);
+  const cuitRaw = requiredStr(formData.get("cuit"), "CUIT/CUIL");
+  const cuit = normalizeCuit(cuitRaw);
+  if (!isValidCuit(cuit)) {
+    throw new Error("El CUIT/CUIL debe tener 11 dígitos (sin guiones).");
+  }
+
+  const [deudas, historicas, cheques] = await Promise.all([
+    consultarDeudas(cuit),
+    consultarHistoricas(cuit),
+    consultarChequesRechazados(cuit),
+  ]);
+
+  const found = deudas.found || historicas.found || cheques.found;
+  const denominacion =
+    (deudas.found && deudas.data.denominacion) ||
+    (historicas.found && historicas.data.denominacion) ||
+    (cheques.found && cheques.data.denominacion) ||
+    null;
+  const periodo = deudas.found ? ultimoPeriodo(deudas.data) : null;
+  const situacionActual = deudas.found ? peorSituacion(deudas.data) : null;
+
+  const deudaData = deudas.found ? (deudas.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
+  const historicoData = historicas.found ? (historicas.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
+  const chequesRechazadosData = cheques.found ? (cheques.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
+
+  await withRetry(() =>
+    prisma.creditCheck.upsert({
+      where: { cuit },
+      create: {
+        cuit,
+        denominacion,
+        found,
+        situacionActual,
+        periodoInformado: periodo?.periodo ?? null,
+        deudaData,
+        historicoData,
+        chequesRechazadosData,
+        consultedById: profile.id,
+      },
+      update: {
+        denominacion,
+        found,
+        situacionActual,
+        periodoInformado: periodo?.periodo ?? null,
+        deudaData,
+        historicoData,
+        chequesRechazadosData,
+        consultedById: profile.id,
+        consultedAt: new Date(),
+      },
+    })
+  );
+
+  revalidatePath("/backoffice/central-deudores");
+  revalidatePath(`/backoffice/central-deudores/${cuit}`);
+  redirect(`/backoffice/central-deudores/${cuit}`);
+}
