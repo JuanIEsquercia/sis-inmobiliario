@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { getPublicTeam } from "@/lib/site";
 import { toWhatsAppLink } from "@/lib/whatsapp";
+
+export const metadata: Metadata = {
+  title: "Nuestro equipo",
+  description: "Conocé a los agentes autorizados de Garcia Propiedades en Corrientes, con contacto directo por WhatsApp.",
+  alternates: { canonical: "/equipo" },
+};
 
 // Sin fetch() de por medio (es una consulta directa a Prisma), Next no
 // tiene ninguna señal para tratar esta página como dinámica — sin esto

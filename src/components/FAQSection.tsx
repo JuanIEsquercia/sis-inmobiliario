@@ -45,9 +45,29 @@ const faqs: FAQItem[] = [
   },
 ];
 
+// FAQPage — Google dejó de mostrar el acordeón de FAQ como rich result
+// para sitios comunes desde agosto 2023 (solo lo conserva para sitios
+// de gobierno/salud "autoritativos"), así que esto no va a producir esa
+// viñeta especial en el buscador clásico. Se deja igual porque sigue
+// siendo un dato estructurado válido, y porque las respuestas de
+// buscadores con IA (Google AI Overviews, etc.) sí lo usan como fuente.
+function faqJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: { "@type": "Answer", text: faq.answer },
+    })),
+  };
+}
+
 export function FAQSection() {
   return (
     <section>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd()) }} />
+
       <div className="mb-6 text-center">
         <h2 className="text-lg font-semibold text-foreground">Preguntas frecuentes</h2>
         <p className="mx-auto mt-1 max-w-md text-sm text-muted">

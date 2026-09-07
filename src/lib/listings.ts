@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { PROPERTY_TYPES } from "@/lib/property-types";
@@ -111,7 +112,10 @@ export async function getFeaturedListings(take = 6) {
 // puede traer más campos no modelados). Es la ficha pública: que un
 // campo nuevo se agregue acá tiene que ser una decisión explícita, no
 // un efecto secundario de traer todo con include.
-export async function getListingById(id: number) {
+// cache() de React (no next/cache) — dedupea dentro de un mismo request:
+// generateMetadata y el propio componente de la página piden el mismo
+// listing, y sin esto serían dos consultas a la base en vez de una.
+export const getListingById = cache(async (id: number) => {
   return withRetry(() =>
     prisma.listing.findFirst({
       where: { id, isActive: true },
@@ -156,7 +160,7 @@ export async function getListingById(id: number) {
       },
     })
   );
-}
+});
 
 export async function getFilterOptions() {
   const cities = await withRetry(() =>

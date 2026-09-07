@@ -1,12 +1,63 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Gallery } from "@/components/Gallery";
 import { getListingById } from "@/lib/listings";
 import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
 import { AGENCY_PHONE, toWhatsAppLink } from "@/lib/whatsapp";
+import { SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+// El template del layout raíz (`%s | Garcia Propiedades`) ya agrega el
+// nombre de la marca — acá solo va lo específico del aviso, recortado
+// para dejarle lugar a esa parte fija sin pasarse del largo que Google
+// muestra completo.
+function buildListingTitle(displayTitle: string, opLabel: string, city: string | null): string {
+  const suffix = ` — ${opLabel}${city ? ` en ${city}` : ""}`;
+  const budget = 60 - suffix.length;
+  const trimmedTitle = displayTitle.length > budget ? `${displayTitle.slice(0, budget - 1).trimEnd()}…` : displayTitle;
+  return `${trimmedTitle}${suffix}`;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const numericId = Number(id);
+  if (!Number.isFinite(numericId)) return {};
+
+  const listing = await getListingById(numericId);
+  if (!listing) return {};
+
+  const displayTitle = listing.contentTitle ?? listing.title;
+  const opLabel = operationLabel(listing.operationType);
+  const title = buildListingTitle(displayTitle, opLabel, listing.city);
+
+  const description = listing.description
+    ? truncateDescription(listing.description)
+    : truncateDescription(
+        `${listing.propertyType} en ${opLabel.toLowerCase()} en ${listing.city ?? "Corrientes"}${
+          listing.rooms ? `, ${listing.rooms} dormitorios` : ""
+        }. ${formatPrice(listing)}.`
+      );
+
+  const canonical = `/propiedades/${listing.id}`;
+  const ogImage = listing.images[0]?.url;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: absoluteUrl(canonical),
+      type: "website",
+      images: ogImage ? [{ url: ogImage }] : undefined,
+    },
+    twitter: ogImage ? { card: "summary_large_image", images: [ogImage] } : undefined,
+  };
 }
 
 function youtubeEmbedUrl(url: string): string | null {
@@ -66,8 +117,54 @@ export default async function PropertyDetailPage({ params }: PageProps) {
   // sistema sin tener que preguntar de cuál se trata.
   const whatsappMessage = `Hola! Me interesa obtener más información sobre la propiedad: "${displayTitle}" (Código ${listing.externalId}).`;
 
+  // RealEstateListing (tipo oficial de schema.org para esto, aunque
+  // Google todavía no le da una viñeta especial en el buscador clásico —
+  // sirve igual para el Knowledge Graph y para que buscadores con IA
+  // puedan citar precio/ubicación con la fuente correcta) + BreadcrumbList
+  // (este sí es un rich result vigente).
+  const listingJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "RealEstateListing",
+    name: displayTitle,
+    description: listing.description ?? undefined,
+    url: absoluteUrl(`/propiedades/${listing.id}`),
+    image: listing.images.map((img) => img.url),
+    datePosted: listing.sourceUpdatedAt ?? undefined,
+    address: locationText
+      ? {
+          "@type": "PostalAddress",
+          streetAddress: listing.address ?? undefined,
+          addressLocality: listing.city ?? undefined,
+          addressRegion: listing.region ?? undefined,
+          addressCountry: "AR",
+        }
+      : undefined,
+    offers:
+      listing.priceAmount !== null
+        ? {
+            "@type": "Offer",
+            price: String(listing.priceAmount),
+            priceCurrency: listing.priceCurrency ?? "ARS",
+            availability: "https://schema.org/InStock",
+          }
+        : undefined,
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Inicio", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Propiedades", item: absoluteUrl("/propiedades") },
+      { "@type": "ListItem", position: 3, name: displayTitle, item: absoluteUrl(`/propiedades/${listing.id}`) },
+    ],
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10 space-y-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(listingJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+
       {/* Botón Volver y Encabezado Hero de la Propiedad */}
       <div className="space-y-4">
         <Link

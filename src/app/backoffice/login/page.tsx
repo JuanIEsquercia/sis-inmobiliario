@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { LoginForm } from "@/components/backoffice/LoginForm";
+
+export const metadata: Metadata = { title: "Ingresar", robots: { index: false, follow: false } };
 
 interface PageProps {
   searchParams: Promise<{ motivo?: string }>;

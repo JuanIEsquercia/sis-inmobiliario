@@ -1,19 +1,68 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
 import { PropertyCard } from "@/components/PropertyCard";
 import { getFilterOptions, getListings } from "@/lib/listings";
+import { operationLabel } from "@/lib/format";
+
+interface PageSearchParams {
+  operacion?: string;
+  tipo?: string;
+  ciudad?: string;
+  precioMin?: string;
+  precioMax?: string;
+  dormitorios?: string;
+  aptoCredito?: string;
+  page?: string;
+}
 
 interface PageProps {
-  searchParams: Promise<{
-    operacion?: string;
-    tipo?: string;
-    ciudad?: string;
-    precioMin?: string;
-    precioMax?: string;
-    dormitorios?: string;
-    aptoCredito?: string;
-    page?: string;
-  }>;
+  searchParams: Promise<PageSearchParams>;
+}
+
+// Solo operación/tipo/ciudad arman título, descripción y URL canónica
+// distintos — son los 3 filtros con intención de búsqueda real
+// ("departamentos en alquiler en Corrientes"). Precio, dormitorios y
+// página quedan afuera a propósito: si entraran, cada combinación de
+// rango de precio armaría una URL "distinta" a ojos de Google compitiendo
+// contra las demás por el mismo contenido — canonicalizar a la versión
+// sin esos filtros evita diluir el posicionamiento entre variantes casi
+// idénticas.
+function buildFacetedMeta(sp: PageSearchParams): { title: string; description: string; canonical: string } {
+  const opLabel = sp.operacion ? operationLabel(sp.operacion) : null;
+  const tipo = sp.tipo || null;
+  const ciudad = sp.ciudad || "Corrientes";
+
+  const params = new URLSearchParams();
+  if (sp.operacion) params.set("operacion", sp.operacion);
+  if (sp.tipo) params.set("tipo", sp.tipo);
+  if (sp.ciudad) params.set("ciudad", sp.ciudad);
+  const canonical = params.size > 0 ? `/propiedades?${params.toString()}` : "/propiedades";
+
+  if (!opLabel && !tipo && !sp.ciudad) {
+    return {
+      title: "Propiedades en Venta y Alquiler en Corrientes",
+      description: "Catálogo completo de casas, departamentos, campos y terrenos en venta y alquiler en Corrientes.",
+      canonical,
+    };
+  }
+
+  const what = tipo ?? "Propiedades";
+  const op = opLabel ? `en ${opLabel}` : "en Venta y Alquiler";
+  const title = `${what} ${op} en ${ciudad}`;
+  const description = `${what} ${op.toLowerCase()} en ${ciudad}, Corrientes. Filtrá por precio, dormitorios y más para encontrar la tuya.`;
+  return { title, description, canonical };
+}
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const sp = await searchParams;
+  const { title, description, canonical } = buildFacetedMeta(sp);
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description },
+  };
 }
 
 function toNumber(value: string | undefined): number | undefined {
