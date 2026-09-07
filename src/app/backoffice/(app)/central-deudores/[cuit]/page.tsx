@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
-import { getCreditChecksByCuit, consultantLabel } from "@/lib/central-deudores";
+import { getCreditChecksByCuit, consultantLabel, evaluarCheck } from "@/lib/central-deudores";
 import { SITUACION_LABELS, situacionColorClass } from "@/lib/bcra";
 import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 import { consultarCreditCheck, eliminarCreditCheck } from "../actions";
@@ -60,19 +60,30 @@ export default async function HistorialCreditCheckPage({ params }: PageProps) {
             </tr>
           </thead>
           <tbody>
-            {checks.map((c) => (
+            {checks.map((c) => {
+              const ev = evaluarCheck(c);
+              const extras = [
+                ev.peorHistorica !== null && ev.peorHistorica > 1 && `histórico: peor situación ${ev.peorHistorica}`,
+                ev.chequesRechazados > 0 && `${ev.chequesRechazados} cheque(s) rechazado(s)`,
+              ].filter(Boolean);
+              return (
               <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface">
                 <td className="px-4 py-3 text-muted">{fmtDateTime.format(c.consultedAt)}</td>
                 <td className="px-4 py-3">
-                  {!c.found ? (
-                    <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted">Sin antecedentes</span>
-                  ) : c.situacionActual === null ? (
-                    <span className="text-xs text-muted">—</span>
-                  ) : (
-                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${situacionColorClass(c.situacionActual)}`}>
-                      Situación {c.situacionActual} — {SITUACION_LABELS[c.situacionActual]}
-                    </span>
-                  )}
+                  <span className="inline-flex flex-col items-start gap-1">
+                    {!c.found ? (
+                      <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted">Sin antecedentes</span>
+                    ) : c.situacionActual === null ? (
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${situacionColorClass(ev.revisar ? 2 : 1)}`}>
+                        Sin deuda actual
+                      </span>
+                    ) : (
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${situacionColorClass(c.situacionActual)}`}>
+                        Situación {c.situacionActual} — {SITUACION_LABELS[c.situacionActual]}
+                      </span>
+                    )}
+                    {extras.length > 0 && <span className="text-[11px] text-muted">{extras.join(" · ")}</span>}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-muted">{consultantLabel(c.consultedBy)}</td>
                 <td className="px-4 py-3">
@@ -94,7 +105,8 @@ export default async function HistorialCreditCheckPage({ params }: PageProps) {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

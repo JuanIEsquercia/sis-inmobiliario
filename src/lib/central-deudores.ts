@@ -33,9 +33,43 @@ export interface CreditCheckGrouped {
   denominacion: string | null;
   found: boolean;
   situacionActual: number | null;
+  // Peor situación en los 24 meses de histórico (null si no hay) y
+  // cantidad de cheques rechazados — `found` con situacionActual null
+  // significa justamente "sin deuda actual pero con histórico o cheques",
+  // y sin estos dos campos ese caso quedaba invisible en el listado.
+  peorHistorica: number | null;
+  chequesRechazados: number;
+  // true = hay algo que mirar: situación > 1 (actual o histórica) o
+  // cheques rechazados. false = limpio, sea porque el BCRA no lo conoce
+  // (found=false) o porque todo lo informado está en situación 1.
+  revisar: boolean;
   consultedAt: Date;
   consultedBy: { firstName: string | null; lastName: string | null; username: string } | null;
   totalConsultas: number;
+}
+
+export function peorSituacionHistorica(historico: DeudaResult | null): number | null {
+  if (!historico) return null;
+  const situaciones = historico.periodos.flatMap((p) => p.entidades.map((e) => e.situacion));
+  return situaciones.length === 0 ? null : Math.max(...situaciones);
+}
+
+// Clasificación única para tarjetas y badges del listado — así
+// "limpio" y "para revisar" siempre suman el total, sin casos que caen
+// en el medio.
+export function evaluarCheck(check: {
+  found: boolean;
+  situacionActual: number | null;
+  historicoData: unknown;
+  chequesRechazadosData: unknown;
+}): Pick<CreditCheckGrouped, "peorHistorica" | "chequesRechazados" | "revisar"> {
+  const peorHistorica = peorSituacionHistorica(check.historicoData as DeudaResult | null);
+  const chequesRechazados = totalChequesRechazados(check.chequesRechazadosData as ChequesResult | null);
+  const revisar =
+    (check.situacionActual !== null && check.situacionActual > 1) ||
+    (peorHistorica !== null && peorHistorica > 1) ||
+    chequesRechazados > 0;
+  return { peorHistorica, chequesRechazados, revisar };
 }
 
 // Listado principal: una fila por CUIT (la consulta más reciente),
@@ -58,7 +92,7 @@ export async function getLatestCreditChecksGrouped(take = 30): Promise<CreditChe
   ]);
 
   const countByCuit = new Map(counts.map((c) => [c.cuit, c._count._all]));
-  return latest.map((c) => ({ ...c, totalConsultas: countByCuit.get(c.cuit) ?? 1 }));
+  return latest.map((c) => ({ ...c, ...evaluarCheck(c), totalConsultas: countByCuit.get(c.cuit) ?? 1 }));
 }
 
 // El período más reciente del array `periodos` — la API no garantiza

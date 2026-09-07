@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
-import { getLatestCreditChecksGrouped, consultantLabel } from "@/lib/central-deudores";
+import { getLatestCreditChecksGrouped, consultantLabel, type CreditCheckGrouped } from "@/lib/central-deudores";
 import { SITUACION_LABELS, situacionColorClass } from "@/lib/bcra";
 import { KpiStatCard } from "@/components/backoffice/KpiStatCard";
 import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
@@ -8,13 +8,46 @@ import { consultarCreditCheck } from "./actions";
 
 const fmtDateTime = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" });
 
+// Un solo badge para tarjetas móviles y tabla — cubre los 4 casos
+// reales: sin antecedentes, situación actual informada, y "el BCRA lo
+// conoce pero sin deuda actual" (solo histórico y/o cheques), que antes
+// salía como "—" y parecía una consulta sin resultado.
+function SituacionBadge({ c }: { c: CreditCheckGrouped }) {
+  const extras = [
+    c.peorHistorica !== null && c.peorHistorica > 1 && `histórico: peor situación ${c.peorHistorica}`,
+    c.chequesRechazados > 0 && `${c.chequesRechazados} cheque${c.chequesRechazados === 1 ? "" : "s"} rechazado${c.chequesRechazados === 1 ? "" : "s"}`,
+  ].filter(Boolean);
+
+  return (
+    <span className="inline-flex flex-col items-start gap-1">
+      {!c.found ? (
+        <span className="inline-flex rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
+          Sin antecedentes
+        </span>
+      ) : c.situacionActual === null ? (
+        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${c.revisar ? situacionColorClass(2) : situacionColorClass(1)}`}>
+          Sin deuda actual
+        </span>
+      ) : (
+        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${situacionColorClass(c.situacionActual)}`}>
+          Situación {c.situacionActual} — {SITUACION_LABELS[c.situacionActual]}
+        </span>
+      )}
+      {extras.length > 0 && <span className="text-[11px] text-muted">{extras.join(" · ")}</span>}
+    </span>
+  );
+}
+
 export default async function CentralDeDeudoresPage() {
   await requirePermission("central_deudores.consultar");
   const checks = await getLatestCreditChecksGrouped();
 
-  // Métricas
-  const totalSinAntecedentes = checks.filter((c) => !c.found).length;
-  const conObservaciones = checks.filter((c) => c.found && c.situacionActual !== null && c.situacionActual > 1).length;
+  // Métricas — dos grupos que particionan el total (ver evaluarCheck):
+  // antes "sin antecedentes" y "situación > 1" dejaban afuera a los que
+  // tienen datos en el BCRA pero todo en situación 1, y a los que no
+  // tienen deuda actual pero sí histórico o cheques.
+  const paraRevisar = checks.filter((c) => c.revisar).length;
+  const limpios = checks.length - paraRevisar;
 
   return (
     <div className="space-y-6">
@@ -40,9 +73,9 @@ export default async function CentralDeDeudoresPage() {
           }
         />
         <KpiStatCard
-          title="Sin Antecedentes"
-          value={totalSinAntecedentes}
-          subtitle="Historial limpio en BCRA"
+          title="Sin Observaciones"
+          value={limpios}
+          subtitle="Sin antecedentes, o todo en situación 1 y sin cheques"
           badge={{ label: "Limpio", variant: "success" }}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -51,10 +84,10 @@ export default async function CentralDeDeudoresPage() {
           }
         />
         <KpiStatCard
-          title="Con Obser. / Deuda"
-          value={conObservaciones}
-          subtitle="Situación > 1 registrada"
-          badge={{ label: conObservaciones > 0 ? "Revisar" : "Sin morosos", variant: conObservaciones > 0 ? "warning" : "neutral" }}
+          title="Para Revisar"
+          value={paraRevisar}
+          subtitle="Situación > 1 (actual o en 24 meses) o cheques rechazados"
+          badge={{ label: paraRevisar > 0 ? "Revisar" : "Sin morosos", variant: paraRevisar > 0 ? "warning" : "neutral" }}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -118,17 +151,7 @@ export default async function CentralDeDeudoresPage() {
 
                   <div className="bg-background/50 p-3 rounded-xl border border-border/40">
                     <span className="text-muted block text-[10px] uppercase font-bold tracking-wider mb-1">Situación BCRA</span>
-                    {!c.found ? (
-                      <span className="inline-flex rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
-                        Sin antecedentes registrados
-                      </span>
-                    ) : c.situacionActual === null ? (
-                      <span className="text-xs text-muted">—</span>
-                    ) : (
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${situacionColorClass(c.situacionActual)}`}>
-                        Situación {c.situacionActual} — {SITUACION_LABELS[c.situacionActual]}
-                      </span>
-                    )}
+                    <SituacionBadge c={c} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -176,15 +199,7 @@ export default async function CentralDeDeudoresPage() {
                     </td>
                     <td className="px-4 py-3 text-muted">{c.denominacion ?? "—"}</td>
                     <td className="px-4 py-3">
-                      {!c.found ? (
-                        <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-muted">Sin antecedentes</span>
-                      ) : c.situacionActual === null ? (
-                        <span className="text-xs text-muted">—</span>
-                      ) : (
-                        <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${situacionColorClass(c.situacionActual)}`}>
-                          Situación {c.situacionActual} — {SITUACION_LABELS[c.situacionActual]}
-                        </span>
-                      )}
+                      <SituacionBadge c={c} />
                     </td>
                     <td className="px-4 py-3 text-muted">{fmtDateTime.format(c.consultedAt)}</td>
                     <td className="px-4 py-3 text-muted">{consultantLabel(c.consultedBy)}</td>
