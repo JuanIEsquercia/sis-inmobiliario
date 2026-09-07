@@ -13,7 +13,7 @@ interface PageSearchParams {
   precioMax?: string;
   dormitorios?: string;
   aptoCredito?: string;
-  // Código de Adinco (Listing.externalId) — fuera del título/canónica
+  // Código de Adinco (Listing.code, no externalId) — fuera del título/canónica
   // a propósito, mismo criterio que precio/dormitorios: es una búsqueda
   // puntual de una persona, no una categoría con intención de búsqueda
   // real que valga indexar aparte.

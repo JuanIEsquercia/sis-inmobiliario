@@ -85,6 +85,10 @@ export interface NormalizedAgency {
 
 export interface NormalizedListing {
   externalId: string;
+  // <code> del feed — distinto de <id>/externalId, ver comentario en el
+  // modelo Listing. Opcional porque no hay garantía de que Adinco lo
+  // mande siempre (ni de que exista para avisos viejos que reingresen).
+  code: string | null;
   sourceUrl: string | null;
   title: string;
   contentTitle: string | null;
@@ -198,6 +202,7 @@ function normalizeAd(raw: RawAd): NormalizedListing {
 
   return {
     externalId: core.id,
+    code: str(raw.code),
     sourceUrl: str(raw.url),
     title: core.title,
     contentTitle: str(raw.content_title),

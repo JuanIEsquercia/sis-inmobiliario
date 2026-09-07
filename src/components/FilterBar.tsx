@@ -67,7 +67,7 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
             type="text"
             name="codigo"
             inputMode="numeric"
-            placeholder="Ej: 6287179"
+            placeholder="Ej: 42"
             defaultValue={defaults.codigo ?? ""}
             className="w-full h-full bg-transparent px-4 text-sm sm:text-base font-semibold text-foreground placeholder:text-muted/60 outline-none"
           />

@@ -31,7 +31,17 @@ model Agency {
 
 model Listing {
   id         Int     @id @default(autoincrement())
-  externalId String  @unique // <id> del aviso en Adinco
+  externalId String  @unique // <id> del aviso en Adinco — interno, nunca se le muestra al público
+  // <code> del feed — el número de código de propiedad que usa Adinco
+  // para filtrar/identificar el aviso de cara al público (a diferencia
+  // de <id>, que es un id interno de Adinco sin significado para nadie
+  // más). Es lo que se muestra como "Código" en el sitio y en el
+  // WhatsApp de cada ficha, y por lo que se busca en /propiedades. No
+  // es @unique a nivel de base a propósito: viene de un feed externo
+  // que no controlamos, y una eventual colisión no puede tirar abajo
+  // el sync entero — se puede auditar con una consulta si hace falta,
+  // sin que la restricción rompa nada en producción.
+  code       String? @db.VarChar(50)
   sourceUrl  String?
 
   title        String
@@ -109,6 +119,7 @@ model Listing {
   @@index([operationType])
   @@index([propertyType])
   @@index([city])
+  @@index([code])
   // Compuesto en vez de un @@index([isActive]) suelto: el listado
   // público siempre filtra isActive Y ordena por sourceUpdatedAt, así
   // que un solo índice cubre las dos cosas sin duplicar mantenimiento.

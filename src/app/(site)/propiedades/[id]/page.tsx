@@ -110,12 +110,15 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
   // Mensaje preconfigurado para consulta — toWhatsAppLink hace su propio
   // encodeURIComponent, así que acá va el texto plano (encodearlo antes
-  // rompería el link con un doble encoding). Se manda el Código (el
-  // mismo identificador Adinco que usa el equipo puertas adentro —
-  // Unit.propertyCode, Historial, etc.), no el id interno de la base:
-  // así quien atiende el WhatsApp puede ubicar la propiedad en el
-  // sistema sin tener que preguntar de cuál se trata.
-  const whatsappMessage = `Hola! Me interesa obtener más información sobre la propiedad: "${displayTitle}" (Código ${listing.externalId}).`;
+  // rompería el link con un doble encoding). Se manda listing.code (el
+  // <code> del feed, el número que Adinco usa para identificar la
+  // propiedad de cara al público), NUNCA externalId (<id>, un id interno
+  // de Adinco sin significado para nadie más) — así quien atiende el
+  // WhatsApp puede ubicar la propiedad sin tener que preguntar de cuál
+  // se trata. Puede faltar en avisos que todavía no trajeron el campo
+  // nuevo desde el último sync — ahí se omite el paréntesis entero en
+  // vez de mostrar un código que no es.
+  const whatsappMessage = `Hola! Me interesa obtener más información sobre la propiedad: "${displayTitle}"${listing.code ? ` (Código ${listing.code})` : ""}.`;
 
   // RealEstateListing (tipo oficial de schema.org para esto, aunque
   // Google todavía no le da una viñeta especial en el buscador clásico —
