@@ -24,30 +24,30 @@ export function BackofficeShell({ profile, children }: BackofficeShellProps) {
   return (
     <div className="flex min-h-full flex-1 flex-col">
       {/* Header Responsivo */}
-      <header className="print:hidden sticky top-0 z-40 flex items-center justify-between border-b border-border/50 bg-background/80 backdrop-blur-md px-4 py-3 md:px-6 shadow-sm">
+      <header className="print:hidden sticky top-0 z-40 flex items-center justify-between border-b border-border/50 bg-background/80 backdrop-blur-md px-3 py-2.5 sm:px-6 sm:py-3 shadow-sm">
         <div className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
           {/* Botón Hamburguesa en Mobile */}
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="md:hidden flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:text-foreground hover:bg-surface/60 cursor-pointer transition-colors"
+            className="md:hidden flex h-9 w-9 items-center justify-center rounded-xl text-muted hover:text-foreground hover:bg-surface/80 border border-border/40 cursor-pointer transition-colors"
             aria-label="Abrir menú"
           >
-            <svg className="h-5.5 w-5.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           
-          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-          <span className="hidden sm:inline">Panel Inmobiliario</span>
-          <span className="text-muted/65 font-normal hidden sm:inline">|</span>
-          <span className="text-xs font-medium text-muted truncate max-w-[120px] sm:max-w-none">Garcia Propiedades</span>
+          <span className="h-2 w-2 rounded-full bg-accent animate-pulse shrink-0" />
+          <span className="text-xs sm:text-sm font-bold tracking-tight text-foreground">Backoffice</span>
+          <span className="text-muted/50 font-normal hidden md:inline">|</span>
+          <span className="text-xs font-medium text-muted hidden md:inline">Panel Inmobiliario</span>
         </div>
         
         <div className="flex items-center gap-2 sm:gap-4">
           <GlobalSearch />
-          <div className="flex items-center gap-2.5 pr-3 sm:pr-4 border-r border-border/60">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/5 border border-accent/15 text-accent text-xs font-bold shadow-sm select-none flex-none">
+          <div className="flex items-center gap-2.5 pr-2 sm:pr-4 border-r border-border/60">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold shadow-xs select-none flex-none">
               {userInitials}
             </div>
             <div className="hidden sm:flex flex-col">
@@ -103,11 +103,6 @@ export function BackofficeShell({ profile, children }: BackofficeShellProps) {
         </aside>
 
         {/* Contenido Principal */}
-        {/* min-w-0 es lo que realmente evita el scroll lateral de toda la
-            pantalla — sin esto, un hijo intrínsecamente ancho (una
-            tabla, un iframe) puede estirar este flex item más allá del
-            espacio disponible antes de que su propio overflow-x-hidden
-            llegue a recortar nada. */}
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8 bg-background/50 print:p-0 overflow-x-hidden w-full">
           {children}
         </main>

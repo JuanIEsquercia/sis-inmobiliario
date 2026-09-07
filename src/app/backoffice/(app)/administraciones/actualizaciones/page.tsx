@@ -3,7 +3,7 @@ import { getContractsDueForIndexation, getContractsNearingEnd, getIndexTypes, cl
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { IndexacionPercentField } from "@/components/backoffice/IndexacionPercentField";
-import { RentCalculatorEmbed } from "@/components/backoffice/RentCalculatorEmbed";
+import { RentCalculatorEmbed } from "@/components/RentCalculatorEmbed";
 import { actualizarRenovacionEsperada, aplicarIndexacion } from "../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
