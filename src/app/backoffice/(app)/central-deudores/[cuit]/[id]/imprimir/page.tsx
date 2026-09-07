@@ -27,7 +27,7 @@ interface PageProps {
 }
 
 export default async function ImprimirCreditCheckPage({ params }: PageProps) {
-  await requirePermission("administraciones.crear");
+  await requirePermission("central_deudores.consultar");
   const { cuit, id } = await params;
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();

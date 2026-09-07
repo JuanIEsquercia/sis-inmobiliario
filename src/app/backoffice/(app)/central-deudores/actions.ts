@@ -16,11 +16,13 @@ import {
 } from "@/lib/bcra";
 import { ultimoPeriodo, peorSituacion } from "@/lib/central-deudores";
 
-// Mismo permiso que crear contratos — a propósito, no uno nuevo: es
-// exactamente el mismo agente que hoy tendría que entrar a mano a la
-// web del BCRA para evaluar a su propio postulante, así que consultar
-// acá es parte de la misma tarea, no una habilitación aparte.
-const PERMISSION = "administraciones.crear";
+// Clave propia del módulo (antes reutilizaba administraciones.crear):
+// es una entrada aparte del menú con datos financieros personales, y
+// tiene que poder darse o sacarse por separado de "cargar contratos".
+// Consultar y borrar son dos claves distintas — borrar historial es
+// tarea de quien administra, no del agente que evalúa postulantes.
+const PERMISSION = "central_deudores.consultar";
+const PERMISSION_ELIMINAR = "central_deudores.eliminar";
 
 // Dispara las 3 consultas (situación actual, histórico 24 meses,
 // cheques rechazados) y guarda SIEMPRE una fila nueva — ya no se pisa
@@ -83,10 +85,9 @@ export async function consultarCreditCheck(formData: FormData) {
 // Un CreditCheck no queda referenciado desde ningún otro registro (a
 // diferencia de un Contract) — borrar una consulta puntual es una
 // operación simple, sin resguardos especiales. Borra solo esa fila, no
-// el resto del historial de ese CUIT. Mismo permiso que el resto del
-// módulo.
+// el resto del historial de ese CUIT.
 export async function eliminarCreditCheck(cuit: string, id: number) {
-  await requirePermission(PERMISSION);
+  await requirePermission(PERMISSION_ELIMINAR);
   await withRetry(() => prisma.creditCheck.delete({ where: { id } }));
   revalidatePath("/backoffice/central-deudores");
   revalidatePath(`/backoffice/central-deudores/${cuit}`);

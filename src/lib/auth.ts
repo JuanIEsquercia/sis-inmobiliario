@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
+import { ALL_PERMISSION_KEYS, expandPermissions } from "@/lib/permissions";
 import type { Profile } from "@/generated/prisma/client";
 
 // proxy.ts ya redirige a /backoffice/login si no hay sesión; estos
@@ -29,8 +29,12 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   // ADMIN siempre tiene el catálogo completo de permisos, calculado acá
   // (no se persiste) — así un ADMIN nunca queda con permisos viejos
   // cuando el catálogo en permissions.ts crece; el array guardado en la
-  // fila solo importa para AGENTE, donde sí es granular por usuario.
-  return profile.role === "ADMIN" ? { ...profile, permissions: ALL_PERMISSION_KEYS } : profile;
+  // fila solo importa para AGENTE, donde sí es granular por usuario —
+  // y ahí se le suman las dependencias implícitas (ver
+  // PERMISSION_IMPLIES), también en memoria, nunca en la fila.
+  return profile.role === "ADMIN"
+    ? { ...profile, permissions: ALL_PERMISSION_KEYS }
+    : { ...profile, permissions: expandPermissions(profile.permissions) };
 });
 
 export async function requireProfile(): Promise<Profile> {

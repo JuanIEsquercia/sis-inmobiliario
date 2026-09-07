@@ -13,7 +13,7 @@ const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigit
 const MONTHS_AHEAD = 6;
 
 export default async function ProyeccionPage() {
-  const profile = await requirePermission("caja.ver");
+  const profile = await requirePermission("caja.proyeccion.ver");
   const canConfigure = profile.permissions.includes("caja.proyeccion.configurar");
 
   const [months, settings] = await Promise.all([getProjection(MONTHS_AHEAD), getProjectionSettings()]);

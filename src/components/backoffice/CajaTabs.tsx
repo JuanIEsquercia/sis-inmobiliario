@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { getCurrentProfile } from "@/lib/auth";
 
+// Consolidado y Proyección tienen clave propia (ver permissions.ts):
+// son los números del negocio entero, no lo operativo. La pestaña se
+// oculta sin el permiso — la página igual lo exige por su cuenta.
 const tabs = [
   { key: "movimientos", href: "/backoffice/caja", label: "Movimientos" },
   { key: "ventas", href: "/backoffice/caja/ventas", label: "Ventas" },
@@ -7,11 +11,14 @@ const tabs = [
   { key: "comisiones", href: "/backoffice/caja/comisiones", label: "Comisión alquileres" },
   { key: "administracion", href: "/backoffice/caja/administracion", label: "Administración" },
   { key: "egresos", href: "/backoffice/caja/egresos", label: "Egresos" },
-  { key: "consolidado", href: "/backoffice/caja/consolidado", label: "Consolidado" },
-  { key: "proyeccion", href: "/backoffice/caja/proyeccion", label: "Proyección" },
+  { key: "consolidado", href: "/backoffice/caja/consolidado", label: "Consolidado", permission: "caja.consolidado.ver" },
+  { key: "proyeccion", href: "/backoffice/caja/proyeccion", label: "Proyección", permission: "caja.proyeccion.ver" },
 ] as const;
 
-export function CajaTabs({
+// Server Component async: lee el perfil por su cuenta (getCurrentProfile
+// está memoizado por request, no suma una consulta) en vez de pedirle a
+// cada una de las 8 páginas de Caja que le pase los permisos.
+export async function CajaTabs({
   active,
 }: {
   active:
@@ -24,9 +31,13 @@ export function CajaTabs({
     | "consolidado"
     | "proyeccion";
 }) {
+  const profile = await getCurrentProfile();
+  const permissions = profile?.permissions ?? [];
+  const visibleTabs = tabs.filter((tab) => !("permission" in tab) || permissions.includes(tab.permission));
+
   return (
     <div className="mb-6 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-border/60 pb-3">
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const isActive = tab.key === active;
         return (
           <Link

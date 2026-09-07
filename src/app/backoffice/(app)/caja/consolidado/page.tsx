@@ -19,7 +19,7 @@ interface PageProps {
 }
 
 export default async function ConsolidadoPage({ searchParams }: PageProps) {
-  await requirePermission("caja.ver");
+  await requirePermission("caja.consolidado.ver");
   const sp = await searchParams;
 
   const now = new Date();

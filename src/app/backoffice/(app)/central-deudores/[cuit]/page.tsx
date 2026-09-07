@@ -18,7 +18,8 @@ interface PageProps {
 // momento, o si hace falta volver a ver qué decía el BCRA en una fecha
 // puntual.
 export default async function HistorialCreditCheckPage({ params }: PageProps) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("central_deudores.consultar");
+  const canDelete = profile.permissions.includes("central_deudores.eliminar");
   const { cuit } = await params;
 
   const checks = await getCreditChecksByCuit(cuit);
@@ -82,12 +83,14 @@ export default async function HistorialCreditCheckPage({ params }: PageProps) {
                     >
                       Ver detalle
                     </Link>
-                    <ConfirmDeleteButton
-                      action={eliminarCreditCheck.bind(null, cuit, c.id)}
-                      triggerClassName="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
-                      title="¿Eliminar esta consulta?"
-                      description={`Se va a borrar esta consulta puntual del ${fmtDateTime.format(c.consultedAt)}. Las demás consultas de este CUIT quedan intactas.`}
-                    />
+                    {canDelete && (
+                      <ConfirmDeleteButton
+                        action={eliminarCreditCheck.bind(null, cuit, c.id)}
+                        triggerClassName="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
+                        title="¿Eliminar esta consulta?"
+                        description={`Se va a borrar esta consulta puntual del ${fmtDateTime.format(c.consultedAt)}. Las demás consultas de este CUIT quedan intactas.`}
+                      />
+                    )}
                   </div>
                 </td>
               </tr>

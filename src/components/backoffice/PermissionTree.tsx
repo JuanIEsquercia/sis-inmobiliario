@@ -1,7 +1,26 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { PERMISSION_TREE } from "@/lib/permissions";
+import { PERMISSION_TREE, expandPermissions } from "@/lib/permissions";
+
+// Tildar una hoja tilda también lo que implica (ver PERMISSION_IMPLIES)
+// — así lo que se ve en el árbol coincide con lo que va a regir, que
+// igual se expande del lado del servidor al cargar el perfil. Destildar
+// no cascadea a propósito: sacar "ver" dejando "crear" es un estado que
+// el servidor corrige solo, y avisarlo acá sería más ruido que ayuda.
+function handleLeafChange(e: React.ChangeEvent<HTMLInputElement>) {
+  if (!e.target.checked) return;
+  const form = e.target.closest("form");
+  if (!form) return;
+  for (const key of expandPermissions([e.target.value])) {
+    const input = form.querySelector<HTMLInputElement>(`input[name="permissions"][value="${key}"]`);
+    if (input) input.checked = true;
+  }
+  // Los checkboxes de módulo sincronizan escuchando "change" en el form
+  // — el evento original ya pasó por ahí antes de llegar acá, así que
+  // se vuelve a disparar para que reflejen los tildes programáticos.
+  form.dispatchEvent(new Event("change", { bubbles: true }));
+}
 
 interface PermissionTreeProps {
   defaultChecked: string[];
@@ -70,6 +89,7 @@ export function PermissionTree({ defaultChecked }: PermissionTreeProps) {
                   name="permissions"
                   value={leaf.key}
                   defaultChecked={defaultChecked.includes(leaf.key)}
+                  onChange={handleLeafChange}
                   className="h-4 w-4 accent-accent"
                 />
                 {leaf.label}

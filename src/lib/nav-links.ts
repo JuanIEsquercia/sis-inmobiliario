@@ -40,8 +40,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/backoffice/caja/comisiones", label: "Comisión alquileres" },
       { href: "/backoffice/caja/administracion", label: "Administración" },
       { href: "/backoffice/caja/egresos", label: "Egresos" },
-      { href: "/backoffice/caja/consolidado", label: "Consolidado" },
-      { href: "/backoffice/caja/proyeccion", label: "Proyección" },
+      { href: "/backoffice/caja/consolidado", label: "Consolidado", permission: "caja.consolidado.ver" },
+      { href: "/backoffice/caja/proyeccion", label: "Proyección", permission: "caja.proyeccion.ver" },
     ],
   },
   { href: "/backoffice/historial", label: "Historial", permission: "historial.ver" },
@@ -49,8 +49,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     href: "/backoffice/central-deudores",
     label: "Central de Deudores",
-    // Mismo permiso que crear contratos — ver comentario en actions.ts.
-    permission: "administraciones.crear",
+    permission: "central_deudores.consultar",
   },
   {
     href: "/backoffice/presupuestos",

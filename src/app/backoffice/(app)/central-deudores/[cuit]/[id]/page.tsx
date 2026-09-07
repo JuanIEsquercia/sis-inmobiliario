@@ -28,7 +28,8 @@ interface PageProps {
 }
 
 export default async function CreditCheckDetailPage({ params }: PageProps) {
-  await requirePermission("administraciones.crear");
+  const profile = await requirePermission("central_deudores.consultar");
+  const canDelete = profile.permissions.includes("central_deudores.eliminar");
   const { cuit, id } = await params;
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
@@ -73,13 +74,15 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
           >
             Exportar PDF
           </Link>
-          <ConfirmDeleteButton
-            action={eliminarCreditCheck.bind(null, check.cuit, check.id)}
-            triggerLabel="Eliminar"
-            triggerClassName="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-surface hover:text-foreground cursor-pointer"
-            title="¿Eliminar esta consulta?"
-            description={`Se va a borrar esta consulta puntual del ${fmtDateTime.format(check.consultedAt)}. Las demás consultas de este CUIT quedan intactas.`}
-          />
+          {canDelete && (
+            <ConfirmDeleteButton
+              action={eliminarCreditCheck.bind(null, check.cuit, check.id)}
+              triggerLabel="Eliminar"
+              triggerClassName="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-surface hover:text-foreground cursor-pointer"
+              title="¿Eliminar esta consulta?"
+              description={`Se va a borrar esta consulta puntual del ${fmtDateTime.format(check.consultedAt)}. Las demás consultas de este CUIT quedan intactas.`}
+            />
+          )}
         </div>
       </div>
 
