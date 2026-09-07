@@ -8,6 +8,7 @@ import {
   getUnifiedPendingList,
   pendingTypeLabels,
   type CurrencyAmount,
+  type PendingBucket,
   type PendingItemType,
 } from "@/lib/dashboard";
 import { KpiStatCard } from "@/components/backoffice/KpiStatCard";
@@ -18,6 +19,18 @@ const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 function formatAmounts(amounts: CurrencyAmount[]): string | undefined {
   if (amounts.length === 0) return undefined;
   return amounts.map((a) => `${a.currency} ${fmtMoney(a.amount)}`).join(" · ");
+}
+
+// El número grande de la tarjeta es `operations` (ventas/comisiones
+// DISTINTAS), no `count` (cuotas) — una venta con la comisión partida
+// en 2 pagos tiene que leerse como "1 venta pendiente", no como "2
+// ventas". Las cuotas, cuando hay más de una por operación, van en el
+// subtítulo como aclaración.
+function pendingCardSubtitle(bucket: PendingBucket, cuotaWord: string): string {
+  const amountsText = formatAmounts(bucket.amounts);
+  if (!amountsText) return "Sin pendientes";
+  if (bucket.count === bucket.operations) return amountsText;
+  return `${bucket.count} ${cuotaWord} · ${amountsText}`;
 }
 
 const pendingTypeBadge: Record<PendingItemType, { label: string; variant: "accent" | "warning" | "neutral" | "danger" }> = {
@@ -134,8 +147,8 @@ export default async function BackofficeDashboard() {
             <Link href="/backoffice/caja/ventas" className="block">
               <KpiStatCard
                 title="Ventas"
-                value={collectionsSummary.ventas.count}
-                subtitle={formatAmounts(collectionsSummary.ventas.amounts) ?? "Sin pendientes"}
+                value={collectionsSummary.ventas.operations}
+                subtitle={pendingCardSubtitle(collectionsSummary.ventas, "cuotas")}
                 icon={icons.ventas}
                 badge={collectionsSummary.ventas.count > 0 ? { label: "Pendiente", variant: "warning" } : { label: "Al día", variant: "success" }}
               />
@@ -143,8 +156,8 @@ export default async function BackofficeDashboard() {
             <Link href="/backoffice/caja/comisiones" className="block">
               <KpiStatCard
                 title="Alquileres (comisión)"
-                value={collectionsSummary.alquileres.count}
-                subtitle={formatAmounts(collectionsSummary.alquileres.amounts) ?? "Sin pendientes"}
+                value={collectionsSummary.alquileres.operations}
+                subtitle={pendingCardSubtitle(collectionsSummary.alquileres, "cuotas/pagos")}
                 icon={icons.alquileres}
                 badge={collectionsSummary.alquileres.count > 0 ? { label: "Pendiente", variant: "warning" } : { label: "Al día", variant: "success" }}
               />
@@ -152,8 +165,8 @@ export default async function BackofficeDashboard() {
             <Link href="/backoffice/caja/tasaciones" className="block">
               <KpiStatCard
                 title="Tasaciones"
-                value={collectionsSummary.tasaciones.count}
-                subtitle={formatAmounts(collectionsSummary.tasaciones.amounts) ?? "Sin pendientes"}
+                value={collectionsSummary.tasaciones.operations}
+                subtitle={pendingCardSubtitle(collectionsSummary.tasaciones, "tasaciones")}
                 icon={icons.tasaciones}
                 badge={collectionsSummary.tasaciones.count > 0 ? { label: "Pendiente", variant: "warning" } : { label: "Al día", variant: "success" }}
               />

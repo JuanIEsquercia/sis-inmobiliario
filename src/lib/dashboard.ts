@@ -10,7 +10,16 @@ export interface CurrencyAmount {
 }
 
 export interface PendingBucket {
+  // Cantidad de filas cobrables (cuotas de venta/alquiler + tasaciones +
+  // renovaciones, cada una con su propio vencimiento y su propia acción
+  // de "confirmar cobro") — NO es lo mismo que cantidad de operaciones:
+  // una sola venta con la comisión partida en 2 cuotas cuenta acá como
+  // 2, porque son 2 cobros pendientes reales, cada uno por su lado.
   count: number;
+  // Cantidad de ventas/comisiones de alquiler DISTINTAS detrás de esas
+  // filas — para que "2 cuotas" no se lea como "2 ventas" cuando en
+  // realidad es 1 venta partida en 2 pagos.
+  operations: number;
   amounts: CurrencyAmount[];
 }
 
@@ -39,8 +48,10 @@ export async function getPendingCollectionsSummary(): Promise<{
   const [
     ventasCount,
     ventasSum,
+    ventasSaleIds,
     alquilerInstCount,
     alquilerInstSum,
+    alquilerCommissionIds,
     renovacionCount,
     renovacionSum,
     tasacionesCount,
@@ -53,12 +64,16 @@ export async function getPendingCollectionsSummary(): Promise<{
         where: { source: "VENTA", status: "PENDIENTE" },
         _sum: { amount: true },
       }),
+      // distinct saleId detrás de esas cuotas — una venta con 2 cuotas
+      // pendientes da 2 filas arriba pero 1 sola acá.
+      prisma.commissionInstallment.groupBy({ by: ["saleId"], where: { source: "VENTA", status: "PENDIENTE" } }),
       prisma.commissionInstallment.count({ where: { source: "ALQUILER", status: "PENDIENTE" } }),
       prisma.commissionInstallment.groupBy({
         by: ["currency"],
         where: { source: "ALQUILER", status: "PENDIENTE" },
         _sum: { amount: true },
       }),
+      prisma.commissionInstallment.groupBy({ by: ["rentalCommissionId"], where: { source: "ALQUILER", status: "PENDIENTE" } }),
       prisma.rentalCommission.count({ where: { origin: "RENOVACION", cashMovement: null } }),
       prisma.rentalCommission.groupBy({
         by: ["currency"],
@@ -78,12 +93,17 @@ export async function getPendingCollectionsSummary(): Promise<{
     rows.map((r) => ({ currency: r.currency, amount: Number(r._sum.amount ?? 0) }));
 
   return {
-    ventas: { count: ventasCount, amounts: toAmounts(ventasSum) },
+    ventas: { count: ventasCount, operations: ventasSaleIds.length, amounts: toAmounts(ventasSum) },
     alquileres: {
       count: alquilerInstCount + renovacionCount,
+      // Cada renovación ya es 1 operación propia (no tiene cuotas), se
+      // suma directo a la cantidad de comisiones de colocación distintas.
+      operations: alquilerCommissionIds.length + renovacionCount,
       amounts: mergeAmounts(toAmounts(alquilerInstSum), toAmounts(renovacionSum)),
     },
-    tasaciones: { count: tasacionesCount, amounts: toAmounts(tasacionesSum) },
+    // Tasaciones no tiene cuotas — acá count y operations siempre
+    // coinciden, pero se completa igual para que el tipo sea uniforme.
+    tasaciones: { count: tasacionesCount, operations: tasacionesCount, amounts: toAmounts(tasacionesSum) },
   };
 }
 
