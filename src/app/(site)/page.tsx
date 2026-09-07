@@ -3,6 +3,7 @@ import { Hero } from "@/components/Hero";
 import { PropertyCard } from "@/components/PropertyCard";
 import { ServiciosSection } from "@/components/ServiciosSection";
 import { CalculadoraAlquilerSection } from "@/components/CalculadoraAlquilerSection";
+import { FAQSection } from "@/components/FAQSection";
 import { PartnerLogosCarousel } from "@/components/PartnerLogosCarousel";
 import { ContactForm } from "@/components/ContactForm";
 import { getFeaturedListings, getFilterOptions } from "@/lib/listings";
@@ -41,6 +42,8 @@ export default async function HomePage() {
         <ServiciosSection />
 
         <CalculadoraAlquilerSection />
+
+        <FAQSection />
 
         <section>
           <div className="mb-6 text-center">
