@@ -23,9 +23,11 @@ export interface ListingFilters {
   aptoCredito?: boolean;
   // El código de Adinco (Listing.externalId, ej. 6287179) — el mismo
   // número que ya se muestra como "Código" en el WhatsApp de cada
-  // ficha. `contains` en vez de exacto: alguien puede tipear solo una
-  // parte recordada de memoria, o pegar el código completo (ahí da un
-  // solo resultado, como una búsqueda exacta).
+  // ficha. Es único por propiedad y un número de 7 dígitos sin ninguna
+  // parte memorable (no es una dirección, no hay substring que tenga
+  // sentido) — coincidencia EXACTA, no `contains`: con contains,
+  // buscar "4" matcheaba cualquier código que tuviera un 4 en
+  // cualquier posición (casi todos), un resultado inútil.
   code?: string;
   page?: number;
 }
@@ -37,7 +39,7 @@ function buildWhere(filters: ListingFilters): Prisma.ListingWhereInput {
   if (filters.propertyType) where.propertyType = filters.propertyType;
   if (filters.city) where.city = filters.city;
   if (filters.rooms) where.rooms = { gte: filters.rooms };
-  if (filters.code) where.externalId = { contains: filters.code.trim() };
+  if (filters.code) where.externalId = filters.code.trim();
   // Sin marcar, no filtra (se ven aptas y no aptas) — marcado, solo las
   // que el feed mandó explícitamente en true (no las que vinieron null).
   if (filters.aptoCredito) where.aptoCredito = true;
