@@ -13,6 +13,11 @@ interface PageSearchParams {
   precioMax?: string;
   dormitorios?: string;
   aptoCredito?: string;
+  // Código de Adinco (Listing.externalId) — fuera del título/canónica
+  // a propósito, mismo criterio que precio/dormitorios: es una búsqueda
+  // puntual de una persona, no una categoría con intención de búsqueda
+  // real que valga indexar aparte.
+  codigo?: string;
   page?: string;
 }
 
@@ -80,6 +85,7 @@ function buildPageHref(sp: Awaited<PageProps["searchParams"]>, page: number): st
   if (sp.precioMax) params.set("precioMax", sp.precioMax);
   if (sp.dormitorios) params.set("dormitorios", sp.dormitorios);
   if (sp.aptoCredito) params.set("aptoCredito", sp.aptoCredito);
+  if (sp.codigo) params.set("codigo", sp.codigo);
   params.set("page", String(page));
   return `/propiedades?${params.toString()}`;
 }
@@ -100,6 +106,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
       priceMax: toNumber(sp.precioMax),
       rooms: toNumber(sp.dormitorios),
       aptoCredito: sp.aptoCredito === "true" ? true : undefined,
+      code: sp.codigo,
       page: toNumber(sp.page),
     }),
   ]);

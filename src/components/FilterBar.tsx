@@ -15,6 +15,7 @@ interface FilterBarProps {
     precioMax?: string;
     dormitorios?: string;
     aptoCredito?: string;
+    codigo?: string;
   };
 }
 
@@ -29,6 +30,7 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
       defaults.precioMin ||
       defaults.precioMax ||
       defaults.dormitorios ||
+      defaults.codigo ||
       isAptoCredito
   );
 
@@ -47,6 +49,30 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
     >
       <input type="hidden" name="operacion" value={selectedOperation} />
       {isAptoCredito && <input type="hidden" name="aptoCredito" value="true" />}
+
+      {/* Búsqueda rápida por código — separada de los filtros por
+          categoría de abajo a propósito: alguien que ya trae el código
+          (de un WhatsApp, un cartel) quiere ir directo a esa propiedad,
+          no combinarlo con tipo/ciudad/precio. */}
+      <div className="flex flex-col gap-2">
+        <label htmlFor="codigo" className="text-[11px] font-extrabold uppercase tracking-wider text-muted/90 px-1 flex items-center gap-1.5">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-accent">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15M4.5 9h15M4.5 15h15" />
+          </svg>
+          ¿Ya tenés el código de la propiedad?
+        </label>
+        <div className="relative flex h-14 items-center rounded-2xl border border-border/80 bg-background/70 shadow-xs transition-all duration-200 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft hover:border-border">
+          <input
+            id="codigo"
+            type="text"
+            name="codigo"
+            inputMode="numeric"
+            placeholder="Ej: 6287179"
+            defaultValue={defaults.codigo ?? ""}
+            className="w-full h-full bg-transparent px-4 text-sm sm:text-base font-semibold text-foreground placeholder:text-muted/60 outline-none"
+          />
+        </div>
+      </div>
 
       {/* Cabecera de Pestañas de Operación y Reset */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/50 pb-5">
