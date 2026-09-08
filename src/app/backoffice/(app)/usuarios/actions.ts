@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadStaffPhoto, deleteStaffPhoto } from "@/lib/supabase/storage";
 import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { optionalStr, requiredStr } from "@/lib/form-utils";
+import { toTitleCaseOrNull } from "@/lib/text-normalize";
 import type { Profile, StaffRole } from "@/generated/prisma/client";
 
 function parsePermissions(formData: FormData): string[] {
@@ -56,8 +57,8 @@ export async function crearUsuario(formData: FormData) {
   const username = requiredStr(formData.get("username"), "Nombre de usuario").toLowerCase();
   const password = requiredStr(formData.get("password"), "Contraseña");
   const role = parseRole(formData.get("role"));
-  const firstName = optionalStr(formData.get("firstName"));
-  const lastName = optionalStr(formData.get("lastName"));
+  const firstName = toTitleCaseOrNull(optionalStr(formData.get("firstName")));
+  const lastName = toTitleCaseOrNull(optionalStr(formData.get("lastName")));
   const phone = optionalStr(formData.get("phone"));
   const bio = optionalStr(formData.get("bio"));
   const showOnPublicSite = formData.get("showOnPublicSite") === "on";
@@ -142,8 +143,8 @@ export async function actualizarUsuario(userId: string, formData: FormData) {
       where: { id: userId },
       data: {
         username: requiredStr(formData.get("username"), "Nombre de usuario").toLowerCase(),
-        firstName: optionalStr(formData.get("firstName")),
-        lastName: optionalStr(formData.get("lastName")),
+        firstName: toTitleCaseOrNull(optionalStr(formData.get("firstName"))),
+        lastName: toTitleCaseOrNull(optionalStr(formData.get("lastName"))),
         role,
         permissions,
         phone: optionalStr(formData.get("phone")),

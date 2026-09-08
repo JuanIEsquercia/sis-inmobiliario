@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { getExpenseCategories, getExpenses } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 import { DatePicker } from "@/components/backoffice/DatePicker";
+import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
 import { crearCategoriaGasto, registrarGasto } from "../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -32,30 +33,36 @@ export default async function EgresosPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <CajaTabs active="egresos" />
-      <h1 className="mb-1 text-xl font-semibold text-foreground">Egresos</h1>
-      <p className="mb-6 text-sm text-muted">
-        Gastos reales de la agencia — el contrapeso de los ingresos, para que Caja pueda mostrar un neto real. Los
-        pagos a agentes no se cargan acá: ya se contabilizan aparte en el Consolidado.
-      </p>
+
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground uppercase">Egresos y Gastos</h1>
+        <p className="mt-1 text-xs sm:text-sm text-muted leading-relaxed max-w-3xl">
+          Gastos de la agencia para calcular el resultado neto real.
+        </p>
+      </div>
 
       {categories.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2 text-sm">
+        <div className="flex flex-wrap gap-2 text-xs font-semibold overflow-x-auto pb-1 no-scrollbar">
           <Link
             href="/backoffice/caja/egresos"
-            className={`rounded-full border px-3 py-1.5 ${
-              !categoryId ? "border-accent bg-accent-soft text-accent" : "border-border text-muted hover:text-foreground"
+            className={`shrink-0 rounded-xl border px-3.5 py-2 transition-all ${
+              !categoryId
+                ? "border-accent bg-accent text-accent-foreground shadow-xs"
+                : "border-border/60 bg-surface text-muted hover:text-foreground"
             }`}
           >
-            Todas
+            Todas las categorías
           </Link>
           {categories.map((c) => (
             <Link
               key={c.id}
               href={`/backoffice/caja/egresos?categoria=${c.id}`}
-              className={`rounded-full border px-3 py-1.5 ${
-                categoryId === c.id ? "border-accent bg-accent-soft text-accent" : "border-border text-muted hover:text-foreground"
+              className={`shrink-0 rounded-xl border px-3.5 py-2 transition-all ${
+                categoryId === c.id
+                  ? "border-accent bg-accent text-accent-foreground shadow-xs"
+                  : "border-border/60 bg-surface text-muted hover:text-foreground"
               }`}
             >
               {c.name}
@@ -65,29 +72,29 @@ export default async function EgresosPage({ searchParams }: PageProps) {
       )}
 
       {totalsByCurrency.size > 0 && (
-        <div className="mb-6 flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4">
           {[...totalsByCurrency.entries()].map(([currency, total]) => (
-            <div key={currency} className="rounded-xl border border-border px-4 py-3 text-sm">
-              <span className="text-muted">Total {currency}</span>{" "}
-              <span className="font-semibold text-foreground">{fmtMoney(total)}</span>
+            <div key={currency} className="rounded-2xl border border-border/60 bg-surface px-5 py-3.5 text-sm shadow-xs">
+              <span className="text-xs font-semibold text-muted uppercase tracking-wider block">Total Egresos ({currency})</span>
+              <span className="font-extrabold text-foreground text-lg">{currency} {fmtMoney(total)}</span>
             </div>
           ))}
         </div>
       )}
 
       {canCreate && (
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <section className="rounded-xl border border-dashed border-border p-4">
-            <h2 className="mb-3 text-sm font-medium text-foreground">Nueva categoría</h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <section className="rounded-2xl border border-dashed border-border/70 bg-surface/40 p-4 sm:p-5">
+            <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">Nueva Categoría</h2>
             <form action={crearCategoriaGasto} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="categoryName" className="text-xs text-muted">
+                <label htmlFor="categoryName" className="text-xs text-muted font-medium">
                   Nombre*
                 </label>
                 <input id="categoryName" name="name" required className="field" placeholder="Alquiler oficina" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="categoryType" className="text-xs text-muted">
+                <label htmlFor="categoryType" className="text-xs text-muted font-medium">
                   Tipo*
                 </label>
                 <select id="categoryType" name="type" required defaultValue="FIJO" className="field">
@@ -97,21 +104,21 @@ export default async function EgresosPage({ searchParams }: PageProps) {
               </div>
               <button
                 type="submit"
-                className="w-fit rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface"
+                className="h-10 w-full sm:w-fit rounded-xl border border-border bg-surface px-4 text-xs font-semibold text-foreground hover:bg-background transition-colors cursor-pointer"
               >
                 Crear categoría
               </button>
             </form>
           </section>
 
-          <section className="rounded-xl border border-dashed border-border p-4">
-            <h2 className="mb-3 text-sm font-medium text-foreground">Registrar gasto</h2>
+          <section className="rounded-2xl border border-dashed border-border/70 bg-surface/40 p-4 sm:p-5">
+            <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">Registrar Gasto</h2>
             {categories.length === 0 ? (
-              <p className="text-sm text-muted">Creá primero una categoría.</p>
+              <p className="text-xs text-muted">Creá primero una categoría.</p>
             ) : (
               <form action={registrarGasto} className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="expenseCategory" className="text-xs text-muted">
+                  <label htmlFor="expenseCategory" className="text-xs text-muted font-medium">
                     Categoría*
                   </label>
                   <select id="expenseCategory" name="categoryId" required className="field">
@@ -124,30 +131,30 @@ export default async function EgresosPage({ searchParams }: PageProps) {
                 </div>
                 <div className="flex gap-3">
                   <div className="flex flex-1 flex-col gap-1.5">
-                    <label htmlFor="expenseAmount" className="text-xs text-muted">
+                    <label htmlFor="expenseAmount" className="text-xs text-muted font-medium">
                       Monto*
                     </label>
                     <input id="expenseAmount" name="amount" type="number" step="0.01" required className="field" />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label htmlFor="expenseCurrency" className="text-xs text-muted">
+                    <label htmlFor="expenseCurrency" className="text-xs text-muted font-medium">
                       Moneda
                     </label>
-                    <select id="expenseCurrency" name="currency" defaultValue="ARS" className="field">
+                    <select id="expenseCurrency" name="currency" defaultValue="ARS" className="field w-24">
                       <option value="ARS">ARS</option>
                       <option value="USD">USD</option>
                     </select>
                   </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <div className="flex flex-1 flex-col gap-1.5">
-                    <label htmlFor="expenseDate" className="text-xs text-muted">
+                    <label htmlFor="expenseDate" className="text-xs text-muted font-medium">
                       Fecha
                     </label>
                     <DatePicker id="expenseDate" name="occurredAt" />
                   </div>
                   <div className="flex flex-1 flex-col gap-1.5">
-                    <label htmlFor="expenseMethod" className="text-xs text-muted">
+                    <label htmlFor="expenseMethod" className="text-xs text-muted font-medium">
                       Medio
                     </label>
                     <select id="expenseMethod" name="method" defaultValue="" className="field">
@@ -158,14 +165,14 @@ export default async function EgresosPage({ searchParams }: PageProps) {
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="expenseNotes" className="text-xs text-muted">
+                  <label htmlFor="expenseNotes" className="text-xs text-muted font-medium">
                     Notas
                   </label>
                   <input id="expenseNotes" name="notes" className="field" placeholder="Opcional" />
                 </div>
                 <button
                   type="submit"
-                  className="w-fit rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
+                  className="h-10 w-full sm:w-fit rounded-xl bg-accent px-5 text-xs font-bold uppercase tracking-wider text-accent-foreground hover:bg-accent-strong transition-colors cursor-pointer shadow-xs"
                 >
                   Registrar gasto
                 </button>
@@ -175,12 +182,43 @@ export default async function EgresosPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {expenses.length === 0 ? (
-        <p className="text-sm text-muted">
-          {categoryId ? "No hay gastos cargados en esta categoría." : "Todavía no hay gastos cargados."}
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
+      <ResponsiveDataGrid
+        isEmpty={expenses.length === 0}
+        emptyMessage={categoryId ? "No hay gastos cargados en esta categoría." : "Todavía no hay gastos cargados."}
+        mobileCards={
+          <>
+            {expenses.map((e) => (
+              <div key={e.id} className="rounded-2xl border border-border/60 bg-surface p-4 shadow-sm space-y-3">
+                <div className="flex items-start justify-between gap-3 border-b border-border/40 pb-2.5">
+                  <div>
+                    <p className="font-bold text-foreground text-sm">{e.category.name}</p>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted bg-background border border-border px-2 py-0.5 rounded-lg mt-0.5 inline-block">
+                      {typeLabels[e.category.type]}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-extrabold text-foreground text-base block">
+                      {e.currency} {fmtMoney(Number(e.amount))}
+                    </span>
+                    <span className="text-xs text-muted font-medium">{fmtDate.format(e.occurredAt)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-background/50 p-2.5 rounded-xl border border-border/40">
+                    <span className="text-muted block text-[10px] uppercase font-bold tracking-wider">Medio</span>
+                    <span className="font-semibold text-foreground">{e.method ? methodLabels[e.method] : "—"}</span>
+                  </div>
+                  <div className="bg-background/50 p-2.5 rounded-xl border border-border/40">
+                    <span className="text-muted block text-[10px] uppercase font-bold tracking-wider">Notas</span>
+                    <span className="font-medium text-foreground truncate block">{e.notes ?? "—"}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        }
+        table={
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
@@ -188,27 +226,27 @@ export default async function EgresosPage({ searchParams }: PageProps) {
                 <th className="px-4 py-3">Categoría</th>
                 <th className="px-4 py-3">Medio</th>
                 <th className="px-4 py-3">Notas</th>
-                <th className="px-4 py-3">Monto</th>
+                <th className="px-4 py-3 text-right">Monto</th>
               </tr>
             </thead>
             <tbody>
               {expenses.map((e) => (
                 <tr key={e.id} className="border-b border-border last:border-0 hover:bg-surface">
-                  <td className="px-4 py-3 text-muted">{fmtDate.format(e.occurredAt)}</td>
-                  <td className="px-4 py-3 text-foreground">
-                    {e.category.name} <span className="text-muted">({typeLabels[e.category.type]})</span>
+                  <td className="px-4 py-3 text-muted font-medium">{fmtDate.format(e.occurredAt)}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">
+                    {e.category.name} <span className="text-xs text-muted font-normal">({typeLabels[e.category.type]})</span>
                   </td>
                   <td className="px-4 py-3 text-muted">{e.method ? methodLabels[e.method] : "—"}</td>
                   <td className="px-4 py-3 text-muted">{e.notes ?? "—"}</td>
-                  <td className="px-4 py-3 text-foreground">
+                  <td className="px-4 py-3 text-right font-bold text-foreground">
                     {e.currency} {fmtMoney(Number(e.amount))}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        }
+      />
     </div>
   );
 }

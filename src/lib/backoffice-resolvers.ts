@@ -1,4 +1,5 @@
 import { optionalInt, optionalStr, requiredStr } from "@/lib/form-utils";
+import { toTitleCase } from "@/lib/text-normalize";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Devuelve el id de un Client existente (si vino `${prefix}.clientId`
@@ -38,8 +39,8 @@ export async function resolveClient(
 
   const client = await tx.client.create({
     data: {
-      firstName: requiredStr(formData.get(`${prefix}.firstName`), `Nombre (${roleLabel})`),
-      lastName: requiredStr(formData.get(`${prefix}.lastName`), `Apellido (${roleLabel})`),
+      firstName: toTitleCase(requiredStr(formData.get(`${prefix}.firstName`), `Nombre (${roleLabel})`)),
+      lastName: toTitleCase(requiredStr(formData.get(`${prefix}.lastName`), `Apellido (${roleLabel})`)),
       docId,
       phone: optionalStr(formData.get(`${prefix}.phone`)),
       email: optionalStr(formData.get(`${prefix}.email`)),
