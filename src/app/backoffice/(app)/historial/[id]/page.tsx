@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getUnitById, clientLabel } from "@/lib/alquileres";
 
+// Incluye BORRADOR/FIRMADO (colocaciones, ver comentario en
+// ContractStatus) — el historial de la unidad no filtra por
+// isAdministered, así que una colocación sí puede aparecer acá, y sin
+// esas dos claves el badge de estado quedaba en blanco para ella.
 const statusLabels: Record<string, string> = {
+  BORRADOR: "Borrador",
+  FIRMADO: "Firmado",
   ACTIVO: "Activo",
   FINALIZADO: "Finalizado",
   RESCINDIDO: "Rescindido",
