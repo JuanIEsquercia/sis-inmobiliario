@@ -41,6 +41,65 @@ export async function getMonthlyCashSummary(month: number, year: number) {
   return { movements, expenses, agentPayments };
 }
 
+export interface MonthlyCashLine {
+  month: number;
+  year: number;
+  ingresosByCurrency: Map<string, number>;
+  egresosByCurrency: Map<string, number>;
+}
+
+// Consolidado de varios meses seguidos, mes a mes — no un solo total
+// tapando todo el semestre/año, que era la queja real: "el mes a mes es
+// una vista muy limitada para tomar decisiones y hacer cálculos". Una
+// sola consulta por tabla para todo el rango (no N consultas, una por
+// mes) y se agrupa acá mismo por (año, mes).
+export async function getCashSummaryByRange(startYear: number, startMonth: number, monthsCount: number): Promise<MonthlyCashLine[]> {
+  const start = new Date(Date.UTC(startYear, startMonth - 1, 1));
+  const end = new Date(Date.UTC(startYear, startMonth - 1 + monthsCount, 1));
+
+  const [movements, expenses, agentPayments] = await withRetry(() =>
+    Promise.all([
+      prisma.cashMovement.findMany({
+        where: { occurredAt: { gte: start, lt: end } },
+        select: { occurredAt: true, amount: true, currency: true },
+      }),
+      prisma.expense.findMany({
+        where: { occurredAt: { gte: start, lt: end } },
+        select: { occurredAt: true, amount: true, currency: true },
+      }),
+      prisma.agentDebtPayment.findMany({
+        where: { paidAt: { gte: start, lt: end } },
+        select: { paidAt: true, amount: true, currency: true },
+      }),
+    ])
+  );
+
+  const lines: MonthlyCashLine[] = Array.from({ length: monthsCount }, (_, i) => {
+    const d = new Date(Date.UTC(startYear, startMonth - 1 + i, 1));
+    return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear(), ingresosByCurrency: new Map(), egresosByCurrency: new Map() };
+  });
+  const lineByKey = new Map(lines.map((l) => [`${l.year}-${l.month}`, l]));
+  const keyFor = (d: Date) => `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
+
+  for (const m of movements) {
+    const line = lineByKey.get(keyFor(m.occurredAt));
+    if (!line) continue;
+    line.ingresosByCurrency.set(m.currency, (line.ingresosByCurrency.get(m.currency) ?? 0) + Number(m.amount));
+  }
+  for (const e of expenses) {
+    const line = lineByKey.get(keyFor(e.occurredAt));
+    if (!line) continue;
+    line.egresosByCurrency.set(e.currency, (line.egresosByCurrency.get(e.currency) ?? 0) + Number(e.amount));
+  }
+  for (const p of agentPayments) {
+    const line = lineByKey.get(keyFor(p.paidAt));
+    if (!line) continue;
+    line.egresosByCurrency.set(p.currency, (line.egresosByCurrency.get(p.currency) ?? 0) + Number(p.amount));
+  }
+
+  return lines;
+}
+
 export interface ProjectionMonthLine {
   month: number;
   year: number;
