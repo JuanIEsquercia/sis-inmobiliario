@@ -195,12 +195,18 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   {contract.currency} {contract.rentAmount.toString()}
                 </dd>
               </div>
-              <div>
-                <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Administración</dt>
-                <dd className="text-foreground font-semibold">
-                  {contract.isAdministered ? `Sí — ${contract.managementFeePercent?.toString()}%` : "No administramos este contrato"}
-                </dd>
-              </div>
+              {/* Solo si administramos — para una colocación esta línea
+                  no agrega nada (siempre da "no", por definición: una
+                  colocación nunca se administra) y leía como un cartel
+                  de error en vez de un dato. Mismo criterio que
+                  Vencimiento mensual/Actualización/Próxima actualización
+                  acá abajo: su ausencia ya dice todo. */}
+              {contract.isAdministered && (
+                <div>
+                  <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Administración</dt>
+                  <dd className="text-foreground font-semibold">Sí — {contract.managementFeePercent?.toString()}%</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Vigencia</dt>
                 <dd className="text-foreground font-medium">
