@@ -1,5 +1,6 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { CrmChatButton } from "@/components/CrmChatButton";
 import { SITE_URL, SITE_NAME, BUSINESS, absoluteUrl } from "@/lib/seo";
 
 // RealEstateAgent (subtipo de LocalBusiness) — describe el negocio en
@@ -37,6 +38,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />
+      <CrmChatButton />
     </div>
   );
 }
