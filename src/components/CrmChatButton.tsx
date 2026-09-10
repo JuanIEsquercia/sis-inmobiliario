@@ -15,7 +15,7 @@ import Script from "next/script";
 // "Chat support plugins": carga en tiempo ocioso del navegador, después
 // de que el resto de la página ya terminó, para no competir con el
 // contenido real.
-const KOMMO_SNIPPET = `(function(a,m,o,c,r,m){a[m]={id:"1080589",hash:"322ffd978e4f1f0fb0a821c34f83aee714ad7a7b38c054b4b920a6aa4860b21f",locale:"es",setMeta:function(p){this.params=(this.params||[]).concat([p])}};a[o]=a[o]||function(){(a[o].q=a[o].q||[]).push(arguments)};var d=a.document,s=d.createElement('script');s.async=true;s.id=m+'_script';s.src='https://gso.kommo.com/js/button.js';d.head&&d.head.appendChild(s)}(window,0,'crmPlugin',0,0,'crm_plugin'));`;
+const KOMMO_SNIPPET = `(function(a,m,o,c,r,m){a[m]={id:"1080599",hash:"fe08d058db29ea337b276d5e9f0c741db66669f73aaea228414f6cf95c7e750d",locale:"es",setMeta:function(p){this.params=(this.params||[]).concat([p])}};a[o]=a[o]||function(){(a[o].q=a[o].q||[]).push(arguments)};var d=a.document,s=d.createElement('script');s.async=true;s.id=m+'_script';s.src='https://gso.kommo.com/js/button.js';d.head&&d.head.appendChild(s)}(window,0,'crmPlugin',0,0,'crm_plugin'));`;
 
 export function CrmChatButton() {
   return (
