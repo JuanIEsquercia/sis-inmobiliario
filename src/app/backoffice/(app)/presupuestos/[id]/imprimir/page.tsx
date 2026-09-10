@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { requirePermission } from "@/lib/auth";
-import { getBudgetById, budgetItemsTotal, itemsByRecipient } from "@/lib/presupuestos";
+import { getBudgetById, budgetTotalsByCurrency, itemsByRecipient } from "@/lib/presupuestos";
 import { AutoPrint } from "@/components/backoffice/AutoPrint";
 import { PrintButton } from "@/components/backoffice/PrintButton";
 
@@ -31,7 +31,7 @@ export default async function ImprimirPresupuestoPage({ params, searchParams }: 
   const recipientName = recipient === "PROPIETARIO" ? budget.ownerName : recipient === "COMPRADOR" ? budget.buyerName : budget.tenantName;
 
   const items = itemsByRecipient(budget.items, recipient);
-  const total = budgetItemsTotal(items);
+  const totals = budgetTotalsByCurrency(items);
 
   return (
     <div
@@ -111,7 +111,7 @@ export default async function ImprimirPresupuestoPage({ params, searchParams }: 
                 <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
                   <td className="px-6 py-4 text-neutral-800 font-medium">{item.description}</td>
                   <td className="px-6 py-4 text-right text-neutral-900 font-semibold">
-                    {budget.currency} {fmtMoney(Number(item.amount))}
+                    {item.currency} {fmtMoney(Number(item.amount))}
                   </td>
                 </tr>
               ))
@@ -120,15 +120,26 @@ export default async function ImprimirPresupuestoPage({ params, searchParams }: 
         </table>
       </div>
 
-      {/* Total */}
+      {/* Total — una línea por moneda, nunca ARS + USD sumados */}
       <div className="mb-10 flex flex-col items-end">
-        <div className="w-full sm:w-80 bg-neutral-50 rounded-2xl p-6 border border-neutral-200">
-          <div className="flex justify-between items-center text-sm">
-            <span className="font-bold text-neutral-800 text-base">Total</span>
-            <span className="text-2xl font-bold text-[#c52125]">
-              {budget.currency} {fmtMoney(total)}
-            </span>
-          </div>
+        <div className="w-full sm:w-96 bg-neutral-50 rounded-2xl p-6 border border-neutral-200 flex flex-col gap-2">
+          {totals.length === 0 ? (
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-neutral-800 text-base">Total</span>
+              <span className="text-2xl font-bold text-[#c52125]">—</span>
+            </div>
+          ) : (
+            totals.map((t) => (
+              <div key={t.currency} className="flex justify-between items-center">
+                <span className="font-bold text-neutral-800 text-base">
+                  Total {totals.length > 1 ? `en ${t.currency}` : ""}
+                </span>
+                <span className="text-2xl font-bold text-[#c52125]">
+                  {t.currency} {fmtMoney(t.total)}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

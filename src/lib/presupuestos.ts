@@ -10,8 +10,23 @@ export function creatorLabel(profile: { firstName: string | null; lastName: stri
   return profile.firstName && profile.lastName ? `${profile.firstName} ${profile.lastName}` : `@${profile.username}`;
 }
 
-export function budgetItemsTotal(items: { amount: unknown }[]): number {
-  return items.reduce((sum, i) => sum + Number(i.amount), 0);
+// Bimonetario: nunca se suma ARS con USD. Devuelve un total por cada
+// moneda presente entre los ítems, ordenado (ARS antes que USD por
+// orden alfabético). Vacío si no hay ítems.
+export function budgetTotalsByCurrency(items: { amount: unknown; currency: string }[]): { currency: string; total: number }[] {
+  const byCurrency = new Map<string, number>();
+  for (const i of items) {
+    byCurrency.set(i.currency, (byCurrency.get(i.currency) ?? 0) + Number(i.amount));
+  }
+  return [...byCurrency.entries()]
+    .map(([currency, total]) => ({ currency, total }))
+    .sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
+// "USD 1.200 · ARS 350.000" — una línea compacta para listados. Cadena
+// vacía si no hay ítems.
+export function formatBudgetTotals(totals: { currency: string; total: number }[]): string {
+  return totals.map((t) => `${t.currency} ${t.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`).join(" · ");
 }
 
 export function itemsByRecipient<T extends { recipient: BudgetRecipient }>(

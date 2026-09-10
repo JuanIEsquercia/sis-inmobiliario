@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
-import { getBudgets, creatorLabel, budgetItemsTotal, itemsByRecipient } from "@/lib/presupuestos";
+import { getBudgets, creatorLabel, budgetTotalsByCurrency, formatBudgetTotals, itemsByRecipient } from "@/lib/presupuestos";
 import { PresupuestosTabs } from "@/components/backoffice/PresupuestosTabs";
 import { SearchField } from "@/components/backoffice/SearchField";
 import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 import { eliminarPresupuesto } from "./actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
-const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
 const typeLabels: Record<string, string> = {
   ALQUILER: "Alquiler",
@@ -65,8 +64,8 @@ export default async function PresupuestosPage({ searchParams }: PageProps) {
             <tbody>
               {budgets.map((b) => {
                 const isVenta = b.type === "VENTA";
-                const compradorTotal = isVenta ? budgetItemsTotal(itemsByRecipient(b.items, "COMPRADOR")) : null;
-                const propietarioTotal = isVenta ? budgetItemsTotal(itemsByRecipient(b.items, "PROPIETARIO")) : null;
+                const compradorTotals = isVenta ? formatBudgetTotals(budgetTotalsByCurrency(itemsByRecipient(b.items, "COMPRADOR"))) : null;
+                const propietarioTotals = isVenta ? formatBudgetTotals(budgetTotalsByCurrency(itemsByRecipient(b.items, "PROPIETARIO"))) : null;
                 return (
                   <tr key={b.id} className="border-b border-border last:border-0 hover:bg-surface">
                     <td className="px-4 py-3 text-muted">{fmtDate.format(b.createdAt)}</td>
@@ -84,11 +83,11 @@ export default async function PresupuestosPage({ searchParams }: PageProps) {
                     <td className="px-4 py-3 text-foreground">
                       {isVenta ? (
                         <span className="flex flex-col text-xs">
-                          <span>Comprador: {b.currency} {fmtMoney(compradorTotal ?? 0)}</span>
-                          <span>Propietario: {b.currency} {fmtMoney(propietarioTotal ?? 0)}</span>
+                          <span>Comprador: {compradorTotals || "—"}</span>
+                          <span>Propietario: {propietarioTotals || "—"}</span>
                         </span>
                       ) : (
-                        `${b.currency} ${fmtMoney(budgetItemsTotal(b.items))}`
+                        formatBudgetTotals(budgetTotalsByCurrency(b.items)) || "—"
                       )}
                     </td>
                     <td className="px-4 py-3 text-muted">{creatorLabel(b.createdBy)}</td>

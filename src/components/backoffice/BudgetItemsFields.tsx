@@ -9,20 +9,23 @@ interface Row {
   key: number;
   description: string;
   amount: string;
+  currency: string;
 }
 
 interface RowProps {
   namePrefix: string;
   description: string;
   amount: string;
-  onChange: (patch: Partial<{ description: string; amount: string }>) => void;
+  currency: string;
+  onChange: (patch: Partial<{ description: string; amount: string; currency: string }>) => void;
   onRemove?: () => void;
 }
 
 // Una fila del presupuesto: concepto (con autocompletado contra el
-// catálogo de BudgetConcept) + importe. Elegir una sugerencia precarga
-// también el importe sugerido — se puede editar igual antes de guardar.
-function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: RowProps) {
+// catálogo de BudgetConcept) + importe + moneda. Elegir una sugerencia
+// precarga también el importe sugerido (no la moneda: el catálogo no
+// guarda moneda) — se puede editar todo igual antes de guardar.
+function BudgetItemRow({ namePrefix, description, amount, currency, onChange, onRemove }: RowProps) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<ConceptOption[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -142,8 +145,18 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
         value={amount}
         onChange={(e) => onChange({ amount: e.target.value })}
         placeholder="Importe"
-        className="field w-full sm:w-36"
+        className="field w-full sm:w-32"
       />
+      <select
+        name={`${namePrefix}.currency`}
+        value={currency}
+        onChange={(e) => onChange({ currency: e.target.value })}
+        aria-label="Moneda del concepto"
+        className="field w-full sm:w-24"
+      >
+        <option value="ARS">ARS</option>
+        <option value="USD">USD</option>
+      </select>
       {onRemove && (
         <button
           type="button"
@@ -159,26 +172,33 @@ function BudgetItemRow({ namePrefix, description, amount, onChange, onRemove }: 
 }
 
 // Lista repetible de conceptos de un presupuesto — cada fila se guarda
-// como `${namePrefix}.${key}.description` / `.amount`, leído del lado
-// del servidor con la misma lógica que guarantorIndices (ver
-// parseItemRows en presupuestos/actions.ts). `label` distingue a quién
-// pertenece esta lista cuando hay más de una en la misma página (Venta:
-// Comprador y Propietario, cada una independiente).
+// como `${namePrefix}.${key}.description` / `.amount` / `.currency`,
+// leída del lado del servidor con la misma lógica que guarantorIndices
+// (ver parseItemRows en presupuestos/actions.ts). `label` distingue a
+// quién pertenece esta lista cuando hay más de una en la misma página
+// (Venta: Comprador y Propietario, cada una independiente).
+// `defaultCurrency` es la moneda que arranca cada renglón nuevo — viene
+// del selector "Moneda principal" (ver BudgetItemsSection).
 export function BudgetItemsFields({
   namePrefix,
   label,
+  defaultCurrency,
   initialItems,
 }: {
   namePrefix: string;
   label: string;
-  initialItems?: { description: string; amount: string }[];
+  defaultCurrency: string;
+  initialItems?: { description: string; amount: string; currency: string }[];
 }) {
-  const initial = initialItems && initialItems.length > 0 ? initialItems : [{ description: "", amount: "" }];
+  const initial =
+    initialItems && initialItems.length > 0
+      ? initialItems
+      : [{ description: "", amount: "", currency: defaultCurrency }];
   const [rows, setRows] = useState<Row[]>(initial.map((item, i) => ({ key: i, ...item })));
   const nextKeyRef = useRef(initial.length);
 
   function addRow() {
-    setRows((prev) => [...prev, { key: nextKeyRef.current++, description: "", amount: "" }]);
+    setRows((prev) => [...prev, { key: nextKeyRef.current++, description: "", amount: "", currency: defaultCurrency }]);
   }
   function removeRow(key: number) {
     setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.key !== key) : prev));
@@ -187,7 +207,16 @@ export function BudgetItemsFields({
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
 
-  const total = rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  // Bimonetario: un total por cada moneda que aparezca entre los
+  // renglones, nunca ARS + USD juntos.
+  const totalsByCurrency = new Map<string, number>();
+  for (const r of rows) {
+    const n = Number(r.amount);
+    if (Number.isFinite(n) && n !== 0) {
+      totalsByCurrency.set(r.currency, (totalsByCurrency.get(r.currency) ?? 0) + n);
+    }
+  }
+  const totals = [...totalsByCurrency.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/40 p-4 sm:p-5">
@@ -198,6 +227,7 @@ export function BudgetItemsFields({
           namePrefix={`${namePrefix}.${row.key}`}
           description={row.description}
           amount={row.amount}
+          currency={row.currency}
           onChange={(patch) => updateRow(row.key, patch)}
           onRemove={rows.length > 1 ? () => removeRow(row.key) : undefined}
         />
@@ -209,9 +239,24 @@ export function BudgetItemsFields({
       >
         + Agregar concepto
       </button>
-      <div className="flex items-center justify-between border-t border-border/50 pt-3 text-sm">
-        <span className="font-semibold text-foreground">Total {label}</span>
-        <span className="font-bold text-foreground">{fmtMoney(total)}</span>
+      <div className="flex flex-col gap-0.5 border-t border-border/50 pt-3 text-sm">
+        {totals.length === 0 ? (
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-foreground">Total {label}</span>
+            <span className="font-bold text-foreground">—</span>
+          </div>
+        ) : (
+          totals.map(([currency, total]) => (
+            <div key={currency} className="flex items-center justify-between">
+              <span className="font-semibold text-foreground">
+                Total {label} ({currency})
+              </span>
+              <span className="font-bold text-foreground">
+                {currency} {fmtMoney(total)}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

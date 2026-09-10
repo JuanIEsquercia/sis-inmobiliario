@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
-import { getBudgetById, creatorLabel, budgetItemsTotal, itemsByRecipient } from "@/lib/presupuestos";
+import { getBudgetById, creatorLabel, budgetTotalsByCurrency, itemsByRecipient } from "@/lib/presupuestos";
 import { eliminarPresupuesto } from "../actions";
 import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 
@@ -78,14 +78,12 @@ export default async function PresupuestoDetailPage({ params }: PageProps) {
             title="Comprador"
             name={budget.buyerName}
             items={itemsByRecipient(budget.items, "COMPRADOR")}
-            currency={budget.currency}
             printHref={`/backoffice/presupuestos/${budget.id}/imprimir?para=comprador`}
           />
           <RecipientCard
             title="Propietario"
             name={budget.ownerName}
             items={itemsByRecipient(budget.items, "PROPIETARIO")}
-            currency={budget.currency}
             printHref={`/backoffice/presupuestos/${budget.id}/imprimir?para=propietario`}
           />
         </div>
@@ -94,7 +92,6 @@ export default async function PresupuestoDetailPage({ params }: PageProps) {
           title="Inquilino"
           name={budget.tenantName}
           items={itemsByRecipient(budget.items, "INQUILINO")}
-          currency={budget.currency}
           printHref={`/backoffice/presupuestos/${budget.id}/imprimir?para=inquilino`}
         />
       )}
@@ -106,16 +103,14 @@ function RecipientCard({
   title,
   name,
   items,
-  currency,
   printHref,
 }: {
   title: string;
   name: string | null;
-  items: { id: number; description: string; amount: unknown }[];
-  currency: string;
+  items: { id: number; description: string; amount: unknown; currency: string }[];
   printHref: string;
 }) {
-  const total = budgetItemsTotal(items);
+  const totals = budgetTotalsByCurrency(items);
   return (
     <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
       <div className="mb-4 flex items-center justify-between">
@@ -140,17 +135,30 @@ function RecipientCard({
           {items.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 border-b border-border/40 pb-2 last:border-0 last:pb-0">
               <span className="text-foreground">{item.description}</span>
-              <span className="font-semibold text-foreground flex-none">{fmtMoney(Number(item.amount))}</span>
+              <span className="font-semibold text-foreground flex-none">
+                {item.currency} {fmtMoney(Number(item.amount))}
+              </span>
             </li>
           ))}
         </ul>
       )}
 
-      <div className="flex items-center justify-between border-t border-border pt-3 font-semibold">
-        <span className="text-foreground">Total</span>
-        <span className="text-accent">
-          {currency} {fmtMoney(total)}
-        </span>
+      <div className="flex flex-col gap-0.5 border-t border-border pt-3 font-semibold">
+        {totals.length === 0 ? (
+          <div className="flex items-center justify-between">
+            <span className="text-foreground">Total</span>
+            <span className="text-accent">—</span>
+          </div>
+        ) : (
+          totals.map((t) => (
+            <div key={t.currency} className="flex items-center justify-between">
+              <span className="text-foreground">Total {totals.length > 1 ? t.currency : ""}</span>
+              <span className="text-accent">
+                {t.currency} {fmtMoney(t.total)}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

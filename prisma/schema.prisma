@@ -1312,6 +1312,12 @@ model BudgetItem {
   recipient   BudgetRecipient
   description String
   amount      Decimal @db.Decimal(14, 2)
+  // Cada concepto lleva su propia moneda — muchas operaciones en USD
+  // tienen costos mezclados (ej. la comisión en USD, el sellado y los
+  // honorarios en ARS), así que el presupuesto es bimonetario: se suma
+  // por moneda, nunca ARS con USD. Budget.currency es solo la moneda
+  // que se preselecciona al agregar un renglón nuevo.
+  currency    String
   // Orden de carga — se preserva tal cual se tipeó, no se reordena
   // alfabéticamente ni por monto.
   sortOrder   Int

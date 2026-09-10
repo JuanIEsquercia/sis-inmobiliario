@@ -3,14 +3,14 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getBudgetById, itemsByRecipient } from "@/lib/presupuestos";
 import { actualizarPresupuesto } from "../../actions";
-import { BudgetItemsFields } from "@/components/backoffice/BudgetItemsFields";
+import { BudgetItemsSection } from "@/components/backoffice/BudgetItemsSection";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-function toRow(item: { description: string; amount: unknown }) {
-  return { description: item.description, amount: String(item.amount) };
+function toRow(item: { description: string; amount: unknown; currency: string }) {
+  return { description: item.description, amount: String(item.amount), currency: item.currency };
 }
 
 export default async function EditarPresupuestoPage({ params }: PageProps) {
@@ -78,36 +78,13 @@ export default async function EditarPresupuestoPage({ params }: PageProps) {
           )}
         </fieldset>
 
-        <div className="flex flex-col gap-1.5 w-40">
-          <label htmlFor="currency" className="text-xs text-muted">
-            Moneda
-          </label>
-          <select id="currency" name="currency" defaultValue={budget.currency} className="field">
-            <option value="ARS">ARS</option>
-            <option value="USD">USD</option>
-          </select>
-        </div>
-
-        {isVenta ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <BudgetItemsFields
-              namePrefix="itemsComprador"
-              label="Conceptos — Comprador"
-              initialItems={itemsByRecipient(budget.items, "COMPRADOR").map(toRow)}
-            />
-            <BudgetItemsFields
-              namePrefix="itemsPropietario"
-              label="Conceptos — Propietario"
-              initialItems={itemsByRecipient(budget.items, "PROPIETARIO").map(toRow)}
-            />
-          </div>
-        ) : (
-          <BudgetItemsFields
-            namePrefix="items"
-            label="Conceptos — Inquilino"
-            initialItems={itemsByRecipient(budget.items, "INQUILINO").map(toRow)}
-          />
-        )}
+        <BudgetItemsSection
+          type={budget.type}
+          initialCurrency={budget.currency}
+          alquilerItems={isVenta ? undefined : itemsByRecipient(budget.items, "INQUILINO").map(toRow)}
+          compradorItems={isVenta ? itemsByRecipient(budget.items, "COMPRADOR").map(toRow) : undefined}
+          propietarioItems={isVenta ? itemsByRecipient(budget.items, "PROPIETARIO").map(toRow) : undefined}
+        />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="observations" className="text-sm font-medium text-foreground">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { crearPresupuesto } from "../actions";
-import { BudgetItemsFields } from "@/components/backoffice/BudgetItemsFields";
+import { BudgetItemsSection } from "@/components/backoffice/BudgetItemsSection";
 
 interface PageProps {
   searchParams: Promise<{ tipo?: string }>;
@@ -97,24 +97,7 @@ export default async function NuevoPresupuestoPage({ searchParams }: PageProps) 
           )}
         </fieldset>
 
-        <div className="flex flex-col gap-1.5 w-40">
-          <label htmlFor="currency" className="text-xs text-muted">
-            Moneda
-          </label>
-          <select id="currency" name="currency" defaultValue="ARS" className="field">
-            <option value="ARS">ARS</option>
-            <option value="USD">USD</option>
-          </select>
-        </div>
-
-        {type === "ALQUILER" ? (
-          <BudgetItemsFields namePrefix="items" label="Conceptos — Inquilino" />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <BudgetItemsFields namePrefix="itemsComprador" label="Conceptos — Comprador" />
-            <BudgetItemsFields namePrefix="itemsPropietario" label="Conceptos — Propietario" />
-          </div>
-        )}
+        <BudgetItemsSection type={type} initialCurrency="ARS" />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="observations" className="text-sm font-medium text-foreground">

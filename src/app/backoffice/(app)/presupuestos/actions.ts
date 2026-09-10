@@ -11,6 +11,12 @@ import type { BudgetRecipient, BudgetType } from "@/generated/prisma/client";
 interface ItemRow {
   description: string;
   amount: string;
+  currency: string;
+}
+
+function normalizeCurrency(raw: string, fallback: string): string {
+  const c = raw.trim().toUpperCase();
+  return c === "ARS" || c === "USD" ? c : fallback;
 }
 
 // Filas repetibles cargadas del lado del cliente (BudgetItemsFields) con
@@ -20,7 +26,7 @@ interface ItemRow {
 // borrada en el medio no corre a las demás). Filas sin describir o sin
 // monto se descartan en silencio: son las que quedaron "agregadas" pero
 // nunca se llegaron a completar.
-function parseItemRows(formData: FormData, prefix: string): ItemRow[] {
+function parseItemRows(formData: FormData, prefix: string, fallbackCurrency: string): ItemRow[] {
   const indices = new Set<number>();
   const re = new RegExp(`^${prefix}\\.(\\d+)\\.description$`);
   for (const key of formData.keys()) {
@@ -32,6 +38,7 @@ function parseItemRows(formData: FormData, prefix: string): ItemRow[] {
     .map((i) => ({
       description: String(formData.get(`${prefix}.${i}.description`) ?? "").trim(),
       amount: String(formData.get(`${prefix}.${i}.amount`) ?? "").trim(),
+      currency: normalizeCurrency(String(formData.get(`${prefix}.${i}.currency`) ?? ""), fallbackCurrency),
     }))
     .filter((row) => row.description !== "" && row.amount !== "");
 }
@@ -42,7 +49,7 @@ function toItemsData(rows: ItemRow[], recipient: BudgetRecipient, roleLabel: str
     if (amount === null) {
       throw new Error(`El importe de "${row.description}" (${roleLabel}) no es un número válido.`);
     }
-    return { recipient, description: row.description, amount, sortOrder: i };
+    return { recipient, description: row.description, amount, currency: row.currency, sortOrder: i };
   });
 }
 
@@ -57,7 +64,9 @@ function parseBudgetForm(formData: FormData) {
   if (type !== "ALQUILER" && type !== "VENTA") throw new Error("Tipo de presupuesto inválido.");
 
   const unitDetail = requiredStr(formData.get("unitDetail"), "Detalle de la propiedad");
-  const currency = requiredStr(formData.get("currency"), "Moneda");
+  // Moneda principal: el default del formulario y el fallback si un
+  // renglón viene sin moneda (no debería, pero por las dudas).
+  const currency = normalizeCurrency(requiredStr(formData.get("currency"), "Moneda"), "ARS");
   const notes = optionalStr(formData.get("notes"));
   const observations = optionalStr(formData.get("observations"));
 
@@ -68,14 +77,14 @@ function parseBudgetForm(formData: FormData) {
 
   if (type === "ALQUILER") {
     tenantName = optionalStr(formData.get("tenantName"));
-    const rows = parseItemRows(formData, "items");
+    const rows = parseItemRows(formData, "items", currency);
     if (rows.length === 0) throw new Error("Cargá al menos un concepto.");
     itemsData = toItemsData(rows, "INQUILINO", "Inquilino");
   } else {
     buyerName = optionalStr(formData.get("buyerName"));
     ownerName = optionalStr(formData.get("ownerName"));
-    const buyerRows = parseItemRows(formData, "itemsComprador");
-    const ownerRows = parseItemRows(formData, "itemsPropietario");
+    const buyerRows = parseItemRows(formData, "itemsComprador", currency);
+    const ownerRows = parseItemRows(formData, "itemsPropietario", currency);
     if (buyerRows.length === 0 && ownerRows.length === 0) {
       throw new Error("Cargá al menos un concepto, para el comprador o para el propietario.");
     }
