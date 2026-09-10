@@ -4,7 +4,8 @@ import { requirePermission } from "@/lib/auth";
 import { getSaleById, agentLabel } from "@/lib/caja";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
-import { marcarCuotaPagada, actualizarPartesVenta } from "../../actions";
+import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
+import { marcarCuotaPagada, actualizarPartesVenta, eliminarVenta } from "../../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -313,6 +314,29 @@ export default async function VentaDetailPage({ params }: PageProps) {
           </div>
         )}
       </div>
+
+      {canCollect && (
+        <div className="space-y-3 border-t border-border/40 pt-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-muted">Eliminar venta</h2>
+          <p className="text-xs text-muted/90 max-w-xl">
+            Solo para corregir una carga errónea. Se borra la venta con todo lo vinculado: sus cuotas de comisión
+            {totalCobrado > 0 && ", los cobros ya confirmados (esa plata se descuenta de la Caja) y lo ya pagado a agentes por esta venta"}.
+            No se puede deshacer.
+          </p>
+          <ConfirmDeleteButton
+            action={eliminarVenta.bind(null, sale.id)}
+            triggerLabel="Eliminar venta definitivamente"
+            triggerClassName="rounded-lg border border-rose-500/40 bg-rose-500/5 px-4 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+            title="¿Eliminar esta venta?"
+            description={
+              totalCobrado > 0
+                ? `Se va a borrar la venta de ${sale.unit.propertyCode} — ${sale.unit.address}, sus cuotas, y los ${sale.currency} ${fmtMoney(totalCobrado)} ya cobrados van a salir de la Caja. Esta acción no se puede deshacer.`
+                : `Se va a borrar la venta de ${sale.unit.propertyCode} — ${sale.unit.address} y sus cuotas de comisión. Esta acción no se puede deshacer.`
+            }
+            confirmLabel="Sí, eliminar"
+          />
+        </div>
+      )}
     </div>
   );
 }

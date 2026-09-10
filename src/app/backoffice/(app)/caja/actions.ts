@@ -275,6 +275,58 @@ export async function actualizarPartesVenta(saleId: number, formData: FormData) 
   revalidatePath(`/backoffice/caja/ventas/${saleId}`);
 }
 
+// Elimina una venta POR COMPLETO, con todo lo vinculado: cuotas de
+// comisión, sus cobros ya confirmados (CashMovement, que es plata que
+// ya entró a Caja) y lo ya pagado a agentes por esa venta. Para
+// corregir una carga errónea — el costo es perder ese historial de
+// Caja para siempre, igual que eliminarContratoDefinitivo.
+//
+// Orden dentro de la transacción: primero los CashMovement que
+// referencian las cuotas o la venta (ninguno tiene onDelete Cascade,
+// bloquean el borrado), después AgentDebtPayment (sourceId polimórfico,
+// sin FK real, no cascadea solo), y recién ahí la venta —
+// CommissionInstallment sí cascadea sola al borrar la Sale.
+export async function eliminarVenta(saleId: number, formData: FormData) {
+  const profile = await requirePermission("caja.ventas.crear");
+  const reason = optionalStr(formData.get("reason"));
+  // No hay tabla de auditoría todavía — queda al menos en los logs del
+  // servidor, ya que de la fila no va a quedar nada.
+  console.log(`[eliminarVenta] venta ${saleId} eliminada por ${profile.id}. Motivo: ${reason ?? "(sin motivo)"}`);
+
+  const sale = await withRetry(() =>
+    prisma.sale.findUniqueOrThrow({ where: { id: saleId }, select: { unitId: true } })
+  );
+
+  await withRetry(() =>
+    prisma.$transaction(
+      async (tx) => {
+        const installments = await tx.commissionInstallment.findMany({
+          where: { saleId },
+          select: { id: true },
+        });
+        const installmentIds = installments.map((i) => i.id);
+        if (installmentIds.length > 0) {
+          await tx.cashMovement.deleteMany({ where: { commissionInstallmentId: { in: installmentIds } } });
+        }
+        // Camino legado: ventas viejas con su CashMovement directo, sin cuotas.
+        await tx.cashMovement.deleteMany({ where: { saleId } });
+
+        await tx.agentDebtPayment.deleteMany({ where: { sourceType: "SALE", sourceId: saleId } });
+
+        // CommissionInstallment cascadea al borrar la Sale (onDelete:
+        // Cascade), recién ahora que sus CashMovement ya no existen.
+        await tx.sale.delete({ where: { id: saleId } });
+      },
+      { timeout: 30000, maxWait: 15000 }
+    )
+  );
+
+  revalidatePath("/backoffice/caja");
+  revalidatePath("/backoffice/caja/ventas");
+  revalidatePath(`/backoffice/historial/${sale.unitId}`);
+  redirect("/backoffice/caja/ventas");
+}
+
 export async function crearTasacion(formData: FormData) {
   const profile = await requirePermission("caja.tasaciones.crear");
 
