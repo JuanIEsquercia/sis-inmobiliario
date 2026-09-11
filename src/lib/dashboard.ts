@@ -295,40 +295,115 @@ export interface AlertsSummary {
   // Contratos activos que vencen dentro de los próximos 60 días —
   // reusa getContractsNearingEnd tal cual, sin filtro extra.
   vencimientos: { count: number };
-  // Liquidaciones vencidas sin cobrar del todo — reusa getOverduePayments
-  // (misma fuente que la página de Morosidad), agrupando el saldo por
-  // moneda (nunca se suma ARS + USD).
-  morosidad: { count: number; amounts: CurrencyAmount[] };
+  // TODO lo que falta cobrar y ya venció, en una sola bolsa: cuotas de
+  // comisión de venta/alquiler, renovaciones, tasaciones Y liquidaciones
+  // de administración (lo que antes era "Morosidad" acá). Antes esto
+  // vivía separado ("morosidad" vs. "cobros atrasados" de caja) y
+  // terminaba mostrando dos números distintos para superposición de la
+  // misma plata — la vista detallada por bucket/interés sigue estando en
+  // /administraciones/morosidad, esto es solo el llamado de atención.
+  cobros: { count: number; amounts: CurrencyAmount[] };
 }
 
-// Resumen para el panel de "Alertas" del dashboard — reusa las mismas
-// funciones de datos que ya alimentan las páginas de Actualizaciones,
-// Vencimientos y Morosidad, sin duplicar queries.
-export async function getAlertsSummary(scope: ContractGroupScope): Promise<AlertsSummary> {
-  const [dueIndexation, nearingEnd, overduePayments] = await withRetry(() =>
+function toAmounts(rows: { currency: string; _sum: { amount: unknown } }[]): CurrencyAmount[] {
+  return rows.map((r) => ({ currency: r.currency, amount: Number(r._sum.amount ?? 0) }));
+}
+
+// Resumen para el panel de "Alertas" del dashboard y para el centro de
+// notificaciones del header — reusa las mismas funciones/criterios que
+// ya alimentan las páginas de Actualizaciones y Morosidad. `perms` decide
+// qué partes correr: alguien sin administraciones.ver no necesita (ni
+// puede ver) actualizaciones/vencimientos/liquidaciones, alguien sin
+// caja.ver no necesita ventas/alquileres/tasaciones.
+export async function getAlertsSummary(
+  scope: ContractGroupScope,
+  perms: { canAdmin: boolean; canCaja: boolean }
+): Promise<AlertsSummary> {
+  const now = new Date();
+
+  const [
+    dueIndexation,
+    nearingEnd,
+    overduePayments,
+    ventasCount,
+    ventasSum,
+    alquilerCount,
+    alquilerSum,
+    renovacionesCount,
+    renovacionesSum,
+    tasacionesCount,
+    tasacionesSum,
+  ] = await withRetry(() =>
     Promise.all([
-      getContractsDueForIndexation(scope, 30),
-      getContractsNearingEnd(scope, 60),
-      getOverduePayments(scope),
+      perms.canAdmin ? getContractsDueForIndexation(scope, 30) : Promise.resolve([]),
+      perms.canAdmin ? getContractsNearingEnd(scope, 60) : Promise.resolve([]),
+      perms.canAdmin ? getOverduePayments(scope) : Promise.resolve([]),
+      perms.canCaja
+        ? prisma.commissionInstallment.count({ where: { source: "VENTA", status: "PENDIENTE", dueDate: { lt: now } } })
+        : Promise.resolve(0),
+      perms.canCaja
+        ? prisma.commissionInstallment.groupBy({
+            by: ["currency"],
+            where: { source: "VENTA", status: "PENDIENTE", dueDate: { lt: now } },
+            _sum: { amount: true },
+          })
+        : Promise.resolve([]),
+      perms.canCaja
+        ? prisma.commissionInstallment.count({ where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lt: now } } })
+        : Promise.resolve(0),
+      perms.canCaja
+        ? prisma.commissionInstallment.groupBy({
+            by: ["currency"],
+            where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lt: now } },
+            _sum: { amount: true },
+          })
+        : Promise.resolve([]),
+      perms.canCaja
+        ? prisma.rentalCommission.count({ where: { origin: "RENOVACION", cashMovement: null, earnedAt: { lt: now } } })
+        : Promise.resolve(0),
+      perms.canCaja
+        ? prisma.rentalCommission.groupBy({
+            by: ["currency"],
+            where: { origin: "RENOVACION", cashMovement: null, earnedAt: { lt: now } },
+            _sum: { amount: true },
+          })
+        : Promise.resolve([]),
+      perms.canCaja
+        ? prisma.appraisal.count({ where: { cashMovement: null, completedAt: { lt: now } } })
+        : Promise.resolve(0),
+      perms.canCaja
+        ? prisma.appraisal.groupBy({
+            by: ["currency"],
+            where: { cashMovement: null, completedAt: { lt: now } },
+            _sum: { amount: true },
+          })
+        : Promise.resolve([]),
     ])
   );
 
-  const now = Date.now();
+  const nowMs = now.getTime();
   const actualizacionesAtrasadas = dueIndexation.filter(
-    (c) => c.nextIndexationDueAt !== null && c.nextIndexationDueAt.getTime() < now
+    (c) => c.nextIndexationDueAt !== null && c.nextIndexationDueAt.getTime() < nowMs
   ).length;
 
-  const morosidadAmounts = new Map<string, number>();
+  const cobrosAmounts = mergeAmounts(
+    toAmounts(ventasSum),
+    toAmounts(alquilerSum),
+    toAmounts(renovacionesSum),
+    toAmounts(tasacionesSum)
+  );
   for (const p of overduePayments) {
-    morosidadAmounts.set(p.currency, (morosidadAmounts.get(p.currency) ?? 0) + p.saldo);
+    const existing = cobrosAmounts.find((a) => a.currency === p.currency);
+    if (existing) existing.amount += p.saldo;
+    else cobrosAmounts.push({ currency: p.currency, amount: p.saldo });
   }
 
   return {
     actualizaciones: { count: actualizacionesAtrasadas },
     vencimientos: { count: nearingEnd.length },
-    morosidad: {
-      count: overduePayments.length,
-      amounts: [...morosidadAmounts.entries()].map(([currency, amount]) => ({ currency, amount })),
+    cobros: {
+      count: ventasCount + alquilerCount + renovacionesCount + tasacionesCount + overduePayments.length,
+      amounts: cobrosAmounts,
     },
   };
 }

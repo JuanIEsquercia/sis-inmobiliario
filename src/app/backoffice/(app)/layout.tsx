@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, getContractGroupScope } from "@/lib/auth";
+import { getAlertsSummary } from "@/lib/dashboard";
 import { BackofficeShell } from "@/components/backoffice/BackofficeShell";
 
 // robots.ts ya excluye /backoffice de rastreo — esto es la segunda
@@ -11,8 +12,18 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function BackofficeLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
 
+  // Se pide acá (no en cada page) para que el numerito de la campanita
+  // del header esté disponible sin importar en qué sección del
+  // backoffice se entre — este layout es compartido por todas.
+  const canAdmin = profile.permissions.includes("administraciones.ver");
+  const canCaja = profile.permissions.includes("caja.ver");
+  const alerts =
+    canAdmin || canCaja
+      ? await getAlertsSummary(await getContractGroupScope(profile), { canAdmin, canCaja })
+      : null;
+
   return (
-    <BackofficeShell profile={profile}>
+    <BackofficeShell profile={profile} alerts={alerts}>
       {children}
     </BackofficeShell>
   );

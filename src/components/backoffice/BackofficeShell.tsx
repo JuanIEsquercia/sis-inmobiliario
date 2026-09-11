@@ -5,6 +5,8 @@ import { Sidebar } from "./Sidebar";
 import { LogoutButton } from "./LogoutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { GlobalSearch } from "./GlobalSearch";
+import { AlertsBell } from "./AlertsBell";
+import type { AlertsSummary } from "@/lib/dashboard";
 
 interface Profile {
   username: string;
@@ -14,10 +16,11 @@ interface Profile {
 
 interface BackofficeShellProps {
   profile: Profile;
+  alerts: AlertsSummary | null;
   children: React.ReactNode;
 }
 
-export function BackofficeShell({ profile, children }: BackofficeShellProps) {
+export function BackofficeShell({ profile, alerts, children }: BackofficeShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const userInitials = profile.username.slice(0, 2).toUpperCase();
 
@@ -46,6 +49,11 @@ export function BackofficeShell({ profile, children }: BackofficeShellProps) {
         
         <div className="flex items-center gap-2 sm:gap-4">
           <GlobalSearch />
+          <AlertsBell
+            alerts={alerts}
+            canAdmin={profile.permissions.includes("administraciones.ver")}
+            canCaja={profile.permissions.includes("caja.ver")}
+          />
           <div className="flex items-center gap-2.5 pr-2 sm:pr-4 border-r border-border/60">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold shadow-xs select-none flex-none">
               {userInitials}

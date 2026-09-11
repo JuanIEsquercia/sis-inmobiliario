@@ -106,7 +106,7 @@ export default async function BackofficeDashboard() {
         canCaja ? getPendingCollectionsSummary() : Promise.resolve(null),
         canCaja || canAdmin ? getLoadedThisMonth() : Promise.resolve(null),
         canCaja || canAdmin ? getUnifiedPendingList(scope) : Promise.resolve([]),
-        canAdmin ? getAlertsSummary(scope) : Promise.resolve(null),
+        canAdmin || canCaja ? getAlertsSummary(scope, { canAdmin, canCaja }) : Promise.resolve(null),
       ])
     );
 
@@ -117,23 +117,16 @@ export default async function BackofficeDashboard() {
     item.type === "ADMINISTRACION" ? canAdmin : canCaja
   );
 
-  // Cobros atrasados no pide query propia — se recorta de la misma
-  // lista unificada de arriba, filtrando por lo que ya venció.
-  const cobrosAtrasados = visiblePendingList.filter((item) => item.isOverdue);
-  const cobrosAtrasadosAmounts = new Map<string, number>();
-  for (const item of cobrosAtrasados) {
-    cobrosAtrasadosAmounts.set(item.currency, (cobrosAtrasadosAmounts.get(item.currency) ?? 0) + item.amount);
-  }
-  const showAlertas = canAdmin || canCaja;
+  const showAlertas = (canAdmin || canCaja) && alertsSummary !== null;
 
   return (
     <div className="flex flex-col gap-10">
-      {showAlertas && (
+      {showAlertas && alertsSummary && (
         <div>
           <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-muted">Alertas</h2>
           <p className="mb-4 text-xs text-muted/80">Lo que ya venció o está por vencer, para no perderlo de vista.</p>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {canAdmin && alertsSummary && (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            {canAdmin && (
               <Link href="/backoffice/administraciones/actualizaciones" className="block">
                 <KpiStatCard
                   title="Actualizaciones atrasadas"
@@ -148,7 +141,7 @@ export default async function BackofficeDashboard() {
                 />
               </Link>
             )}
-            {canAdmin && alertsSummary && (
+            {canAdmin && (
               <Link href="/backoffice/administraciones/actualizaciones" className="block">
                 <KpiStatCard
                   title="Contratos por vencer"
@@ -163,30 +156,15 @@ export default async function BackofficeDashboard() {
                 />
               </Link>
             )}
-            {canAdmin && alertsSummary && (
-              <Link href="/backoffice/administraciones/morosidad" className="block">
-                <KpiStatCard
-                  title="Morosidad"
-                  value={alertsSummary.morosidad.count}
-                  subtitle={formatAmounts(alertsSummary.morosidad.amounts) ?? "Sin liquidaciones atrasadas"}
-                  icon={icons.alerta}
-                  badge={
-                    alertsSummary.morosidad.count > 0
-                      ? { label: "Atrasado", variant: "danger" }
-                      : { label: "Al día", variant: "success" }
-                  }
-                />
-              </Link>
-            )}
             {(canCaja || canAdmin) && (
               <Link href="#pendientes-cobro" className="block">
                 <KpiStatCard
                   title="Cobros atrasados"
-                  value={cobrosAtrasados.length}
-                  subtitle={formatAmounts([...cobrosAtrasadosAmounts.entries()].map(([currency, amount]) => ({ currency, amount }))) ?? "Sin cobros atrasados"}
+                  value={alertsSummary.cobros.count}
+                  subtitle={formatAmounts(alertsSummary.cobros.amounts) ?? "Sin cobros atrasados"}
                   icon={icons.alerta}
                   badge={
-                    cobrosAtrasados.length > 0
+                    alertsSummary.cobros.count > 0
                       ? { label: "Atrasado", variant: "danger" }
                       : { label: "Al día", variant: "success" }
                   }
