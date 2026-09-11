@@ -13,6 +13,7 @@ import {
   type PendingItemType,
 } from "@/lib/dashboard";
 import { KpiStatCard } from "@/components/backoffice/KpiStatCard";
+import { ScrollLink } from "@/components/backoffice/ScrollLink";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
@@ -127,7 +128,7 @@ export default async function BackofficeDashboard() {
           <p className="mb-4 text-xs text-muted/80">Lo que ya venció o está por vencer, para no perderlo de vista.</p>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             {canAdmin && (
-              <Link href="/backoffice/administraciones/actualizaciones" className="block">
+              <ScrollLink href="/backoffice/administraciones/actualizaciones#actualizaciones-atrasadas" className="block">
                 <KpiStatCard
                   title="Actualizaciones atrasadas"
                   value={alertsSummary.actualizaciones.count}
@@ -139,10 +140,10 @@ export default async function BackofficeDashboard() {
                       : { label: "Al día", variant: "success" }
                   }
                 />
-              </Link>
+              </ScrollLink>
             )}
             {canAdmin && (
-              <Link href="/backoffice/administraciones/actualizaciones" className="block">
+              <ScrollLink href="/backoffice/administraciones/actualizaciones#contratos-por-vencer" className="block">
                 <KpiStatCard
                   title="Contratos por vencer"
                   value={alertsSummary.vencimientos.count}
@@ -154,10 +155,10 @@ export default async function BackofficeDashboard() {
                       : { label: "Sin novedad", variant: "success" }
                   }
                 />
-              </Link>
+              </ScrollLink>
             )}
             {(canCaja || canAdmin) && (
-              <Link href="#pendientes-cobro" className="block">
+              <ScrollLink href="#pendientes-cobro" className="block">
                 <KpiStatCard
                   title="Cobros atrasados"
                   value={alertsSummary.cobros.count}
@@ -169,7 +170,7 @@ export default async function BackofficeDashboard() {
                       : { label: "Al día", variant: "success" }
                   }
                 />
-              </Link>
+              </ScrollLink>
             )}
           </div>
         </div>

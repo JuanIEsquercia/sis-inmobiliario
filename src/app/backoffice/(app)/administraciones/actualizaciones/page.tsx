@@ -32,7 +32,7 @@ export default async function ActualizacionesPage() {
   return (
     <div>
       <AdministracionesTabs active="actualizaciones" />
-      <h1 className="mb-2 text-xl font-semibold text-foreground">Actualizaciones</h1>
+      <h1 id="actualizaciones-atrasadas" className="mb-2 text-xl font-semibold text-foreground scroll-mt-6">Actualizaciones</h1>
       <p className="mb-6 text-sm text-muted">
         Contratos que actualizan el alquiler en los próximos 30 días — las ya vencidas y sin aplicar quedan arriba,
         marcadas como atrasadas, hasta que se apliquen.
@@ -120,7 +120,7 @@ export default async function ActualizacionesPage() {
         </div>
       )}
 
-      <h2 className="mb-2 text-lg font-semibold text-foreground">Contratos por vencer</h2>
+      <h2 id="contratos-por-vencer" className="mb-2 text-lg font-semibold text-foreground scroll-mt-6">Contratos por vencer</h2>
       <p className="mb-4 text-sm text-muted">
         Vencimiento en los próximos 60 días — momento natural para decidir si la renovación va a cobrar comisión.
       </p>

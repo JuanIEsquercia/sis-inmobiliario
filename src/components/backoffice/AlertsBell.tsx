@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { AlertsSummary, CurrencyAmount } from "@/lib/dashboard";
+import { ScrollLink } from "./ScrollLink";
 
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
@@ -44,13 +44,13 @@ export function AlertsBell({ alerts, canAdmin, canCaja }: AlertsBellProps) {
       label: "Actualizaciones atrasadas",
       count: alerts.actualizaciones.count,
       subtitle: "Indexación vencida sin aplicar",
-      href: "/backoffice/administraciones/actualizaciones",
+      href: "/backoffice/administraciones/actualizaciones#actualizaciones-atrasadas",
     },
     canAdmin && {
       label: "Contratos por vencer",
       count: alerts.vencimientos.count,
       subtitle: "Vencen dentro de 60 días",
-      href: "/backoffice/administraciones/actualizaciones",
+      href: "/backoffice/administraciones/actualizaciones#contratos-por-vencer",
     },
     (canAdmin || canCaja) && {
       label: "Cobros atrasados",
@@ -98,9 +98,9 @@ export function AlertsBell({ alerts, canAdmin, canCaja }: AlertsBellProps) {
                 .filter((item) => item.count > 0)
                 .map((item) => (
                   <li key={item.label}>
-                    <Link
+                    <ScrollLink
                       href={item.href}
-                      onClick={() => setOpen(false)}
+                      onNavigate={() => setOpen(false)}
                       className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-background/60 transition-colors"
                     >
                       <div>
@@ -110,7 +110,7 @@ export function AlertsBell({ alerts, canAdmin, canCaja }: AlertsBellProps) {
                       <span className="flex-none rounded-full bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
                         {item.count}
                       </span>
-                    </Link>
+                    </ScrollLink>
                   </li>
                 ))}
             </ul>
