@@ -109,8 +109,10 @@ export default async function ImprimirPresupuestoPage({ params, searchParams }: 
             ) : (
               items.map((item) => (
                 <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
-                  <td className="px-6 py-4 text-neutral-800 font-medium">{item.description}</td>
-                  <td className="px-6 py-4 text-right text-neutral-900 font-semibold">
+                  <td className="px-6 py-4 text-neutral-800 font-medium leading-relaxed break-words whitespace-pre-line">
+                    {item.description}
+                  </td>
+                  <td className="px-6 py-4 text-right text-neutral-900 font-semibold align-top whitespace-nowrap">
                     {item.currency} {fmtMoney(Number(item.amount))}
                   </td>
                 </tr>

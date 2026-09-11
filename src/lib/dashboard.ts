@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { paymentTotal } from "@/lib/alquileres";
+import {
+  paymentTotal,
+  getContractsDueForIndexation,
+  getContractsNearingEnd,
+  getOverduePayments,
+} from "@/lib/alquileres";
 import type { ContractGroupScope } from "@/lib/auth";
 import { contractGroupWhere } from "@/lib/auth";
 
@@ -279,4 +284,51 @@ export async function getUnifiedPendingList(scope: ContractGroupScope, take = 40
 
   items.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   return items.slice(0, take);
+}
+
+export interface AlertsSummary {
+  // Contratos activos cuya próxima actualización (indexación) ya venció
+  // y todavía no se cargó el nuevo valor — getContractsDueForIndexation
+  // trae también las que vencen dentro de 30 días, acá nos quedamos solo
+  // con las que YA pasaron la fecha.
+  actualizaciones: { count: number };
+  // Contratos activos que vencen dentro de los próximos 60 días —
+  // reusa getContractsNearingEnd tal cual, sin filtro extra.
+  vencimientos: { count: number };
+  // Liquidaciones vencidas sin cobrar del todo — reusa getOverduePayments
+  // (misma fuente que la página de Morosidad), agrupando el saldo por
+  // moneda (nunca se suma ARS + USD).
+  morosidad: { count: number; amounts: CurrencyAmount[] };
+}
+
+// Resumen para el panel de "Alertas" del dashboard — reusa las mismas
+// funciones de datos que ya alimentan las páginas de Actualizaciones,
+// Vencimientos y Morosidad, sin duplicar queries.
+export async function getAlertsSummary(scope: ContractGroupScope): Promise<AlertsSummary> {
+  const [dueIndexation, nearingEnd, overduePayments] = await withRetry(() =>
+    Promise.all([
+      getContractsDueForIndexation(scope, 30),
+      getContractsNearingEnd(scope, 60),
+      getOverduePayments(scope),
+    ])
+  );
+
+  const now = Date.now();
+  const actualizacionesAtrasadas = dueIndexation.filter(
+    (c) => c.nextIndexationDueAt !== null && c.nextIndexationDueAt.getTime() < now
+  ).length;
+
+  const morosidadAmounts = new Map<string, number>();
+  for (const p of overduePayments) {
+    morosidadAmounts.set(p.currency, (morosidadAmounts.get(p.currency) ?? 0) + p.saldo);
+  }
+
+  return {
+    actualizaciones: { count: actualizacionesAtrasadas },
+    vencimientos: { count: nearingEnd.length },
+    morosidad: {
+      count: overduePayments.length,
+      amounts: [...morosidadAmounts.entries()].map(([currency, amount]) => ({ currency, amount })),
+    },
+  };
 }

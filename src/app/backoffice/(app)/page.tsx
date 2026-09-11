@@ -6,6 +6,7 @@ import {
   getPendingCollectionsSummary,
   getLoadedThisMonth,
   getUnifiedPendingList,
+  getAlertsSummary,
   pendingTypeLabels,
   type CurrencyAmount,
   type PendingBucket,
@@ -73,6 +74,11 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 7.5h6M9 12h6M9 16.5h3M5.25 3.75h13.5A1.5 1.5 0 0 1 20.25 5.25v13.5a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V5.25a1.5 1.5 0 0 1 1.5-1.5Z" />
     </svg>
   ),
+  alerta: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+    </svg>
+  ),
 };
 
 export default async function BackofficeDashboard() {
@@ -82,7 +88,7 @@ export default async function BackofficeDashboard() {
   const canAdmin = profile.permissions.includes("administraciones.ver");
   const canCaja = profile.permissions.includes("caja.ver");
 
-  const [pedidosAbiertos, contratosActivos, pagosPendientes, collectionsSummary, loadedThisMonth, pendingList] =
+  const [pedidosAbiertos, contratosActivos, pagosPendientes, collectionsSummary, loadedThisMonth, pendingList, alertsSummary] =
     await withRetry(() =>
       Promise.all([
         canPedidos ? prisma.pedido.count({ where: { estado: { in: ["ABIERTO", "EN_BUSQUEDA"] } } }) : Promise.resolve(0),
@@ -100,6 +106,7 @@ export default async function BackofficeDashboard() {
         canCaja ? getPendingCollectionsSummary() : Promise.resolve(null),
         canCaja || canAdmin ? getLoadedThisMonth() : Promise.resolve(null),
         canCaja || canAdmin ? getUnifiedPendingList(scope) : Promise.resolve([]),
+        canAdmin ? getAlertsSummary(scope) : Promise.resolve(null),
       ])
     );
 
@@ -110,8 +117,86 @@ export default async function BackofficeDashboard() {
     item.type === "ADMINISTRACION" ? canAdmin : canCaja
   );
 
+  // Cobros atrasados no pide query propia — se recorta de la misma
+  // lista unificada de arriba, filtrando por lo que ya venció.
+  const cobrosAtrasados = visiblePendingList.filter((item) => item.isOverdue);
+  const cobrosAtrasadosAmounts = new Map<string, number>();
+  for (const item of cobrosAtrasados) {
+    cobrosAtrasadosAmounts.set(item.currency, (cobrosAtrasadosAmounts.get(item.currency) ?? 0) + item.amount);
+  }
+  const showAlertas = canAdmin || canCaja;
+
   return (
     <div className="flex flex-col gap-10">
+      {showAlertas && (
+        <div>
+          <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-muted">Alertas</h2>
+          <p className="mb-4 text-xs text-muted/80">Lo que ya venció o está por vencer, para no perderlo de vista.</p>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {canAdmin && alertsSummary && (
+              <Link href="/backoffice/administraciones/actualizaciones" className="block">
+                <KpiStatCard
+                  title="Actualizaciones atrasadas"
+                  value={alertsSummary.actualizaciones.count}
+                  subtitle="Contratos con la indexación vencida sin aplicar"
+                  icon={icons.alerta}
+                  badge={
+                    alertsSummary.actualizaciones.count > 0
+                      ? { label: "Atrasado", variant: "danger" }
+                      : { label: "Al día", variant: "success" }
+                  }
+                />
+              </Link>
+            )}
+            {canAdmin && alertsSummary && (
+              <Link href="/backoffice/administraciones/actualizaciones" className="block">
+                <KpiStatCard
+                  title="Contratos por vencer"
+                  value={alertsSummary.vencimientos.count}
+                  subtitle="Vencen dentro de los próximos 60 días"
+                  icon={icons.contratos}
+                  badge={
+                    alertsSummary.vencimientos.count > 0
+                      ? { label: "Revisar", variant: "warning" }
+                      : { label: "Sin novedad", variant: "success" }
+                  }
+                />
+              </Link>
+            )}
+            {canAdmin && alertsSummary && (
+              <Link href="/backoffice/administraciones/morosidad" className="block">
+                <KpiStatCard
+                  title="Morosidad"
+                  value={alertsSummary.morosidad.count}
+                  subtitle={formatAmounts(alertsSummary.morosidad.amounts) ?? "Sin liquidaciones atrasadas"}
+                  icon={icons.alerta}
+                  badge={
+                    alertsSummary.morosidad.count > 0
+                      ? { label: "Atrasado", variant: "danger" }
+                      : { label: "Al día", variant: "success" }
+                  }
+                />
+              </Link>
+            )}
+            {(canCaja || canAdmin) && (
+              <Link href="#pendientes-cobro" className="block">
+                <KpiStatCard
+                  title="Cobros atrasados"
+                  value={cobrosAtrasados.length}
+                  subtitle={formatAmounts([...cobrosAtrasadosAmounts.entries()].map(([currency, amount]) => ({ currency, amount }))) ?? "Sin cobros atrasados"}
+                  icon={icons.alerta}
+                  badge={
+                    cobrosAtrasados.length > 0
+                      ? { label: "Atrasado", variant: "danger" }
+                      : { label: "Al día", variant: "success" }
+                  }
+                />
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
       <div>
         <h1 className="mb-6 text-xl font-bold tracking-tight text-foreground uppercase">Resumen del Panel</h1>
 
@@ -207,7 +292,7 @@ export default async function BackofficeDashboard() {
       )}
 
       {visiblePendingList.length > 0 && (
-        <div>
+        <div id="pendientes-cobro" className="scroll-mt-6">
           <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-muted">Pendientes de cobro</h2>
           <p className="mb-4 text-xs text-muted/80">
             Todo lo que falta cobrar, de todas las operaciones — ordenado por lo más atrasado primero.

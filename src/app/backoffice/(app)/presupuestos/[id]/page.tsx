@@ -25,30 +25,30 @@ export default async function PresupuestoDetailPage({ params }: PageProps) {
   const isVenta = budget.type === "VENTA";
 
   return (
-    <div className="max-w-3xl">
-      <Link href="/backoffice/presupuestos" className="mb-4 inline-block text-sm text-accent hover:underline">
-        ← Presupuestos
+    <div className="max-w-5xl">
+      <Link href="/backoffice/presupuestos" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
+        ← Volver a presupuestos
       </Link>
 
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-border/50 pb-5">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border/50 pb-5">
         <div>
-          <h1 className="text-xl font-bold text-foreground">{budget.unitDetail}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{budget.unitDetail}</h1>
           <p className="text-xs text-muted mt-1">
-            Presupuesto de {isVenta ? "Venta" : "Alquiler"} · {fmtDate.format(budget.createdAt)} · Hecho por{" "}
-            {creatorLabel(budget.createdBy)}
+            Presupuesto de {isVenta ? "Venta" : "Alquiler"} · {fmtDate.format(budget.createdAt)} · Creado por{" "}
+            <span className="font-semibold text-foreground">{creatorLabel(budget.createdBy)}</span>
           </p>
         </div>
         {canManage && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-none">
             <Link
               href={`/backoffice/presupuestos/${budget.id}/editar`}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface hover:text-foreground"
+              className="rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold text-foreground hover:bg-background transition-colors"
             >
               Editar
             </Link>
             <ConfirmDeleteButton
               action={eliminarPresupuesto.bind(null, budget.id)}
-              triggerClassName="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
+              triggerClassName="rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold text-muted hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
               title="¿Eliminar este presupuesto?"
               description={`Se va a borrar "${budget.unitDetail}" y todos sus conceptos cargados. Esta acción no se puede deshacer.`}
             />
@@ -56,24 +56,28 @@ export default async function PresupuestoDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      {budget.observations && (
-        <div className="mb-4 rounded-xl border border-accent/30 bg-accent-soft/10 p-4 text-sm text-foreground">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-accent mb-1">
-            Observaciones (salen impresas)
-          </span>
-          {budget.observations}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {budget.observations && (
+          <div className="rounded-2xl border border-accent/30 bg-accent-soft/10 p-5 text-sm text-foreground">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-accent mb-2">
+              Observaciones (Impresas en el presupuesto)
+            </span>
+            <p className="leading-relaxed whitespace-pre-line font-medium">{budget.observations}</p>
+          </div>
+        )}
 
-      {budget.notes && (
-        <div className="mb-6 rounded-xl border border-border bg-surface/30 p-4 text-sm text-muted">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-muted/70 mb-1">Notas internas</span>
-          {budget.notes}
-        </div>
-      )}
+        {budget.notes && (
+          <div className="rounded-2xl border border-border bg-surface/30 p-5 text-sm text-muted">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-muted/70 mb-2">
+              Notas internas (Solo backoffice)
+            </span>
+            <p className="leading-relaxed whitespace-pre-line">{budget.notes}</p>
+          </div>
+        )}
+      </div>
 
       {isVenta ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <RecipientCard
             title="Comprador"
             name={budget.buyerName}
@@ -112,48 +116,67 @@ function RecipientCard({
 }) {
   const totals = budgetTotalsByCurrency(items);
   return (
-    <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-muted">{title}</h2>
-          <p className="text-sm text-foreground font-semibold">{name ?? "A completar"}</p>
+    <div className="rounded-2xl border border-border bg-surface/30 p-6 shadow-xs flex flex-col justify-between">
+      <div>
+        <div className="mb-5 flex items-center justify-between pb-3 border-b border-border/50">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-muted">{title}</h2>
+            <p className="text-base text-foreground font-bold mt-0.5">{name ?? "A completar"}</p>
+          </div>
+          <Link
+            href={printHref}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold text-foreground hover:bg-surface transition-colors shadow-xs"
+          >
+            <svg className="h-4 w-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Imprimir
+          </Link>
         </div>
-        <Link
-          href={printHref}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg border border-border px-2.5 py-1.5 text-xs hover:bg-surface"
-        >
-          Imprimir
-        </Link>
+
+        {items.length === 0 ? (
+          <p className="text-sm text-muted py-4">Sin conceptos cargados.</p>
+        ) : (
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-border/70 text-[11px] font-bold uppercase tracking-wider text-muted">
+                  <th className="py-2 pr-4">Concepto</th>
+                  <th className="py-2 pl-4 text-right w-36">Importe</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="py-3 pr-4 text-foreground font-medium leading-relaxed break-words">
+                      {item.description}
+                    </td>
+                    <td className="py-3 pl-4 text-right font-bold text-foreground flex-none whitespace-nowrap align-top">
+                      {item.currency} {fmtMoney(Number(item.amount))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {items.length === 0 ? (
-        <p className="text-sm text-muted">Sin conceptos cargados.</p>
-      ) : (
-        <ul className="flex flex-col gap-2 text-sm mb-4">
-          {items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 border-b border-border/40 pb-2 last:border-0 last:pb-0">
-              <span className="text-foreground">{item.description}</span>
-              <span className="font-semibold text-foreground flex-none">
-                {item.currency} {fmtMoney(Number(item.amount))}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex flex-col gap-0.5 border-t border-border pt-3 font-semibold">
+      <div className="flex flex-col gap-1.5 border-t border-border pt-4 bg-background/50 rounded-xl p-4">
         {totals.length === 0 ? (
-          <div className="flex items-center justify-between">
-            <span className="text-foreground">Total</span>
-            <span className="text-accent">—</span>
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-bold text-foreground">Total</span>
+            <span className="font-bold text-accent">—</span>
           </div>
         ) : (
           totals.map((t) => (
-            <div key={t.currency} className="flex items-center justify-between">
-              <span className="text-foreground">Total {totals.length > 1 ? t.currency : ""}</span>
-              <span className="text-accent">
+            <div key={t.currency} className="flex items-center justify-between text-sm">
+              <span className="font-bold text-foreground">
+                Total {totals.length > 1 ? `(${t.currency})` : ""}
+              </span>
+              <span className="text-base font-extrabold text-accent">
                 {t.currency} {fmtMoney(t.total)}
               </span>
             </div>
@@ -163,3 +186,4 @@ function RecipientCard({
     </div>
   );
 }
+

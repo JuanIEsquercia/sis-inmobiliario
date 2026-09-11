@@ -9,12 +9,6 @@ interface ItemInit {
   currency: string;
 }
 
-// Junta el selector "Moneda principal" con las listas de conceptos —
-// tiene que ser un solo client component para que cambiar la moneda
-// principal se refleje en el default de cada renglón nuevo (incluidas
-// las dos listas de una Venta). El <select name="currency"> sigue
-// enviándose para guardar Budget.currency (la moneda que se
-// preselecciona); cada BudgetItem lleva la suya propia igual.
 export function BudgetItemsSection({
   type,
   initialCurrency,
@@ -31,24 +25,26 @@ export function BudgetItemsSection({
   const [currency, setCurrency] = useState(initialCurrency);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5 w-56">
-        <label htmlFor="currency" className="text-xs text-muted">
-          Moneda principal
-        </label>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border/80 bg-surface/20 p-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="currency" className="text-xs font-bold uppercase tracking-wider text-foreground">
+            Moneda principal predeterminada
+          </label>
+          <p className="text-xs text-muted">
+            Moneda sugerida al agregar nuevos conceptos. Podés cambiar la moneda individual de cada ítem en la lista.
+          </p>
+        </div>
         <select
           id="currency"
           name="currency"
           value={currency}
           onChange={(e) => setCurrency(e.target.value)}
-          className="field"
+          className="field w-32 font-semibold text-center flex-none"
         >
           <option value="ARS">ARS</option>
           <option value="USD">USD</option>
         </select>
-        <p className="text-[11px] text-muted/80">
-          Se preselecciona en cada concepto nuevo. Cada concepto se puede pasar a la otra moneda por su cuenta.
-        </p>
       </div>
 
       {type === "ALQUILER" ? (
@@ -59,7 +55,7 @@ export function BudgetItemsSection({
           initialItems={alquilerItems}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <BudgetItemsFields
             namePrefix="itemsComprador"
             label="Conceptos — Comprador"
@@ -77,3 +73,4 @@ export function BudgetItemsSection({
     </div>
   );
 }
+
