@@ -43,19 +43,6 @@ export default async function ConceptosPage({ searchParams }: PageProps) {
               className="field w-full text-sm font-medium"
             />
           </div>
-          <div className="flex flex-col gap-1.5 w-full sm:w-44">
-            <label htmlFor="new-amount" className="text-xs font-semibold text-foreground">
-              Precio sugerido (ARS/USD)
-            </label>
-            <input
-              id="new-amount"
-              name="defaultAmount"
-              type="number"
-              step="0.01"
-              placeholder="Opcional"
-              className="field w-full text-right font-semibold"
-            />
-          </div>
           <button
             type="submit"
             className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground hover:bg-accent-strong transition-colors cursor-pointer w-full sm:w-auto flex-none shadow-xs"
@@ -96,20 +83,6 @@ export default async function ConceptosPage({ searchParams }: PageProps) {
                   />
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                  <div className="w-36">
-                    <label htmlFor={`amount-${c.id}`} className="sr-only">
-                      Precio sugerido
-                    </label>
-                    <input
-                      id={`amount-${c.id}`}
-                      name="defaultAmount"
-                      type="number"
-                      step="0.01"
-                      defaultValue={c.defaultAmount?.toString() ?? ""}
-                      placeholder="Sin precio"
-                      className="field w-full text-right font-medium text-xs"
-                    />
-                  </div>
                   <button
                     type="submit"
                     className="rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold hover:bg-surface transition-colors"

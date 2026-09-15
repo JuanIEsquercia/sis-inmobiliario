@@ -1334,9 +1334,8 @@ model BudgetItem {
 // su propio texto/monto, independiente de si el concepto del catálogo
 // cambia o se borra después.
 model BudgetConcept {
-  id            Int      @id @default(autoincrement())
-  name          String   @unique
-  defaultAmount Decimal? @db.Decimal(14, 2)
+  id   Int    @id @default(autoincrement())
+  name String @unique
 
   createdById String  @db.Uuid
   createdBy   Profile @relation("BudgetConceptCreadoPor", fields: [createdById], references: [id])

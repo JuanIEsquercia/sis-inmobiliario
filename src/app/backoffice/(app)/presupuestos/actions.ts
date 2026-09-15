@@ -169,18 +169,16 @@ export async function eliminarPresupuesto(id: number) {
 export interface ConceptOption {
   id: number;
   name: string;
-  defaultAmount: number | null;
 }
 
 // Autocompletado del catálogo al cargar un ítem — mismo patrón que
 // buscarClientes, salvo que acá un query vacío trae el catálogo entero
 // (hasta el límite) en vez de nada: la idea es que al hacer foco en el
 // campo ya se vea la lista completa para elegir, sin tener que escribir
-// primero para "activar" la búsqueda. Devuelve `defaultAmount` ya
-// convertido a number: un Decimal de Prisma no cruza la frontera server
-// action → client component (mismo motivo por el que toRepartoSchemeInfo
-// convierte los porcentajes del esquema de comisiones antes de
-// devolverlos).
+// primero para "activar" la búsqueda. Solo sugiere el nombre/descripción
+// — ya no trae un precio sugerido (se sacó a pedido: cada presupuesto
+// tiene su propio importe, y el "sugerido" quedaba desactualizado y
+// llevaba a copiar montos viejos sin querer).
 export async function buscarConceptos(query: string): Promise<ConceptOption[]> {
   await requirePermission("presupuestos.crear");
   const q = query.trim();
@@ -190,10 +188,11 @@ export async function buscarConceptos(query: string): Promise<ConceptOption[]> {
       where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
       orderBy: { name: "asc" },
       take: 20,
+      select: { id: true, name: true },
     })
   );
 
-  return results.map((c) => ({ id: c.id, name: c.name, defaultAmount: c.defaultAmount ? Number(c.defaultAmount) : null }));
+  return results;
 }
 
 // Crear un concepto nuevo desde el mismo ítem del presupuesto, sin ir a
@@ -218,17 +217,14 @@ export async function crearConceptoDesdeItem(name: string): Promise<ConceptOptio
     })
   );
 
-  return { id: concept.id, name: concept.name, defaultAmount: concept.defaultAmount ? Number(concept.defaultAmount) : null };
+  return { id: concept.id, name: concept.name };
 }
 
 export async function crearConcepto(formData: FormData) {
   const profile = await requirePermission("presupuestos.conceptos.gestionar");
   const name = requiredStr(formData.get("name"), "Concepto");
-  const defaultAmount = optionalDecimal(formData.get("defaultAmount"));
 
-  await withRetry(() =>
-    prisma.budgetConcept.create({ data: { name, defaultAmount, createdById: profile.id } })
-  );
+  await withRetry(() => prisma.budgetConcept.create({ data: { name, createdById: profile.id } }));
 
   revalidatePath("/backoffice/presupuestos/conceptos");
 }
@@ -236,9 +232,8 @@ export async function crearConcepto(formData: FormData) {
 export async function actualizarConcepto(id: number, formData: FormData) {
   await requirePermission("presupuestos.conceptos.gestionar");
   const name = requiredStr(formData.get("name"), "Concepto");
-  const defaultAmount = optionalDecimal(formData.get("defaultAmount"));
 
-  await withRetry(() => prisma.budgetConcept.update({ where: { id }, data: { name, defaultAmount } }));
+  await withRetry(() => prisma.budgetConcept.update({ where: { id }, data: { name } }));
 
   revalidatePath("/backoffice/presupuestos/conceptos");
 }

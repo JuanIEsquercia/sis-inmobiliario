@@ -72,10 +72,7 @@ function BudgetItemRow({
     !visibleResults.some((c) => c.name.toLowerCase() === trimmedDescription.toLowerCase());
 
   function pick(concept: ConceptOption) {
-    onChange({
-      description: concept.name,
-      amount: concept.defaultAmount !== null ? String(concept.defaultAmount) : amount,
-    });
+    onChange({ description: concept.name });
     setOpen(false);
   }
 
@@ -140,14 +137,9 @@ function BudgetItemRow({
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => pick(c)}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-background transition-colors cursor-pointer flex items-center justify-between gap-3"
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-background transition-colors cursor-pointer"
                     >
-                      <span className="font-medium text-foreground break-words flex-1">{c.name}</span>
-                      {c.defaultAmount !== null && (
-                        <span className="text-xs font-semibold text-accent bg-accent-soft/30 px-2 py-0.5 rounded-md flex-none">
-                          {fmtMoney(c.defaultAmount)}
-                        </span>
-                      )}
+                      <span className="font-medium text-foreground break-words">{c.name}</span>
                     </button>
                   </li>
                 ))}
