@@ -25,14 +25,15 @@ export function BudgetItemsSection({
   const [currency, setCurrency] = useState(initialCurrency);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border/80 bg-surface/20 p-4">
+    <div className="flex flex-col gap-6 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border/80 bg-surface/20 p-4 sm:p-5">
         <div className="flex flex-col gap-1">
-          <label htmlFor="currency" className="text-xs font-bold uppercase tracking-wider text-foreground">
+          <label htmlFor="currency" className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-accent inline-block" />
             Moneda principal predeterminada
           </label>
           <p className="text-xs text-muted">
-            Moneda sugerida al agregar nuevos conceptos. Podés cambiar la moneda individual de cada ítem en la lista.
+            Moneda sugerida al agregar nuevos conceptos. Podés cambiar la moneda individual de cada ítem en su tarjeta.
           </p>
         </div>
         <select
@@ -40,10 +41,10 @@ export function BudgetItemsSection({
           name="currency"
           value={currency}
           onChange={(e) => setCurrency(e.target.value)}
-          className="field w-32 font-semibold text-center flex-none"
+          className="field w-36 font-bold text-center flex-none"
         >
-          <option value="ARS">ARS</option>
-          <option value="USD">USD</option>
+          <option value="ARS">ARS ($)</option>
+          <option value="USD">USD (US$)</option>
         </select>
       </div>
 
@@ -55,7 +56,7 @@ export function BudgetItemsSection({
           initialItems={alquilerItems}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="flex flex-col gap-8 w-full">
           <BudgetItemsFields
             namePrefix="itemsComprador"
             label="Conceptos — Comprador"
@@ -73,4 +74,3 @@ export function BudgetItemsSection({
     </div>
   );
 }
-

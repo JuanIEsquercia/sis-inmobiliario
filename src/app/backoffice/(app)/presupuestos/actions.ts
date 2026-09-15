@@ -187,7 +187,7 @@ export async function buscarConceptos(query: string): Promise<ConceptOption[]> {
     prisma.budgetConcept.findMany({
       where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
       orderBy: { name: "asc" },
-      take: 20,
+      take: 100,
       select: { id: true, name: true },
     })
   );
