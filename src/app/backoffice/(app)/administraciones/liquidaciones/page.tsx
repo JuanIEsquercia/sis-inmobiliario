@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getPaymentsForPeriod, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
+import { CustomMonthPicker } from "@/components/backoffice/CustomMonthPicker";
 import { CobrarDialog } from "@/components/backoffice/CobrarDialog";
 import { PagarPropietarioDialog } from "@/components/backoffice/PagarPropietarioDialog";
 import { marcarLiquidacionEnviada } from "../actions";
@@ -57,17 +58,16 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
             ← Anterior
           </Link>
 
-          <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-background px-4 py-2 shadow-xs">
-            <svg className="h-4 w-4 text-accent flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            <span className="text-xs font-bold text-foreground">
-              {monthNames[month - 1]} {year}
-            </span>
-          </div>
+          {/* Antes era un cartel fijo: el único modo de cambiar de
+              período era Anterior/Siguiente, de a un mes — ir a un
+              período de hace un año eran 12 clics. Ahora abre el mismo
+              panel que Caja y Agentes (mes en grilla, y el año también
+              elegible directo). */}
+          <CustomMonthPicker
+            month={month}
+            year={year}
+            basePath="/backoffice/administraciones/liquidaciones"
+          />
 
           <Link
             href={periodHref(next.m, next.y)}
