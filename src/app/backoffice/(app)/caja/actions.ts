@@ -542,6 +542,20 @@ export async function registrarCronogramaAlquiler(rentalCommissionId: number, fo
       });
       if (commission.cashMovement) throw new Error("Ya se confirmó el cobro de esta comisión.");
       if (commission.installments.length > 0) throw new Error("Esta comisión ya tiene un cronograma de cobro cargado.");
+      // Una renovación no tiene cronograma de cuotas propio
+      // (CommissionInstallmentSource solo tiene VENTA y ALQUILER): si
+      // entrara por acá, sus cuotas nacerían con source ALQUILER y al
+      // cobrarse generarían un CashMovement COMISION_ALQUILER, o sea
+      // que la renovación aparecería en Caja como si fuera una
+      // colocación. La ficha ya manda las renovaciones por
+      // confirmarCobroComisionAlquiler (cobro de una sola vez, que sí
+      // marca COMISION_RENOVACION); esto lo deja cerrado también del
+      // lado del servidor.
+      if (commission.origin === "RENOVACION") {
+        throw new Error(
+          "Una comisión de renovación se cobra de una sola vez, no en cuotas — usá 'Confirmar cobro'."
+        );
+      }
 
       const cuotas: CuotaEntrada[] = enCuotas
         ? installmentIndices(formData).map((i, idx) => {

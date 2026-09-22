@@ -34,12 +34,47 @@ const PERMISSION_ELIMINAR = "central_deudores.eliminar";
 // vuelve a golpear la API — el manual habla de un puñado de consultas
 // por día para esta agencia, muy lejos de cualquier límite de tráfico
 // real.
+// Ventana anti-duplicado. La consulta tarda varios segundos (3 llamadas
+// al BCRA), y mientras tanto el formulario no daba ninguna señal de
+// estar trabajando: el agente volvía a apretar y quedaban 2 (o 3)
+// consultas idénticas del mismo CUIT separadas por segundos — pasó de
+// verdad, 5 de las primeras 12 filas guardadas eran de ese tipo. El
+// arreglo de fondo es el botón que se deshabilita solo (SubmitButton),
+// esto es el cinturón de seguridad del lado del servidor por si el POST
+// igual llega dos veces (doble click justo, F5, reintento del browser).
+//
+// Reusar en vez de crear no pierde información: el BCRA publica datos
+// mensuales, así que dos consultas del mismo CUIT separadas por segundos
+// devuelven exactamente lo mismo.
+const VENTANA_ANTIDUPLICADO_MS = 60_000;
+
+async function buscarConsultaReciente(cuit: string, profileId: string) {
+  return withRetry(() =>
+    prisma.creditCheck.findFirst({
+      where: {
+        cuit,
+        consultedById: profileId,
+        consultedAt: { gte: new Date(Date.now() - VENTANA_ANTIDUPLICADO_MS) },
+      },
+      orderBy: { consultedAt: "desc" },
+      select: { id: true },
+    })
+  );
+}
+
 export async function consultarCreditCheck(formData: FormData) {
   const profile = await requirePermission(PERMISSION);
   const cuitRaw = requiredStr(formData.get("cuit"), "CUIT/CUIL");
   const cuit = normalizeCuit(cuitRaw);
   if (!isValidCuit(cuit)) {
     throw new Error("El CUIT/CUIL debe tener 11 dígitos (sin guiones).");
+  }
+
+  // Primer chequeo: si el envío anterior ya terminó, se corta acá y ni
+  // siquiera se molesta al BCRA de nuevo.
+  const yaConsultado = await buscarConsultaReciente(cuit, profile.id);
+  if (yaConsultado) {
+    redirect(`/backoffice/central-deudores/${cuit}/${yaConsultado.id}`);
   }
 
   const [deudas, historicas, cheques] = await Promise.all([
@@ -60,6 +95,16 @@ export async function consultarCreditCheck(formData: FormData) {
   const deudaData = deudas.found ? (deudas.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
   const historicoData = historicas.found ? (historicas.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
   const chequesRechazadosData = cheques.found ? (cheques.data as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
+
+  // Segundo chequeo, ahora sí el que atrapa el caso real: las dos
+  // consultas arrancan casi juntas (el doble click pasa mientras la
+  // primera todavía está esperando al BCRA), así que la única ventana
+  // donde se puede detectar es recién acá, ya con las 3 respuestas en
+  // mano y con la primera fila muy probablemente confirmada.
+  const duplicado = await buscarConsultaReciente(cuit, profile.id);
+  if (duplicado) {
+    redirect(`/backoffice/central-deudores/${cuit}/${duplicado.id}`);
+  }
 
   const created = await withRetry(() =>
     prisma.creditCheck.create({

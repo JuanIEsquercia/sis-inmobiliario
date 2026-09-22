@@ -4,6 +4,7 @@ import { UnitPicker } from "@/components/backoffice/UnitPicker";
 import { AppraisalSplitFields } from "@/components/backoffice/AppraisalSplitFields";
 import { YaCobradaFields } from "@/components/backoffice/YaCobradaFields";
 import { DatePicker } from "@/components/backoffice/DatePicker";
+import { SubmitButton } from "@/components/backoffice/SubmitButton";
 import { crearTasacion, buscarUnidadesCaja } from "../../actions";
 
 export default async function NuevaTasacionPage() {
@@ -65,12 +66,12 @@ export default async function NuevaTasacionPage() {
               <textarea id="notes" name="notes" rows={4} className="field" placeholder="Opcional..." />
             </div>
 
-            <button
-              type="submit"
-              className="mt-2 w-full rounded-xl bg-accent py-3 text-xs font-bold text-accent-foreground shadow-sm hover:bg-accent-strong transition-all cursor-pointer"
+            <SubmitButton
+              pendingLabel="Creando tasación..."
+              className="mt-2 w-full rounded-xl bg-accent py-3 text-xs font-bold text-accent-foreground shadow-sm hover:bg-accent-strong transition-all cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             >
               Crear Tasación
-            </button>
+            </SubmitButton>
           </div>
         </div>
       </form>

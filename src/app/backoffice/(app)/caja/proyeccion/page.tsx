@@ -21,7 +21,7 @@ export default async function ProyeccionPage() {
 
   const currencies = new Set<string>();
   for (const m of months) {
-    for (const c of m.alquileresByCurrency.keys()) currencies.add(c);
+    for (const c of m.cobranzaByCurrency.keys()) currencies.add(c);
     for (const c of m.renovacionesByCurrency.keys()) currencies.add(c);
     for (const c of m.gastosFijosByCurrency.keys()) currencies.add(c);
   }
@@ -34,6 +34,9 @@ export default async function ProyeccionPage() {
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground uppercase">Proyección Financiera</h1>
         <p className="mt-1 text-xs sm:text-sm text-muted leading-relaxed max-w-3xl">
           Proyección plana a {MONTHS_AHEAD} meses basada en contratos pactados, renovaciones y gastos fijos.
+          El neto proyecta <strong className="text-foreground font-semibold">lo que gana la inmobiliaria</strong> (honorarios
+          de administración + comisión de renovación − gastos fijos), no la cobranza total: lo que paga el inquilino
+          es casi todo del propietario y solo pasa por nosotros.
         </p>
       </div>
 
@@ -104,12 +107,17 @@ export default async function ProyeccionPage() {
                 mobileCards={
                   <>
                     {months.map((m) => {
-                      const alquileres = m.alquileresByCurrency.get(currency) ?? 0;
+                      const cobranza = m.cobranzaByCurrency.get(currency) ?? 0;
+                      const honorarios = m.honorariosByCurrency.get(currency) ?? 0;
                       const renovacion = m.renovacionesByCurrency.get(currency) ?? 0;
                       const gastosFijos = m.gastosFijosByCurrency.get(currency) ?? 0;
-                      const neto = alquileres + renovacion - gastosFijos;
-                      const bandaMin = alquileres * (1 + settings.indexationCorrectionMinPercent / 100);
-                      const bandaMax = alquileres * (1 + settings.indexationCorrectionMaxPercent / 100);
+                      const neto = honorarios + renovacion - gastosFijos;
+                      // La banda de corrección por indexación se aplica
+                      // sobre los honorarios (el ingreso real): si sube
+                      // el alquiler, sube la comisión en la misma
+                      // proporción.
+                      const bandaMin = honorarios * (1 + settings.indexationCorrectionMinPercent / 100);
+                      const bandaMax = honorarios * (1 + settings.indexationCorrectionMaxPercent / 100);
 
                       return (
                         <div key={`${m.year}-${m.month}`} className="rounded-2xl border border-border/60 bg-surface p-4 shadow-sm space-y-3">
@@ -124,8 +132,8 @@ export default async function ProyeccionPage() {
 
                           <div className="grid grid-cols-2 gap-2 text-xs">
                             <div className="bg-background/50 p-2.5 rounded-xl border border-border/40">
-                              <span className="text-muted block text-[10px] uppercase font-bold tracking-wider">Alquileres Proyectados</span>
-                              <span className="font-semibold text-foreground">{currency} {fmtMoney(alquileres)}</span>
+                              <span className="text-muted block text-[10px] uppercase font-bold tracking-wider">Honorarios Administración</span>
+                              <span className="font-semibold text-foreground">{currency} {fmtMoney(honorarios)}</span>
                             </div>
                             <div className="bg-background/50 p-2.5 rounded-xl border border-border/40">
                               <span className="text-muted block text-[10px] uppercase font-bold tracking-wider">Comisión Renovación</span>
@@ -136,11 +144,16 @@ export default async function ProyeccionPage() {
                               <span className="font-semibold text-foreground">{gastosFijos > 0 ? `− ${currency} ${fmtMoney(gastosFijos)}` : "—"}</span>
                             </div>
                             <div className="bg-background/50 p-2.5 rounded-xl border border-border/40">
-                              <span className="text-muted block text-[10px] uppercase font-bold tracking-wider">Estimado Real</span>
+                              <span className="text-muted block text-[10px] uppercase font-bold tracking-wider">Honorarios Estimado Real</span>
                               <span className="font-semibold text-foreground">
-                                {alquileres > 0 ? `${fmtMoney(bandaMin)} – ${fmtMoney(bandaMax)}` : "—"}
+                                {honorarios > 0 ? `${fmtMoney(bandaMin)} – ${fmtMoney(bandaMax)}` : "—"}
                               </span>
                             </div>
+                          </div>
+
+                          <div className="rounded-xl border border-dashed border-border/60 px-2.5 py-2 text-[11px] text-muted">
+                            Cobranza administrada (del propietario, pasa por nosotros):{" "}
+                            <span className="font-semibold text-foreground">{currency} {fmtMoney(cobranza)}</span>
                           </div>
                         </div>
                       );
@@ -152,33 +165,38 @@ export default async function ProyeccionPage() {
                     <thead>
                       <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                         <th className="px-4 py-3">Mes</th>
-                        <th className="px-4 py-3">Alquileres proyectado</th>
+                        <th className="px-4 py-3">Honorarios administración</th>
                         <th className="px-4 py-3">Estimado real (+{settings.indexationCorrectionMinPercent}/+{settings.indexationCorrectionMaxPercent}%)</th>
                         <th className="px-4 py-3">Comisión renovación</th>
                         <th className="px-4 py-3">Gastos fijos</th>
                         <th className="px-4 py-3 text-right">Neto proyectado</th>
+                        <th className="px-4 py-3 text-right font-normal normal-case text-muted/70">Cobranza administrada</th>
                       </tr>
                     </thead>
                     <tbody>
                       {months.map((m) => {
-                        const alquileres = m.alquileresByCurrency.get(currency) ?? 0;
+                        const cobranza = m.cobranzaByCurrency.get(currency) ?? 0;
+                        const honorarios = m.honorariosByCurrency.get(currency) ?? 0;
                         const renovacion = m.renovacionesByCurrency.get(currency) ?? 0;
                         const gastosFijos = m.gastosFijosByCurrency.get(currency) ?? 0;
-                        const neto = alquileres + renovacion - gastosFijos;
-                        const bandaMin = alquileres * (1 + settings.indexationCorrectionMinPercent / 100);
-                        const bandaMax = alquileres * (1 + settings.indexationCorrectionMaxPercent / 100);
+                        const neto = honorarios + renovacion - gastosFijos;
+                        const bandaMin = honorarios * (1 + settings.indexationCorrectionMinPercent / 100);
+                        const bandaMax = honorarios * (1 + settings.indexationCorrectionMaxPercent / 100);
                         return (
                           <tr key={`${m.year}-${m.month}`} className="border-b border-border last:border-0 hover:bg-surface">
                             <td className="px-4 py-3 text-muted font-medium">
                               {monthNames[m.month - 1]} {m.year}
                             </td>
-                            <td className="px-4 py-3 font-semibold text-foreground">{fmtMoney(alquileres)}</td>
+                            <td className="px-4 py-3 font-semibold text-foreground">{fmtMoney(honorarios)}</td>
                             <td className="px-4 py-3 text-muted">
-                              {alquileres > 0 ? `${fmtMoney(bandaMin)} – ${fmtMoney(bandaMax)}` : "—"}
+                              {honorarios > 0 ? `${fmtMoney(bandaMin)} – ${fmtMoney(bandaMax)}` : "—"}
                             </td>
                             <td className="px-4 py-3 text-muted">{renovacion > 0 ? fmtMoney(renovacion) : "—"}</td>
                             <td className="px-4 py-3 text-muted">{gastosFijos > 0 ? `− ${fmtMoney(gastosFijos)}` : "—"}</td>
                             <td className="px-4 py-3 text-right font-bold text-foreground">{fmtMoney(neto)}</td>
+                            {/* Dato de volumen, no de ingreso — por eso
+                                va apagado y fuera del neto. */}
+                            <td className="px-4 py-3 text-right text-muted/70">{cobranza > 0 ? fmtMoney(cobranza) : "—"}</td>
                           </tr>
                         );
                       })}

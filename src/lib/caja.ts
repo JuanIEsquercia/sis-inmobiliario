@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { paymentTotal } from "@/lib/alquileres";
+import { paymentTotal, paymentBreakdown } from "@/lib/alquileres";
 import type { CashMovementSource, CommissionSchemeType } from "@/generated/prisma/client";
 import type { RepartoSchemeInfo } from "@/components/backoffice/RepartoPreview";
 
@@ -103,18 +103,34 @@ export async function getCashSummaryByRange(startYear: number, startMonth: numbe
 export interface ProjectionMonthLine {
   month: number;
   year: number;
-  alquileresByCurrency: Map<string, number>;
+  // Lo que van a pagar los inquilinos ese mes (alquiler + expensas +
+  // agua + lo que se les liquide). NO es plata de la inmobiliaria: casi
+  // todo se le entrega al propietario. Va como dato de volumen
+  // administrado, nunca sumado al neto.
+  cobranzaByCurrency: Map<string, number>;
+  // Lo que de esa cobranza queda de verdad en la inmobiliaria: la
+  // comisión de administración (% sobre el ítem de Alquiler, igual que
+  // paymentBreakdown y que confirmarCobroComision, que es quien lo
+  // registra en Caja cuando se cobra de verdad). ESTE es el ingreso.
+  honorariosByCurrency: Map<string, number>;
   renovacionesByCurrency: Map<string, number>;
   gastosFijosByCurrency: Map<string, number>;
 }
 
-// Proyección plana hacia adelante — solo lo predecible: alquileres ya
-// pactados (liquidaciones ya generadas para contratos ACTIVO), la
-// comisión de renovación esperada de los contratos marcados "Sí" que
-// vencen en ese mes (un mes de alquiler al monto vigente), y gastos
-// fijos repetidos al último monto cargado. Ventas/Tasaciones/gastos
-// variables NO se proyectan — no hay patrón del que estimar sin
-// inventar un supuesto (ver comentario en ExpenseType).
+// Proyección plana hacia adelante — solo lo predecible: los honorarios
+// de administración de los alquileres ya pactados (liquidaciones ya
+// generadas para contratos ACTIVO), la comisión de renovación esperada
+// de los contratos marcados "Sí" que vencen en ese mes (un mes de
+// alquiler al monto vigente), y gastos fijos repetidos al último monto
+// cargado. Ventas/Tasaciones/gastos variables NO se proyectan — no hay
+// patrón del que estimar sin inventar un supuesto (ver comentario en
+// ExpenseType).
+//
+// Ojo con la distinción cobranza/honorarios: antes esta función
+// proyectaba el total que paga el inquilino como si fuera ingreso de la
+// agencia, así que la proyección mostraba ~10x (1/comisión) lo que la
+// agencia realmente iba a ganar, y no había forma de compararla contra
+// el Consolidado, que solo cuenta CashMovement (es decir, honorarios).
 export async function getProjection(monthsAhead: number): Promise<ProjectionMonthLine[]> {
   const now = new Date();
   const months = Array.from({ length: monthsAhead }, (_, i) => {
@@ -129,7 +145,12 @@ export async function getProjection(monthsAhead: number): Promise<ProjectionMont
           contract: { status: "ACTIVO" },
           OR: months.map((m) => ({ periodMonth: m.month, periodYear: m.year })),
         },
-        include: { items: true },
+        include: {
+          // concept.isSystem hace falta para separar el ítem de Alquiler
+          // (el único sobre el que se cobra comisión) del resto.
+          items: { include: { concept: { select: { isSystem: true } } } },
+          contract: { select: { managementFeePercent: true } },
+        },
       }),
       prisma.contract.findMany({
         where: { status: "ACTIVO", renewalCommissionExpected: true },
@@ -143,10 +164,13 @@ export async function getProjection(monthsAhead: number): Promise<ProjectionMont
   );
 
   return months.map(({ month, year }) => {
-    const alquileresByCurrency = new Map<string, number>();
+    const cobranzaByCurrency = new Map<string, number>();
+    const honorariosByCurrency = new Map<string, number>();
     for (const p of payments) {
       if (p.periodMonth !== month || p.periodYear !== year) continue;
-      alquileresByCurrency.set(p.currency, (alquileresByCurrency.get(p.currency) ?? 0) + paymentTotal(p.items));
+      cobranzaByCurrency.set(p.currency, (cobranzaByCurrency.get(p.currency) ?? 0) + paymentTotal(p.items));
+      const { managementFee } = paymentBreakdown(p.items, p.contract.managementFeePercent);
+      honorariosByCurrency.set(p.currency, (honorariosByCurrency.get(p.currency) ?? 0) + managementFee);
     }
 
     const renovacionesByCurrency = new Map<string, number>();
@@ -166,7 +190,7 @@ export async function getProjection(monthsAhead: number): Promise<ProjectionMont
       gastosFijosByCurrency.set(last.currency, (gastosFijosByCurrency.get(last.currency) ?? 0) + Number(last.amount));
     }
 
-    return { month, year, alquileresByCurrency, renovacionesByCurrency, gastosFijosByCurrency };
+    return { month, year, cobranzaByCurrency, honorariosByCurrency, renovacionesByCurrency, gastosFijosByCurrency };
   });
 }
 

@@ -4,6 +4,7 @@ import { getLatestCreditChecksGrouped, consultantLabel, type CreditCheckGrouped 
 import { SITUACION_LABELS, situacionColorClass } from "@/lib/bcra";
 import { KpiStatCard } from "@/components/backoffice/KpiStatCard";
 import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
+import { SubmitButton } from "@/components/backoffice/SubmitButton";
 import { consultarCreditCheck } from "./actions";
 
 const fmtDateTime = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" });
@@ -115,12 +116,16 @@ export default async function CentralDeDeudoresPage() {
             className="field w-full sm:w-72"
           />
         </div>
-        <button
-          type="submit"
-          className="h-10 px-6 rounded-xl bg-accent text-xs font-bold uppercase tracking-wider text-accent-foreground hover:bg-accent-strong transition-all cursor-pointer shadow-sm shrink-0"
+        {/* La consulta pega contra 3 endpoints del BCRA y puede tardar
+            varios segundos — sin deshabilitar el botón, el agente creía
+            que no había pasado nada y volvía a apretar, generando una
+            segunda consulta duplicada (ver SubmitButton). */}
+        <SubmitButton
+          pendingLabel="Consultando BCRA..."
+          className="h-10 px-6 rounded-xl bg-accent text-xs font-bold uppercase tracking-wider text-accent-foreground hover:bg-accent-strong transition-all cursor-pointer shadow-sm shrink-0 disabled:opacity-60 disabled:cursor-wait"
         >
           Consultar BCRA
-        </button>
+        </SubmitButton>
       </form>
 
       <div>

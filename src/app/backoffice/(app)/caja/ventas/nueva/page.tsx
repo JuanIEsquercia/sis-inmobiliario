@@ -5,6 +5,7 @@ import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { CommissionInstallmentsFields } from "@/components/backoffice/CommissionInstallmentsFields";
 import { DatePicker } from "@/components/backoffice/DatePicker";
+import { SubmitButton } from "@/components/backoffice/SubmitButton";
 import { crearVenta, buscarUnidadesCaja, buscarClientesCaja } from "../../actions";
 
 export default async function NuevaVentaPage() {
@@ -105,12 +106,12 @@ export default async function NuevaVentaPage() {
               <textarea id="notes" name="notes" rows={3} className="field" placeholder="Detalles de la operación..." />
             </div>
 
-            <button
-              type="submit"
-              className="mt-2 w-full rounded-2xl bg-gradient-to-r from-accent to-accent-strong py-3.5 text-sm font-bold text-accent-foreground shadow-md shadow-accent/20 hover:opacity-95 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
+            <SubmitButton
+              pendingLabel="Creando venta..."
+              className="mt-2 w-full rounded-2xl bg-gradient-to-r from-accent to-accent-strong py-3.5 text-sm font-bold text-accent-foreground shadow-md shadow-accent/20 hover:opacity-95 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-wait disabled:hover:scale-100"
             >
               Crear Venta
-            </button>
+            </SubmitButton>
           </div>
         </div>
       </form>

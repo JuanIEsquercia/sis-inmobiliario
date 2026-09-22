@@ -83,6 +83,18 @@ export default async function ContractDetailPage({ params }: PageProps) {
   const canCreateCommission = profile.permissions.includes("caja.comisiones.crear");
   const needsCommissionForm = canCreateCommission && !contract.rentalCommission;
 
+  // Renovar solo tiene sentido sobre un alquiler que ADMINISTRAMOS: una
+  // colocación es un hecho puntual (colocamos el inquilino y cobramos la
+  // comisión, ahí termina nuestra relación con ese contrato), así que no
+  // existe "renovarla" — si el mismo inquilino firma de nuevo, es una
+  // colocación nueva, con su propia comisión de colocación. Sin este
+  // filtro el botón aparecía en cualquier contrato, y una renovación
+  // cargada a partir de una colocación termina con la comisión marcada
+  // como RENOVACION (otro esquema de reparto, otra fuente en Caja),
+  // mezclando dos unidades de negocio distintas. Lo mismo se valida del
+  // lado del servidor, en createContract.
+  const canRenovar = contract.isAdministered && contract.status !== "ANULADO";
+
   // Una colocación firmada queda cerrada — partes y agentes ya no se
   // editan más (ver assertColocacionEditable del lado del servidor).
   const isColocacionFirmada = !contract.isAdministered && contract.status === "FIRMADO";
@@ -150,12 +162,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
           <span className="rounded-full bg-surface border border-border px-3 py-1 text-xs font-bold text-foreground shadow-xs">
             Contrato: {statusLabels[contract.status]}
           </span>
-          <Link
-            href={`/backoffice/administraciones/nuevo?renovarDe=${contract.id}`}
-            className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-surface/10 hover:text-foreground transition-colors shadow-xs"
-          >
-            Renovar contrato
-          </Link>
+          {canRenovar && (
+            <Link
+              href={`/backoffice/administraciones/nuevo?renovarDe=${contract.id}`}
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-surface/10 hover:text-foreground transition-colors shadow-xs"
+            >
+              Renovar contrato
+            </Link>
+          )}
         </div>
       </div>
 

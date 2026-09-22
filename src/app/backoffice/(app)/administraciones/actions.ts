@@ -161,10 +161,28 @@ export async function createContract(formData: FormData) {
 
       // Una renovación hereda el grupo del contrato que renueva — sigue
       // siendo la misma cartera hasta que alguien lo reasigne a mano.
-      const groupId = renewedFromContractId
-        ? (await tx.contract.findUnique({ where: { id: renewedFromContractId }, select: { groupId: true } }))
-            ?.groupId ?? null
-        : null;
+      //
+      // Y antes de eso: solo se renueva lo que ADMINISTRAMOS. Una
+      // colocación no se renueva (ver canRenovar en la ficha del
+      // contrato) — si se colara una, crearRentalCommissionEnTx marcaría
+      // la comisión como RENOVACION por el solo hecho de tener
+      // renewedFromContractId, y esa plata saldría en Caja como
+      // "Comisión de renovación" en vez de como una colocación nueva.
+      // El botón ya no aparece para colocaciones, pero la URL
+      // (?renovarDe=) se puede escribir a mano, así que se valida acá.
+      let groupId: number | null = null;
+      if (renewedFromContractId) {
+        const source = await tx.contract.findUniqueOrThrow({
+          where: { id: renewedFromContractId },
+          select: { groupId: true, isAdministered: true },
+        });
+        if (!source.isAdministered) {
+          throw new Error(
+            "Solo se puede renovar un contrato que administramos. Una colocación no se renueva: si el inquilino firma de nuevo, cargalo como una colocación nueva."
+          );
+        }
+        groupId = source.groupId;
+      }
 
       const createdContract = await tx.contract.create({
         data: {
