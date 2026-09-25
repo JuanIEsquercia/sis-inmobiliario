@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import {
@@ -315,10 +316,18 @@ function toAmounts(rows: { currency: string; _sum: { amount: unknown } }[]): Cur
 // qué partes correr: alguien sin administraciones.ver no necesita (ni
 // puede ver) actualizaciones/vencimientos/liquidaciones, alguien sin
 // caja.ver no necesita ventas/alquileres/tasaciones.
-export async function getAlertsSummary(
+// Memoizada por request: en el dashboard esto se pide DOS veces en el
+// mismo render (la campanita del header y el panel de Alertas de la
+// página), y son ~11 consultas cada vez. Los permisos van como dos
+// booleanos sueltos y no como un objeto a propósito — cache() compara
+// los argumentos por valor, y un `{ canAdmin, canCaja }` literal es un
+// objeto nuevo en cada llamada, así que nunca daría un acierto de cache.
+export const getAlertsSummary = cache(async function getAlertsSummary(
   scope: ContractGroupScope,
-  perms: { canAdmin: boolean; canCaja: boolean }
+  canAdmin: boolean,
+  canCaja: boolean
 ): Promise<AlertsSummary> {
+  const perms = { canAdmin, canCaja };
   const now = new Date();
 
   const [
@@ -406,4 +415,4 @@ export async function getAlertsSummary(
       amounts: cobrosAmounts,
     },
   };
-}
+});

@@ -68,13 +68,21 @@ export async function requireAnyPermission(keys: string[]): Promise<Profile> {
 // default, ver comentario en Contract.groupId.
 export type ContractGroupScope = "all" | number[];
 
-export async function getContractGroupScope(profile: Profile): Promise<ContractGroupScope> {
+// Memoizada por request igual que getCurrentProfile, y por el mismo
+// motivo: el layout del backoffice la llama, y después casi toda página
+// hija la vuelve a llamar para armar su propio scope. Sin cache() eso
+// era una consulta repetida (idéntica) por cada llamada, y con la base
+// en Oregon cada viaje se paga caro. La clave del cache es el argumento
+// `profile`, y como ese objeto ya viene memoizado de
+// getCurrentProfile/requireProfile, dentro de un mismo request es
+// siempre la MISMA referencia — así que el cache pega.
+export const getContractGroupScope = cache(async (profile: Profile): Promise<ContractGroupScope> => {
   if (profile.permissions.includes("administraciones.ver_todos")) return "all";
   const memberships = await withRetry(() =>
     prisma.profileContractGroup.findMany({ where: { profileId: profile.id }, select: { groupId: true } })
   );
   return memberships.map((m) => m.groupId);
-}
+});
 
 // Where-clause de Prisma para filtrar Contract (o una relación hacia
 // Contract) según el scope — combinar con spread en el `where` de cada

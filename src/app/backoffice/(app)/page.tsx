@@ -107,7 +107,7 @@ export default async function BackofficeDashboard() {
         canCaja ? getPendingCollectionsSummary() : Promise.resolve(null),
         canCaja || canAdmin ? getLoadedThisMonth() : Promise.resolve(null),
         canCaja || canAdmin ? getUnifiedPendingList(scope) : Promise.resolve([]),
-        canAdmin || canCaja ? getAlertsSummary(scope, { canAdmin, canCaja }) : Promise.resolve(null),
+        canAdmin || canCaja ? getAlertsSummary(scope, canAdmin, canCaja) : Promise.resolve(null),
       ])
     );
 

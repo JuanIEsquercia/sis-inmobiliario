@@ -295,17 +295,32 @@ export async function getAppraisalById(id: number) {
   );
 }
 
+// El listado solo necesita mostrar unidad, inquilino, agentes, estado
+// de cobro y las cuotas — no la ficha completa de cada relación. Antes
+// traía `unit`/`tenant`/`vendedorAgent`/`captadorAgent` enteros (con
+// notas, teléfonos, fotos, timestamps...) de TODAS las comisiones de la
+// historia, sin tope: medido, esta sola consulta tardaba 4,4 s. Con
+// select acotado y tope de 200 (mismo criterio que getCashMovements y
+// getExpenses) queda en una fracción, y el detalle completo sigue
+// estando en getRentalCommissionById cuando se abre una.
 export async function getRentalCommissions() {
   return withRetry(() =>
     prisma.rentalCommission.findMany({
       include: {
-        contract: { include: { unit: true, tenant: true } },
-        vendedorAgent: true,
-        captadorAgent: true,
-        cashMovement: true,
-        installments: { orderBy: { numeroCuota: "asc" } },
+        contract: {
+          select: {
+            id: true,
+            unit: { select: { propertyCode: true, address: true } },
+            tenant: { select: { firstName: true, lastName: true } },
+          },
+        },
+        vendedorAgent: { select: { firstName: true, lastName: true } },
+        captadorAgent: { select: { firstName: true, lastName: true } },
+        cashMovement: { select: { id: true } },
+        installments: { select: { id: true, status: true, numeroCuota: true, totalCuotas: true }, orderBy: { numeroCuota: "asc" } },
       },
       orderBy: { earnedAt: "desc" },
+      take: 200,
     })
   );
 }

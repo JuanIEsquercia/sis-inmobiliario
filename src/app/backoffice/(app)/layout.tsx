@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { requireProfile, getContractGroupScope } from "@/lib/auth";
-import { getAlertsSummary } from "@/lib/dashboard";
+import { Suspense } from "react";
+import { requireProfile } from "@/lib/auth";
 import { BackofficeShell } from "@/components/backoffice/BackofficeShell";
+import { AlertsBellSlot, AlertsBellFallback } from "@/components/backoffice/AlertsBellSlot";
 
 // robots.ts ya excluye /backoffice de rastreo — esto es la segunda
 // línea de defensa: si algún link externo apunta para acá igual, Google
@@ -10,22 +11,27 @@ import { BackofficeShell } from "@/components/backoffice/BackofficeShell";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function BackofficeLayout({ children }: { children: React.ReactNode }) {
+  // Lo único que este layout espera de verdad: quién está logueado (una
+  // consulta, memoizada por request con cache(), así que las páginas de
+  // abajo la reusan sin volver a pedirla).
+  //
+  // Las alertas de la campanita NO se esperan acá: van en su propio
+  // Suspense (ver AlertsBellSlot). Antes se resolvían con await en este
+  // mismo lugar, y como este layout es compartido por todo el
+  // backoffice, sus ~11 consultas se pagaban antes de poder pintar
+  // cualquier página — incluso una que no mostrara ninguna alerta.
   const profile = await requireProfile();
 
-  // Se pide acá (no en cada page) para que el numerito de la campanita
-  // del header esté disponible sin importar en qué sección del
-  // backoffice se entre — este layout es compartido por todas.
-  const canAdmin = profile.permissions.includes("administraciones.ver");
-  const canCaja = profile.permissions.includes("caja.ver");
-  const alerts =
-    canAdmin || canCaja
-      ? await getAlertsSummary(await getContractGroupScope(profile), { canAdmin, canCaja })
-      : null;
-
   return (
-    <BackofficeShell profile={profile} alerts={alerts}>
+    <BackofficeShell
+      profile={profile}
+      alertsSlot={
+        <Suspense fallback={<AlertsBellFallback />}>
+          <AlertsBellSlot />
+        </Suspense>
+      }
+    >
       {children}
     </BackofficeShell>
   );
 }
-
