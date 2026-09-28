@@ -10,7 +10,7 @@ import { uploadStaffPhoto, deleteStaffPhoto } from "@/lib/supabase/storage";
 import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
 import { optionalStr, requiredStr } from "@/lib/form-utils";
 import { toTitleCaseOrNull } from "@/lib/text-normalize";
-import type { Profile, StaffRole } from "@/generated/prisma/client";
+import { Prisma, type Profile, type StaffRole } from "@/generated/prisma/client";
 
 function parsePermissions(formData: FormData): string[] {
   const values = formData.getAll("permissions").map(String);
@@ -169,36 +169,129 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
   revalidatePath("/equipo");
 }
 
-export async function crearGrupoContratos(formData: FormData) {
+// Resultado que devuelven las acciones de Grupos para que el formulario
+// pueda mostrar en pantalla qué pasó (ver FormWithFeedback). Antes estas
+// acciones devolvían void: guardaban bien, pero la página volvía idéntica
+// y no había forma de saber si el clic había hecho algo — parecía que no
+// impactaba nada.
+export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
+
+// Los `requirePermission` van SIEMPRE fuera del try: si falta el
+// permiso hacen redirect(), que internamente se propaga como excepción
+// — atraparla la convertiría en un cartel de error en vez de una
+// redirección. Adentro del try queda solo lo que puede fallar de verdad
+// (validación y base).
+function comoError(err: unknown, fallback: string): ActionResult {
+  return { ok: false, error: err instanceof Error ? err.message : fallback };
+}
+
+export async function crearGrupoContratos(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const profile = await requirePermission("administraciones.grupos.gestionar");
 
-  const name = requiredStr(formData.get("name"), "Nombre del grupo");
-  const description = optionalStr(formData.get("description"));
+  try {
+    const name = requiredStr(formData.get("name"), "Nombre del grupo");
+    const description = optionalStr(formData.get("description"));
 
-  await withRetry(() =>
-    prisma.contractGroup.create({ data: { name, description, createdById: profile.id } })
+    await withRetry(() =>
+      prisma.contractGroup.create({ data: { name, description, createdById: profile.id } })
+    );
+
+    revalidatePath("/backoffice/usuarios/grupos");
+    return { ok: true, message: `Grupo "${name}" creado.` };
+  } catch (err) {
+    // El nombre es único en la base — el error crudo de Prisma no le
+    // dice nada a nadie, así que se traduce.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { ok: false, error: "Ya existe un grupo con ese nombre." };
+    }
+    return comoError(err, "No se pudo crear el grupo.");
+  }
+}
+
+// Editar nombre y descripción de un grupo ya creado. Antes no había
+// forma: se creaba con un nombre y quedaba así para siempre.
+export async function actualizarGrupoContratos(
+  groupId: number,
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  await requirePermission("administraciones.grupos.gestionar");
+
+  try {
+    const name = requiredStr(formData.get("name"), "Nombre del grupo");
+    const description = optionalStr(formData.get("description"));
+
+    await withRetry(() => prisma.contractGroup.update({ where: { id: groupId }, data: { name, description } }));
+
+    revalidatePath("/backoffice/usuarios/grupos");
+    revalidatePath("/backoffice/administraciones");
+    return { ok: true, message: "Datos del grupo guardados." };
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { ok: false, error: "Ya existe otro grupo con ese nombre." };
+    }
+    return comoError(err, "No se pudo guardar el grupo.");
+  }
+}
+
+// Borrar un grupo NO borra sus contratos: la FK de Contract.groupId está
+// en ON DELETE SET NULL (verificado contra la base), así que los
+// contratos quedan "sin grupo" — visibles solo para quien tenga
+// administraciones.ver_todos, igual que un contrato recién cargado. Las
+// membresías sí se van solas (ON DELETE CASCADE). Por eso no hace falta
+// ninguna limpieza manual acá, a diferencia de eliminarContratoDefinitivo.
+export async function eliminarGrupoContratos(groupId: number) {
+  const profile = await requirePermission("administraciones.grupos.gestionar");
+
+  const group = await withRetry(() =>
+    prisma.contractGroup.findUniqueOrThrow({
+      where: { id: groupId },
+      select: { name: true, _count: { select: { contracts: true } } },
+    })
+  );
+  console.log(
+    `[eliminarGrupoContratos] grupo ${groupId} ("${group.name}") eliminado por ${profile.id}. ` +
+      `Contratos que quedan sin grupo: ${group._count.contracts}`
   );
 
+  await withRetry(() => prisma.contractGroup.delete({ where: { id: groupId } }));
+
   revalidatePath("/backoffice/usuarios/grupos");
+  revalidatePath("/backoffice/administraciones");
 }
 
 // Reemplaza la lista completa de miembros del grupo por la tildada en
 // el formulario — más simple que diffear altas/bajas, y el checklist ya
 // viene precargado con los miembros actuales.
-export async function actualizarMiembrosGrupo(groupId: number, formData: FormData) {
+export async function actualizarMiembrosGrupo(
+  groupId: number,
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
   await requirePermission("administraciones.grupos.gestionar");
 
   const profileIds = formData.getAll("memberIds").map(String);
 
-  await withRetry(() =>
-    prisma.$transaction([
-      prisma.profileContractGroup.deleteMany({ where: { groupId } }),
-      prisma.profileContractGroup.createMany({
-        data: profileIds.map((profileId) => ({ profileId, groupId })),
-        skipDuplicates: true,
-      }),
-    ])
-  );
+  try {
+    await withRetry(() =>
+      prisma.$transaction([
+        prisma.profileContractGroup.deleteMany({ where: { groupId } }),
+        prisma.profileContractGroup.createMany({
+          data: profileIds.map((profileId) => ({ profileId, groupId })),
+          skipDuplicates: true,
+        }),
+      ])
+    );
+  } catch (err) {
+    return comoError(err, "No se pudieron guardar los miembros.");
+  }
 
   revalidatePath("/backoffice/usuarios/grupos");
+  return {
+    ok: true,
+    message:
+      profileIds.length === 0
+        ? "Grupo sin miembros: sus contratos quedan visibles solo para quien tenga «ver contratos de todos los grupos»."
+        : `${profileIds.length} miembro${profileIds.length === 1 ? "" : "s"} con acceso a este grupo.`,
+  };
 }
