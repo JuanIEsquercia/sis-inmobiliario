@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { getPaymentsForPeriod, paymentBreakdown, clientLabel } from "@/lib/alquileres";
+import { getPaymentsForPeriod, getConcepts, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { CustomMonthPicker } from "@/components/backoffice/CustomMonthPicker";
+import { CargarConceptosDialog } from "@/components/backoffice/CargarConceptosDialog";
 import { CobrarDialog } from "@/components/backoffice/CobrarDialog";
 import { PagarPropietarioDialog } from "@/components/backoffice/PagarPropietarioDialog";
-import { marcarLiquidacionEnviada } from "../actions";
+import { marcarLiquidacionEnviada, reabrirLiquidacion } from "../actions";
 
 const monthNames = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -35,7 +36,13 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
   const month = Number(sp.mes) || now.getUTCMonth() + 1;
   const year = Number(sp.anio) || now.getUTCFullYear();
 
-  const payments = await getPaymentsForPeriod(scope, month, year);
+  // El catálogo de conceptos se pide una sola vez para toda la página:
+  // alimenta las sugerencias del modal de cada fila.
+  const [payments, concepts] = await Promise.all([
+    getPaymentsForPeriod(scope, month, year),
+    canEdit ? getConcepts() : Promise.resolve([]),
+  ]);
+  const conceptSuggestions = concepts.filter((c) => !c.isSystem).map((c) => c.name);
 
   function periodHref(m: number, y: number) {
     return `/backoffice/administraciones/liquidaciones?mes=${m}&anio=${y}`;
@@ -130,13 +137,54 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                     </td>
                     {canEdit && (
                       <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
                         {p.status === "PENDIENTE" && (
-                          <form action={marcarLiquidacionEnviada.bind(null, p.id)}>
+                          <>
+                            {/* Cargar los montos del mes sin salir de
+                                esta pantalla: era el único salto que le
+                                quedaba al circuito. */}
+                            <CargarConceptosDialog
+                              paymentId={p.id}
+                              propertyCode={p.contract.unit.propertyCode}
+                              address={p.contract.unit.address}
+                              periodLabel={`${monthNames[p.periodMonth - 1]} ${p.periodYear}`}
+                              currency={p.currency}
+                              managementFeePercent={Number(p.contract.managementFeePercent ?? 0)}
+                              conceptSuggestions={conceptSuggestions}
+                              items={p.items.map((i) => ({
+                                id: i.id,
+                                name: i.concept.name,
+                                isSystem: i.concept.isSystem,
+                                // Decimal no cruza la frontera a un
+                                // client component.
+                                amount: i.amount === null ? null : Number(i.amount),
+                                notes: i.notes,
+                              }))}
+                            />
+                            <form action={marcarLiquidacionEnviada.bind(null, p.id)}>
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface cursor-pointer"
+                              >
+                                Marcar enviada
+                              </button>
+                            </form>
+                          </>
+                        )}
+                        {/* Reabrir vive acá y no solo en la ficha: si el
+                            descuento se acuerda después de enviarla,
+                            reabrir sigue siendo un acto deliberado pero
+                            ya no cuesta salir de la pantalla. Solo desde
+                            ENVIADA — con un cobro encima ya no aplica
+                            (ver reabrirLiquidacion). */}
+                        {p.status === "ENVIADA" && (
+                          <form action={reabrirLiquidacion.bind(null, p.id)}>
                             <button
                               type="submit"
-                              className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface"
+                              title="Volver a Pendiente para corregir montos o agregar un concepto"
+                              className="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
                             >
-                              Marcar enviada
+                              Reabrir
                             </button>
                           </form>
                         )}
@@ -166,6 +214,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                               netAmount={netForOwner}
                             />
                           ))}
+                        </div>
                       </td>
                     )}
                   </tr>

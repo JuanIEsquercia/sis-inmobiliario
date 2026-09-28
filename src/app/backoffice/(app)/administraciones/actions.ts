@@ -427,6 +427,158 @@ export async function guardarLiquidacion(paymentId: number, formData: FormData) 
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
 }
 
+// Resultado que devuelven las acciones que se usan desde un diálogo,
+// para poder mostrar en pantalla qué pasó en vez de tirar el error a la
+// pantalla de error de toda la sección (ver FormWithFeedback).
+export type LiquidacionResult = { ok: true; message: string } | { ok: false; error: string };
+
+// Guarda TODA la liquidación de una vez: los montos de los conceptos que
+// ya tenía, los conceptos puntuales que se agregaron y los que se
+// quitaron, en una sola transacción.
+//
+// Existe porque hasta ahora eso eran tres acciones separadas
+// (guardarLiquidacion / agregarConceptoLiquidacion /
+// quitarConceptoLiquidacion), cada una con su formulario y su viaje al
+// servidor: agregar un descuento mientras cargabas el mes te obligaba a
+// guardar, esperar el re-render y seguir. Desde el modal de la lista de
+// Liquidaciones se carga todo junto y se guarda una sola vez. Las tres
+// acciones viejas siguen existiendo para la ficha de la liquidación.
+//
+// Un descuento se guarda como monto NEGATIVO (mismo criterio que
+// agregarConceptoLiquidacion): a quien carga nunca se le pide tipear el
+// signo, elige "Descuento" y el signo lo pone el servidor.
+export async function guardarConceptosLiquidacion(
+  paymentId: number,
+  _prev: LiquidacionResult | null,
+  formData: FormData
+): Promise<LiquidacionResult> {
+  // Fuera del try: si falta el permiso o el contrato no es de tu
+  // cartera, estas dos redirigen/tiran a propósito y no hay que
+  // convertirlo en un cartel dentro del modal.
+  const profile = await requirePermission("administraciones.pagos");
+  await assertPaymentInScope(paymentId, profile);
+
+  try {
+    // Montos de los conceptos que ya existían.
+    const itemIds = formData
+      .getAll("itemId")
+      .map((v) => Number(v))
+      .filter((n) => Number.isFinite(n));
+
+    // Conceptos que se quitaron en el modal.
+    const removeIds = new Set(
+      formData
+        .getAll("removeItemId")
+        .map((v) => Number(v))
+        .filter((n) => Number.isFinite(n))
+    );
+
+    // Conceptos nuevos: filas dinámicas `nuevos.N.{name,amount,type}`,
+    // mismo criterio de índices no consecutivos que parseItemRows
+    // (Presupuestos) — una fila borrada en el medio no corre a las demás.
+    const nuevoIdx = new Set<number>();
+    for (const key of formData.keys()) {
+      const m = key.match(/^nuevos\.(\d+)\.name$/);
+      if (m) nuevoIdx.add(Number(m[1]));
+    }
+    const nuevos = [...nuevoIdx]
+      .sort((a, b) => a - b)
+      .map((i) => ({
+        name: optionalStr(formData.get(`nuevos.${i}.name`)),
+        rawAmount: optionalDecimal(formData.get(`nuevos.${i}.amount`)),
+        isDiscount: formData.get(`nuevos.${i}.type`) === "DESCUENTO",
+      }))
+      // Una fila que quedó agregada pero vacía no es un error de carga.
+      .filter((row) => row.name !== null);
+
+    await withRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.findUniqueOrThrow({
+          where: { id: paymentId },
+          include: { items: { include: { concept: true } } },
+        });
+        if (payment.status !== "PENDIENTE") {
+          throw new Error(
+            "Esta liquidación ya está enviada — reabrila para poder modificarla."
+          );
+        }
+
+        for (const itemId of itemIds) {
+          if (removeIds.has(itemId)) continue;
+          const raw = formData.get(`amount.${itemId}`);
+          const s = typeof raw === "string" ? raw.trim() : "";
+          await tx.paymentItem.update({
+            where: { id: itemId },
+            data: {
+              amount: s.length > 0 ? s : null,
+              notes: optionalStr(formData.get(`notes.${itemId}`)),
+            },
+          });
+        }
+
+        for (const itemId of removeIds) {
+          const item = payment.items.find((i) => i.id === itemId);
+          if (!item) continue;
+          // El de Alquiler es obligatorio, igual que en
+          // quitarConceptoLiquidacion.
+          if (item.concept.isSystem) {
+            throw new Error("No se puede quitar el concepto de Alquiler.");
+          }
+          await tx.paymentItem.delete({ where: { id: itemId } });
+        }
+
+        // Los que sobreviven, para no crear dos veces el mismo concepto
+        // en una misma liquidación.
+        const conceptIdsPresentes = new Set(
+          payment.items.filter((i) => !removeIds.has(i.id)).map((i) => i.conceptId)
+        );
+
+        for (const row of nuevos) {
+          const concept = await tx.concept.upsert({
+            where: { name: row.name! },
+            create: { name: row.name! },
+            update: {},
+          });
+          if (conceptIdsPresentes.has(concept.id)) {
+            throw new Error(`Esta liquidación ya tiene un ítem de "${concept.name}".`);
+          }
+          conceptIdsPresentes.add(concept.id);
+
+          const amount =
+            row.rawAmount === null
+              ? null
+              : row.isDiscount
+                ? (-Math.abs(Number(row.rawAmount))).toFixed(2)
+                : row.rawAmount;
+
+          await tx.paymentItem.create({ data: { paymentId, conceptId: concept.id, amount } });
+        }
+      })
+    );
+
+    const payment = await withRetry(() =>
+      prisma.payment.findUniqueOrThrow({ where: { id: paymentId }, select: { contractId: true } })
+    );
+    revalidatePath("/backoffice/administraciones/liquidaciones");
+    revalidatePath(`/backoffice/administraciones/${payment.contractId}`);
+    revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
+
+    const agregados = nuevos.length;
+    const quitados = removeIds.size;
+    const detalle = [
+      agregados > 0 && `${agregados} concepto${agregados === 1 ? "" : "s"} agregado${agregados === 1 ? "" : "s"}`,
+      quitados > 0 && `${quitados} quitado${quitados === 1 ? "" : "s"}`,
+    ].filter(Boolean);
+
+    return {
+      ok: true,
+      message: detalle.length > 0 ? `Liquidación guardada — ${detalle.join(", ")}.` : "Liquidación guardada.",
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "No se pudo guardar la liquidación." };
+  }
+}
+
 // Agrega un concepto puntual a ESTA liquidación (ej. "Mora" solo el mes
 // que se pagó tarde) — a diferencia de los conceptos recurrentes del
 // contrato (Expensas, Agua...), que salen en todos los períodos, este
