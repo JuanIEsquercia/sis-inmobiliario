@@ -69,6 +69,60 @@ function parseTypedDate(masked: string): string | null {
 const YEAR_RANGE_PAST = 100;
 const YEAR_RANGE_FUTURE = 10;
 
+// Medidas del panel del calendario, para decidir de qué lado abrirlo.
+const PANEL_WIDTH = 320; // w-80
+const PANEL_HEIGHT = 430; // alto real aproximado con cabecera, combos, grilla y "Hoy"
+const PANEL_GAP = 8; // separación respecto del campo
+const VIEWPORT_MARGIN = 8; // aire mínimo contra el borde de la pantalla
+
+interface PanelPos {
+  top: number;
+  left: number;
+}
+
+// El panel se posiciona en coordenadas de VIEWPORT (position: fixed), no
+// relativo al campo. El motivo: estos campos viven casi siempre dentro
+// de un <dialog> (Cobrar, Pagar al propietario, Pagar deuda, Pagar
+// lote), y un panel `absolute` es parte de la caja del diálogo — se
+// desbordaba por abajo y, como el navegador le da `overflow: auto` al
+// <dialog>, en lugar de dejarlo salir aparecían scrollbars vertical y
+// horizontal y el calendario quedaba cortado.
+//
+// `fixed` no lo recorta ningún `overflow` de los ancestros. Y a
+// propósito NO se usa un portal a document.body: un <dialog> abierto con
+// showModal() vive en el top layer, así que un panel portaleado afuera
+// quedaría pintado DETRÁS del modal. Siendo descendiente del diálogo,
+// hereda el top layer y se dibuja encima, y de paso el "click afuera
+// para cerrar" sigue funcionando porque el panel sigue dentro del
+// contenedor que se chequea.
+function computePanelPos(el: HTMLElement | null): PanelPos {
+  if (!el) return { top: VIEWPORT_MARGIN, left: VIEWPORT_MARGIN };
+  const rect = el.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // Abajo del campo si entra; si no, arriba; y si no entra en ninguno de
+  // los dos lados (pantalla baja), se pega al borde y el propio panel
+  // scrollea por dentro (max-h en el className).
+  const espacioAbajo = vh - rect.bottom - PANEL_GAP;
+  const espacioArriba = rect.top - PANEL_GAP;
+  let top: number;
+  if (espacioAbajo >= PANEL_HEIGHT || espacioAbajo >= espacioArriba) {
+    top = rect.bottom + PANEL_GAP;
+  } else {
+    top = Math.max(VIEWPORT_MARGIN, rect.top - PANEL_GAP - PANEL_HEIGHT);
+  }
+  top = Math.min(top, Math.max(VIEWPORT_MARGIN, vh - VIEWPORT_MARGIN - 120));
+
+  // Alineado al campo, corrido hacia adentro si se saldría por derecha.
+  const ancho = Math.min(PANEL_WIDTH, vw - VIEWPORT_MARGIN * 2);
+  let left = rect.left;
+  if (left + ancho > vw - VIEWPORT_MARGIN) left = vw - VIEWPORT_MARGIN - ancho;
+  left = Math.max(VIEWPORT_MARGIN, left);
+
+  return { top, left };
+}
+
 // Reemplaza <input type="date"> nativo (popup dibujado por el sistema
 // operativo, no restyleable) por un calendario propio. Se puede tanto
 // tipear la fecha a mano (dd/mm/aaaa, de a dígitos) como elegirla del
@@ -110,6 +164,7 @@ export function DatePicker({
   const [viewYear, setViewYear] = useState(() => parseISO(value)?.y ?? today.getFullYear());
   const [viewMonth, setViewMonth] = useState(() => parseISO(value)?.m ?? today.getMonth() + 1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState<PanelPos>({ top: 0, left: 0 });
 
   // Mantiene el texto tipeado sincronizado cuando el valor cambia desde
   // afuera (se eligió un día del calendario, o el padre lo actualizó en
@@ -131,11 +186,23 @@ export function DatePicker({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
+    // El panel está en coordenadas de viewport (ver PANEL_*), así que si
+    // la página o el contenedor scrollean hay que recalcular o queda
+    // "flotando" lejos del campo.
+    function reposition() {
+      setPanelPos(computePanelPos(containerRef.current));
+    }
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", reposition);
+    // capture: true para enterarse también del scroll de cualquier
+    // contenedor interno, no solo del de la página.
+    window.addEventListener("scroll", reposition, true);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
     };
   }, [open]);
 
@@ -144,26 +211,12 @@ export function DatePicker({
     else setInternalValue(v);
   }
 
-  const [openUpwards, setOpenUpwards] = useState(false);
-  const [alignRight, setAlignRight] = useState(false);
-
   function openCalendar() {
     if (disabled) return;
     const parsed = parseISO(value);
     setViewYear(parsed?.y ?? today.getFullYear());
     setViewMonth(parsed?.m ?? today.getMonth() + 1);
-
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-
-      // Abrir hacia arriba si hay menos de 360px abajo y suficiente espacio arriba
-      setOpenUpwards(viewportHeight - rect.bottom < 360 && rect.top > 300);
-      // Alinear a la derecha si hay menos de 330px hacia la derecha
-      setAlignRight(viewportWidth - rect.left < 330);
-    }
-
+    setPanelPos(computePanelPos(containerRef.current));
     setOpen(true);
   }
 
@@ -258,9 +311,10 @@ export function DatePicker({
         <div
           role="dialog"
           aria-label="Elegir fecha"
-          className={`absolute z-50 w-80 max-w-[90vw] rounded-3xl border border-border/70 bg-surface/95 p-4 sm:p-5 shadow-premium backdrop-blur-md animate-fadeIn ${
-            openUpwards ? "bottom-[calc(100%+0.5rem)] top-auto" : "top-[calc(100%+0.5rem)] bottom-auto"
-          } ${alignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
+          // Posición en coordenadas de viewport, calculada al abrir y en
+          // cada scroll/resize — ver computePanelPos.
+          style={{ top: panelPos.top, left: panelPos.left }}
+          className="fixed z-[60] w-80 max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-y-auto rounded-3xl border border-border/70 bg-surface/95 p-4 sm:p-5 shadow-premium backdrop-blur-md animate-fadeIn"
         >
           {/* Fila 1: Navegación Mes Anterior / Título / Siguiente */}
           <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-border/40 pb-2.5">
