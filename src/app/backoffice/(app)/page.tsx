@@ -7,6 +7,8 @@ import {
   getLoadedThisMonth,
   getUnifiedPendingList,
   getAlertsSummary,
+  pendingHorizonLimit,
+  PENDING_HORIZON_DAYS,
   pendingTypeLabels,
   type CurrencyAmount,
   type PendingBucket,
@@ -100,6 +102,14 @@ export default async function BackofficeDashboard() {
           ? prisma.payment.count({
               where: {
                 status: { in: ["PENDIENTE", "ENVIADA", "PARCIAL"] },
+                // Mismo horizonte que la tabla de abajo (ver
+                // PENDING_HORIZON_DAYS): si esta tarjeta contara TODAS
+                // las liquidaciones pendientes, un contrato de 24 meses
+                // sumaría 24 de una y el número diría "2.400 pendientes"
+                // con 100 contratos — sin contradecir nada, pero sin
+                // querer decir nada tampoco. Lo accionable es lo vencido
+                // más lo que viene.
+                dueDate: { lte: pendingHorizonLimit() },
                 ...(contractGroupWhere(scope) ? { contract: { OR: [{ isAdministered: false }, contractGroupWhere(scope)!] } } : {}),
               },
             })
@@ -195,6 +205,7 @@ export default async function BackofficeDashboard() {
               <KpiStatCard
                 title="Liquidaciones pendientes"
                 value={pagosPendientes}
+                subtitle={`Vencidas y por vencer en ${PENDING_HORIZON_DAYS} días`}
                 icon={icons.liquidaciones}
                 badge={pagosPendientes > 0 ? { label: "Revisar", variant: "warning" } : undefined}
               />
@@ -206,7 +217,11 @@ export default async function BackofficeDashboard() {
       {collectionsSummary && (
         <div>
           <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-muted">Cobros pendientes por operación</h2>
-          <p className="mb-4 text-xs text-muted/80">Comisiones y tasaciones ya devengadas que todavía no se cobraron.</p>
+          <p className="mb-4 text-xs text-muted/80">
+            Comisiones y tasaciones ya devengadas que todavía no se cobraron. Acá va el total completo, sin recortar
+            por fecha — a diferencia de la tabla de abajo, que muestra solo la ventana de los próximos{" "}
+            {PENDING_HORIZON_DAYS} días.
+          </p>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Link href="/backoffice/caja/ventas" className="block">
               <KpiStatCard
@@ -274,7 +289,9 @@ export default async function BackofficeDashboard() {
         <div id="pendientes-cobro" className="scroll-mt-6">
           <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-muted">Pendientes de cobro</h2>
           <p className="mb-4 text-xs text-muted/80">
-            Todo lo que falta cobrar, de todas las operaciones — ordenado por lo más atrasado primero.
+            Lo vencido y lo que vence en los próximos {PENDING_HORIZON_DAYS} días, de todas las operaciones —
+            ordenado por lo más atrasado primero. El cronograma completo de cada contrato u operación está en su
+            propia ficha.
           </p>
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-sm">

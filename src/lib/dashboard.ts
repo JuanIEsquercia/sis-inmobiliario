@@ -170,29 +170,63 @@ const typeLabels: Record<PendingItemType, string> = {
 
 export { typeLabels as pendingTypeLabels };
 
+// Horizonte de la lista de pendientes de cobro: lo vencido (sin límite
+// hacia atrás, por viejo que sea) más lo que vence dentro de los
+// próximos `PENDING_HORIZON_DAYS` días.
+//
+// Sin este corte, un contrato administrado de 24 meses metía sus 24
+// liquidaciones futuras en la lista el mismo día que se cargaba: con un
+// puñado de contratos ya se vuelve ilegible, y con 100 contratos serían
+// ~2.400 filas de las cuales casi ninguna es algo para hacer hoy. Una
+// liquidación de dentro de un año y medio no es una tarea pendiente, es
+// el cronograma del contrato — y ese vive en la ficha del contrato y en
+// Liquidaciones, que ya tienen su propio selector de período.
+//
+// No se pierde nada de vista: los totales de "Cobros pendientes por
+// operación" siguen contando TODO sin recortar, y cada operación tiene
+// su propia página con su cronograma completo.
+export const PENDING_HORIZON_DAYS = 60;
+
+export function pendingHorizonLimit(withinDays = PENDING_HORIZON_DAYS): Date {
+  const now = new Date();
+  const limit = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  limit.setUTCDate(limit.getUTCDate() + withinDays);
+  return limit;
+}
+
 // Lista unificada de todo lo que falta cobrar, sin importar la unidad de
 // negocio — ver conversación: ventas/alquileres/tasaciones no tienen
 // noción de cartera (a diferencia de Administraciones, que sí), así que
 // esas tres van sin scope; la parte de administración sí respeta el
 // scope por grupo, igual que el resto del sistema desde la revisión de
 // seguridad.
-export async function getUnifiedPendingList(scope: ContractGroupScope, take = 40): Promise<PendingItem[]> {
+export async function getUnifiedPendingList(
+  scope: ContractGroupScope,
+  take = 40,
+  withinDays = PENDING_HORIZON_DAYS
+): Promise<PendingItem[]> {
   const groupWhere = contractGroupWhere(scope);
+  const limit = pendingHorizonLimit(withinDays);
 
   const [ventaInstallments, alquilerInstallments, renovaciones, tasaciones, payments] = await withRetry(() =>
     Promise.all([
       prisma.commissionInstallment.findMany({
-        where: { source: "VENTA", status: "PENDIENTE" },
+        // Mismo corte para las cuotas de comisión: una venta con la
+        // comisión en 12 cuotas también inundaba la lista.
+        where: { source: "VENTA", status: "PENDIENTE", dueDate: { lte: limit } },
         include: { sale: { include: { unit: true } } },
         orderBy: { dueDate: "asc" },
         take,
       }),
       prisma.commissionInstallment.findMany({
-        where: { source: "ALQUILER", status: "PENDIENTE" },
+        where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lte: limit } },
         include: { rentalCommission: { include: { contract: { include: { unit: true } } } } },
         orderBy: { dueDate: "asc" },
         take,
       }),
+      // Renovaciones y tasaciones no necesitan corte hacia adelante: su
+      // fecha (earnedAt / completedAt) es cuándo se devengó el trabajo,
+      // que ya pasó — nunca hay futuras.
       prisma.rentalCommission.findMany({
         where: { origin: "RENOVACION", cashMovement: null },
         include: { contract: { include: { unit: true } } },
@@ -208,6 +242,7 @@ export async function getUnifiedPendingList(scope: ContractGroupScope, take = 40
       prisma.payment.findMany({
         where: {
           status: { in: ["PENDIENTE", "ENVIADA", "PARCIAL"] },
+          dueDate: { lte: limit },
           ...(groupWhere ? { contract: { OR: [{ isAdministered: false }, groupWhere] } } : {}),
         },
         include: { contract: { include: { unit: true } }, items: true },
