@@ -58,9 +58,20 @@ export function Footer() {
               <Link href="/propiedades" className="hover:text-accent transition-colors">
                 Propiedades
               </Link>
-              <Link href="/backoffice" className="hover:text-accent transition-colors">
+              {/* A propósito un <a> y NO un <Link>: cruzar al backoffice
+                  tiene que recargar el documento entero. Con navegación
+                  client-side, todo lo que scripts de terceros dejaron
+                  colgado en el <head>/<body> del sitio público sobrevive
+                  al cambio de página, porque vive fuera del árbol de
+                  React y Next no lo desmonta. Concretamente: el widget
+                  de chat de Kommo (ver CrmChatButton) se inyecta solo en
+                  document.body y quedaba flotando encima del panel.
+                  Además el backoffice es otra aplicación (autenticada,
+                  noindex, otro layout y otro bundle), así que no hay
+                  nada que ganar con una transición blanda. */}
+              <a href="/backoffice" className="hover:text-accent transition-colors">
                 Backoffice
-              </Link>
+              </a>
             </div>
           </div>
         </div>

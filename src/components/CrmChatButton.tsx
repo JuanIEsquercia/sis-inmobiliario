@@ -5,6 +5,16 @@ import Script from "next/script";
 // monta solo en el layout del sitio ((site)/layout.tsx), nunca en el
 // backoffice.
 //
+// OJO: montarlo solo acá NO alcanza por sí solo para que no aparezca en
+// el panel. El snippet se inyecta a sí mismo en document.head y el
+// button.js que trae dibuja el botón en document.body — todo fuera del
+// árbol de React. Si se cruza al backoffice con navegación client-side
+// (<Link>), React desmonta este componente pero el botón ya inyectado
+// queda flotando igual, porque nunca fue suyo. Por eso el enlace al
+// backoffice del Footer es un <a> y no un <Link>: fuerza recarga de
+// documento y ahí sí se limpia todo. Si algún día se agrega otro enlace
+// del sitio público al panel, tiene que ser <a> por el mismo motivo.
+//
 // El id y el hash son de un embed público de Kommo (van en el HTML de
 // cada página para que cualquier visitante lo use — no son secretos,
 // mismo criterio que el teléfono y el Instagram, hardcodeados en el
