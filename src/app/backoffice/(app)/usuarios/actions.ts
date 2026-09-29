@@ -37,6 +37,47 @@ function assertCanGrant(actor: Profile, role: StaffRole, permissions: string[]) 
   }
 }
 
+// Largo mínimo de contraseña. El formulario ya decía minLength={8},
+// pero eso es un atributo del navegador: se saltea borrándolo desde el
+// inspector, y la acción del servidor no lo verificaba. El piso real que
+// se aplicaba era el de Supabase Auth (6 por defecto), o sea que el
+// sistema prometía una regla que no tenía. Se valida acá, que es el
+// único lugar que no se puede esquivar.
+const PASSWORD_MIN_LENGTH = 8;
+
+// Las peores contraseñas posibles para cuentas que manejan plata, y las
+// que primero prueba cualquiera. No pretende ser un diccionario — es
+// cortar lo obvio sin volver molesto el alta.
+const PASSWORDS_OBVIAS = new Set([
+  "12345678",
+  "123456789",
+  "1234567890",
+  "password",
+  "contrasena",
+  "contraseña",
+  "qwertyui",
+  "11111111",
+  "00000000",
+  "garcia123",
+  "inmobiliaria",
+]);
+
+function validarPassword(password: string, username?: string) {
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw new Error(`La contraseña tiene que tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`);
+  }
+  const normalizada = password.toLowerCase();
+  if (PASSWORDS_OBVIAS.has(normalizada)) {
+    throw new Error("Esa contraseña es de las más usadas del mundo — elegí otra.");
+  }
+  if (/^\d+$/.test(password)) {
+    throw new Error("La contraseña no puede ser solo números.");
+  }
+  if (username && normalizada.includes(username.toLowerCase())) {
+    throw new Error("La contraseña no puede contener el nombre de usuario.");
+  }
+}
+
 // Un no-ADMIN tampoco puede tocar la cuenta de un ADMIN (editarla,
 // desactivarla) — sería la otra forma de escalar: bajarle permisos o
 // dejar afuera al que sí manda.
@@ -56,6 +97,7 @@ export async function crearUsuario(formData: FormData) {
   const email = requiredStr(formData.get("email"), "Email");
   const username = requiredStr(formData.get("username"), "Nombre de usuario").toLowerCase();
   const password = requiredStr(formData.get("password"), "Contraseña");
+  validarPassword(password, username);
   const role = parseRole(formData.get("role"));
   const firstName = toTitleCaseOrNull(optionalStr(formData.get("firstName")));
   const lastName = toTitleCaseOrNull(optionalStr(formData.get("lastName")));
@@ -158,6 +200,57 @@ export async function actualizarUsuario(userId: string, formData: FormData) {
   revalidatePath("/backoffice/usuarios");
   revalidatePath("/equipo");
   redirect("/backoffice/usuarios");
+}
+
+// Cambiar la contraseña de un usuario ya creado. Hasta ahora no existía:
+// la contraseña se fijaba UNA vez, al dar de alta la cuenta, y después no
+// había forma de tocarla. Si se perdía, esa cuenta quedaba varada — sin
+// auto-registro, sin cambio por el propio usuario y sin recuperación por
+// mail (este sistema no tiene ninguno de los tres), no había salida.
+//
+// Se hace con la Admin API, igual que el alta, y bajo el mismo permiso y
+// los mismos candados: un no-ADMIN no puede tocar la cuenta de un ADMIN
+// (getTargetOrThrow), porque cambiarle la contraseña a quien manda es
+// otra forma de quedarse con el sistema.
+export async function cambiarPasswordUsuario(
+  userId: string,
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const actor = await requirePermission("usuarios.gestionar");
+
+  try {
+    const target = await prisma.profile.findUniqueOrThrow({
+      where: { id: userId },
+      select: { role: true, username: true },
+    });
+    if (target.role === "ADMIN" && actor.role !== "ADMIN") {
+      throw new Error("Solo un administrador puede cambiar la contraseña de otro administrador.");
+    }
+
+    const password = requiredStr(formData.get("password"), "Contraseña");
+    const repeticion = requiredStr(formData.get("passwordRepeat"), "Repetición de la contraseña");
+    if (password !== repeticion) {
+      throw new Error("Las dos contraseñas no coinciden.");
+    }
+    validarPassword(password, target.username);
+
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(userId, { password });
+    if (error) throw new Error(error.message);
+
+    // No hay tabla de auditoría todavía — que quede al menos en los logs
+    // del servidor, igual que los borrados definitivos.
+    console.log(`[cambiarPasswordUsuario] contraseña de ${target.username} (${userId}) cambiada por ${actor.id}`);
+
+    revalidatePath("/backoffice/usuarios");
+    return {
+      ok: true,
+      message: `Contraseña de @${target.username} actualizada. Pasásela por un canal seguro — no queda guardada en ningún lado.`,
+    };
+  } catch (err) {
+    return comoError(err, "No se pudo cambiar la contraseña.");
+  }
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean) {

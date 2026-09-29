@@ -4,7 +4,8 @@ import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { RolePermissionsFields } from "@/components/backoffice/RolePermissionsFields";
-import { actualizarUsuario } from "../actions";
+import { FormWithFeedback } from "@/components/backoffice/FormWithFeedback";
+import { actualizarUsuario, cambiarPasswordUsuario } from "../actions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -77,6 +78,61 @@ export default async function EditarUsuarioPage({ params }: PageProps) {
           Guardar cambios
         </button>
       </form>
+
+      {/* Formulario aparte, no dentro del de arriba: cambiar la
+          contraseña es una operación propia (va por la Admin API de
+          Supabase, no por la tabla Profile) y no tiene que viajar
+          mezclada con un cambio de nombre o de permisos. */}
+      <section className="mt-10 rounded-xl border border-dashed border-border p-5">
+        <h2 className="text-sm font-medium text-foreground">Contraseña</h2>
+        <p className="mt-1 mb-4 text-xs leading-relaxed text-muted">
+          Hasta acá la contraseña se fijaba una sola vez, al crear la cuenta, y después no se podía tocar: si se
+          perdía, esa cuenta quedaba varada. Acá se puede poner una nueva. El sistema no guarda ni muestra la
+          anterior — nadie puede recuperarla, solo reemplazarla.
+        </p>
+        <FormWithFeedback
+          action={cambiarPasswordUsuario.bind(null, profile.id)}
+          submitLabel="Cambiar contraseña"
+          pendingLabel="Cambiando..."
+          className="flex flex-col gap-3"
+          submitClassName="w-fit rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="password" className="text-xs text-muted">
+                Contraseña nueva *
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="field"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="passwordRepeat" className="text-xs text-muted">
+                Repetir la contraseña *
+              </label>
+              <input
+                id="passwordRepeat"
+                name="passwordRepeat"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="field"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted/80">
+            Mínimo 8 caracteres. No puede ser solo números, ni contener el nombre de usuario, ni estar entre las más
+            usadas.
+          </p>
+        </FormWithFeedback>
+      </section>
     </div>
   );
 }
