@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getAppraisalById } from "@/lib/caja";
 import { getSignedDocumentUrl } from "@/lib/supabase/storage";
 import { subirInformeTasacion, confirmarCobroTasacion } from "../../actions";
@@ -20,7 +20,7 @@ export default async function TasacionDetailPage({ params }: PageProps) {
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
 
-  const appraisal = await getAppraisalById(numericId);
+  const appraisal = await getAppraisalById(numericId, cajaOwnerId(profile));
   if (!appraisal) notFound();
 
   const reportUrl = appraisal.reportStoragePath ? await getSignedDocumentUrl(appraisal.reportStoragePath) : null;

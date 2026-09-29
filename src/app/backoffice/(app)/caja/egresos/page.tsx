@@ -17,7 +17,11 @@ interface PageProps {
 }
 
 export default async function EgresosPage({ searchParams }: PageProps) {
-  const profile = await requirePermission("caja.ver");
+  // Permiso propio, ya no alcanza con caja.ver: acá están los sueldos,
+  // el alquiler de la oficina y los gastos fijos del negocio, que no es
+  // información que necesite quien carga una venta. Mismo criterio que
+  // el consolidado, que también salió de caja.ver.
+  const profile = await requirePermission("caja.egresos.ver");
   const canCreate = profile.permissions.includes("caja.gastos.crear");
   const { categoria } = await searchParams;
   const categoryId = categoria ? Number(categoria) : undefined;

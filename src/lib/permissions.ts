@@ -50,7 +50,20 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     key: "caja",
     label: "Caja",
     children: [
-      { key: "caja.ver", label: "Ver caja (movimientos, ventas, tasaciones, comisiones, egresos)" },
+      // `caja.ver` ya NO incluye los egresos (ver caja.egresos.ver) y ya
+      // no muestra todo: por default solo se ven las operaciones propias
+      // — creadas por vos, o donde figurás como vendedor o captador (ver
+      // cajaOwnerId / saleOwnerWhere). Sin esa restricción, cualquier
+      // agente veía cada venta y cada comisión de la inmobiliaria.
+      { key: "caja.ver", label: "Ver caja — solo las operaciones propias (ventas, tasaciones, comisiones, movimientos)" },
+      // Misma idea que administraciones.ver_todos y agentes.ver_todos: la
+      // llave para cubrir a otro (vacaciones, licencia) sin tener que
+      // convertirlo en administrador.
+      { key: "caja.ver_todos", label: "Sin restricción por agente — ver las operaciones de Caja de cualquiera" },
+      // Separado de caja.ver a propósito: acá están los sueldos, el
+      // alquiler de la oficina y los gastos fijos del negocio. No es
+      // información que necesite quien carga una venta.
+      { key: "caja.egresos.ver", label: "Ver egresos y gastos de la inmobiliaria" },
       { key: "caja.ventas.crear", label: "Cargar ventas" },
       { key: "caja.tasaciones.crear", label: "Cargar tasaciones" },
       { key: "caja.comisiones.crear", label: "Cargar comisiones de alquiler" },
@@ -144,13 +157,16 @@ export const PERMISSION_IMPLIES: Record<string, string[]> = {
   // sección no aparece en el menú.
   "administraciones.grupos.gestionar": ["administraciones.ver", "usuarios.ver"],
   "central_deudores.eliminar": ["central_deudores.consultar"],
+  "caja.ver_todos": ["caja.ver"],
+  "caja.egresos.ver": ["caja.ver"],
+  // Cargar un gasto sin poder ver los gastos sería un permiso a medias.
+  "caja.gastos.crear": ["caja.egresos.ver"],
   "caja.ventas.crear": ["caja.ver"],
   "caja.tasaciones.crear": ["caja.ver"],
   "caja.comisiones.crear": ["caja.ver"],
   "caja.administracion.confirmar": ["caja.ver"],
   "caja.comisiones.confirmar": ["caja.ver"],
   "caja.tasaciones.confirmar": ["caja.ver"],
-  "caja.gastos.crear": ["caja.ver"],
   "caja.consolidado.ver": ["caja.ver"],
   "caja.proyeccion.ver": ["caja.ver"],
   "caja.proyeccion.configurar": ["caja.proyeccion.ver"],

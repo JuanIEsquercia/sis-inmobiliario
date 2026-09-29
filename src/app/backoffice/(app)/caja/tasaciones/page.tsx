@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getAppraisals } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 import { SearchField } from "@/components/backoffice/SearchField";
@@ -15,7 +15,7 @@ interface PageProps {
 export default async function TasacionesPage({ searchParams }: PageProps) {
   const profile = await requirePermission("caja.ver");
   const { q } = await searchParams;
-  const appraisals = await getAppraisals(q);
+  const appraisals = await getAppraisals(q, cajaOwnerId(profile));
 
   return (
     <div className="space-y-6">

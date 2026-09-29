@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getRentalCommissions, agentLabel } from "@/lib/caja";
 import { clientLabel } from "@/lib/alquileres";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
@@ -15,7 +15,7 @@ const originLabels: Record<string, string> = {
 
 export default async function ComisionesPage() {
   const profile = await requirePermission("caja.ver");
-  const commissions = await getRentalCommissions();
+  const commissions = await getRentalCommissions(cajaOwnerId(profile));
 
   return (
     <div className="space-y-6">

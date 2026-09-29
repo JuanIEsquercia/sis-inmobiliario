@@ -4,7 +4,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requirePermission, requireAnyPermission, assertContractInScope } from "@/lib/auth";
+import {
+  requirePermission,
+  requireAnyPermission,
+  assertContractInScope,
+  assertPaymentInScope,
+  assertSaleInScope,
+  assertRentalCommissionInScope,
+  assertAppraisalInScope,
+  assertInstallmentInScope,
+} from "@/lib/auth";
 import { resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadAppraisalReport } from "@/lib/supabase/storage";
 import { paymentBreakdown } from "@/lib/alquileres";
@@ -205,7 +214,10 @@ export async function crearVenta(formData: FormData) {
 // — antes de eso esa plata todavía no entró de verdad a la agencia (ver
 // comentario en el modelo CommissionInstallment).
 export async function marcarCuotaPagada(installmentId: number, formData: FormData) {
-  await requirePermission("caja.ventas.crear");
+  const profile = await requirePermission("caja.ventas.crear");
+  // Sin esto el alcance sería solo visual: la lista esconde la venta
+  // ajena, pero la acción aceptaba el id igual.
+  await assertInstallmentInScope(installmentId, profile);
   const method = requiredMethod(formData.get("method"));
 
   await withRetry(() =>
@@ -262,7 +274,8 @@ export async function marcarCuotaPagada(installmentId: number, formData: FormDat
 // crearVenta): a veces se sabe el negocio antes de tener los datos
 // completos de las partes.
 export async function actualizarPartesVenta(saleId: number, formData: FormData) {
-  await requirePermission("caja.ventas.crear");
+  const profile = await requirePermission("caja.ventas.crear");
+  await assertSaleInScope(saleId, profile);
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -288,6 +301,7 @@ export async function actualizarPartesVenta(saleId: number, formData: FormData) 
 // CommissionInstallment sí cascadea sola al borrar la Sale.
 export async function eliminarVenta(saleId: number, formData: FormData) {
   const profile = await requirePermission("caja.ventas.crear");
+  await assertSaleInScope(saleId, profile);
   const reason = optionalStr(formData.get("reason"));
   // No hay tabla de auditoría todavía — queda al menos en los logs del
   // servidor, ya que de la fila no va a quedar nada.
@@ -392,7 +406,8 @@ export async function crearTasacion(formData: FormData) {
 // Confirma que la inmobiliaria ya tiene en mano el cobro de la
 // tasación — evento aparte de haberla hecho/cargado.
 export async function confirmarCobroTasacion(appraisalId: number, formData: FormData) {
-  await requirePermission("caja.tasaciones.confirmar");
+  const profile = await requirePermission("caja.tasaciones.confirmar");
+  await assertAppraisalInScope(appraisalId, profile);
 
   const method = requiredMethod(formData.get("method"));
 
@@ -429,6 +444,7 @@ export async function confirmarCobroTasacion(appraisalId: number, formData: Form
 // referencia (no queda historial de versiones anteriores).
 export async function subirInformeTasacion(appraisalId: number, formData: FormData) {
   const profile = await requirePermission("caja.tasaciones.crear");
+  await assertAppraisalInScope(appraisalId, profile);
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Elegí un archivo PDF");
@@ -492,7 +508,8 @@ export async function crearComisionAlquiler(contractId: number, formData: FormDa
 // registrarCronogramaAlquiler en su lugar, aunque sea para una sola
 // cuota "de contado".
 export async function confirmarCobroComisionAlquiler(rentalCommissionId: number, formData: FormData) {
-  await requirePermission("caja.comisiones.confirmar");
+  const profile = await requirePermission("caja.comisiones.confirmar");
+  await assertRentalCommissionInScope(rentalCommissionId, profile);
 
   const method = requiredMethod(formData.get("method"));
 
@@ -530,7 +547,8 @@ export async function confirmarCobroComisionAlquiler(rentalCommissionId: number,
 // quedó fijo en RentalCommission.amount al cargar la comisión, así que
 // se lee de la base en vez de confiar en lo que venga del formulario.
 export async function registrarCronogramaAlquiler(rentalCommissionId: number, formData: FormData) {
-  await requirePermission("caja.comisiones.confirmar");
+  const profile = await requirePermission("caja.comisiones.confirmar");
+  await assertRentalCommissionInScope(rentalCommissionId, profile);
 
   const enCuotas = formData.get("enCuotas") === "on";
 
@@ -609,7 +627,11 @@ export async function registrarCronogramaAlquiler(rentalCommissionId: number, fo
 // inquilino puede transferir directo al propietario, y la comisión se
 // cobra en otro momento aparte. Recién acá se genera el CashMovement.
 export async function confirmarCobroComision(paymentId: number, formData: FormData) {
-  await requirePermission("caja.administracion.confirmar");
+  // Esta es de administración, no de atribución por agente: la
+  // liquidación pertenece a un contrato, y los contratos se reparten por
+  // cartera. Antes no validaba nada.
+  const profile = await requirePermission("caja.administracion.confirmar");
+  await assertPaymentInScope(paymentId, profile);
 
   const method = requiredMethod(formData.get("method"));
 

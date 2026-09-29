@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getSaleById, agentLabel } from "@/lib/caja";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
@@ -32,7 +32,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
 
-  const sale = await getSaleById(numericId);
+  const sale = await getSaleById(numericId, cajaOwnerId(profile));
   if (!sale) notFound();
 
   const canCollect = profile.permissions.includes("caja.ventas.crear");

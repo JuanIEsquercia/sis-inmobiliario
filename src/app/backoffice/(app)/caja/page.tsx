@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getCashMovements, getCashMovementTotals } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
@@ -16,9 +16,16 @@ const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
 export default async function CajaPage() {
-  await requirePermission("caja.ver");
+  const profile = await requirePermission("caja.ver");
+  // Sin caja.ver_todos, tanto la lista como los totales se limitan a lo
+  // propio: totales de toda la inmobiliaria delatarían lo que la lista
+  // esconde.
+  const agentId = cajaOwnerId(profile);
 
-  const [movements, totals] = await Promise.all([getCashMovements(), getCashMovementTotals()]);
+  const [movements, totals] = await Promise.all([
+    getCashMovements(undefined, agentId),
+    getCashMovementTotals(agentId),
+  ]);
 
   const totalsByCurrency = new Map<string, Map<CashMovementSource, number>>();
   for (const t of totals) {

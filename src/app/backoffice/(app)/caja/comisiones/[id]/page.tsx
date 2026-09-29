@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getRentalCommissionById, agentLabel } from "@/lib/caja";
 import { clientLabel } from "@/lib/alquileres";
 import { AlquilerCronogramaFields } from "@/components/backoffice/AlquilerCronogramaFields";
@@ -32,7 +32,7 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
 
-  const commission = await getRentalCommissionById(numericId);
+  const commission = await getRentalCommissionById(numericId, cajaOwnerId(profile));
   if (!commission) notFound();
 
   const isRenewal = commission.origin === "RENOVACION";

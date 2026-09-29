@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getCashMovements } from "@/lib/caja";
 import { getPaymentsPendingFeeConfirmation, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
@@ -22,7 +22,7 @@ export default async function AdministracionCajaPage() {
   const profile = await requirePermission("caja.ver");
   const canConfirmar = profile.permissions.includes("caja.administracion.confirmar");
   const [movements, pendientes] = await Promise.all([
-    getCashMovements({ source: "ADMINISTRACION" }),
+    getCashMovements({ source: "ADMINISTRACION" }, cajaOwnerId(profile)),
     canConfirmar ? getPaymentsPendingFeeConfirmation() : Promise.resolve([]),
   ]);
 

@@ -10,7 +10,7 @@ const tabs = [
   { key: "tasaciones", href: "/backoffice/caja/tasaciones", label: "Tasaciones" },
   { key: "comisiones", href: "/backoffice/caja/comisiones", label: "Comisión alquileres" },
   { key: "administracion", href: "/backoffice/caja/administracion", label: "Administración" },
-  { key: "egresos", href: "/backoffice/caja/egresos", label: "Egresos" },
+  { key: "egresos", href: "/backoffice/caja/egresos", label: "Egresos", permission: "caja.egresos.ver" },
   { key: "consolidado", href: "/backoffice/caja/consolidado", label: "Consolidado", permission: "caja.consolidado.ver" },
   { key: "proyeccion", href: "/backoffice/caja/proyeccion", label: "Proyección", permission: "caja.proyeccion.ver" },
 ] as const;

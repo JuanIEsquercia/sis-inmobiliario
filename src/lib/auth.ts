@@ -126,6 +126,104 @@ export async function assertPaymentInScope(paymentId: number, profile: Profile):
   return payment.contractId;
 }
 
+// ---------------------------------------------------------------------
+// Alcance de Caja, por AGENTE (no por cartera como Administraciones).
+//
+// Caja no tiene noción de grupo: una venta o una comisión pertenece a
+// las personas que la hicieron. Hasta ahora no tenía ningún alcance —
+// `caja.ver` mostraba todas las ventas, comisiones y movimientos de la
+// inmobiliaria a cualquier agente. Ahora, salvo que tengas
+// caja.ver_todos, solo ves lo tuyo.
+//
+// "Tuyo" = figurás como creador, vendedor o captador. Los tres, porque
+// quien carga la operación no siempre es quien la hizo (en esta agencia
+// las carga el dueño casi siempre) y quien la hizo tiene que verla; y a
+// la vez quien la tipeó no debería perder de vista lo que cargó.
+//
+// Devuelve el id del agente al que hay que restringir, o `null` cuando
+// no hay restricción — mismo contrato que contractGroupWhere, que
+// devuelve null para "all".
+// ---------------------------------------------------------------------
+export function cajaOwnerId(profile: Profile): string | null {
+  return profile.permissions.includes("caja.ver_todos") ? null : profile.id;
+}
+
+// Chequeo para OPERAR sobre una venta (marcar una cuota cobrada,
+// completar las partes, eliminarla), no solo para listarla. Sin esto el
+// alcance se saltaba mandando el id de otra venta en el form: la lista
+// la escondía, pero la acción la aceptaba igual.
+export async function assertSaleInScope(saleId: number, profile: Profile): Promise<void> {
+  const agentId = cajaOwnerId(profile);
+  if (agentId === null) return;
+
+  const sale = await withRetry(() =>
+    prisma.sale.findUnique({
+      where: { id: saleId },
+      select: { createdById: true, vendedorAgentId: true, captadorAgentId: true },
+    })
+  );
+  if (!sale) throw new Error("La venta no existe.");
+  if (sale.createdById !== agentId && sale.vendedorAgentId !== agentId && sale.captadorAgentId !== agentId) {
+    throw new Error("No tenés acceso a esta venta — no participaste en la operación.");
+  }
+}
+
+export async function assertRentalCommissionInScope(commissionId: number, profile: Profile): Promise<void> {
+  const agentId = cajaOwnerId(profile);
+  if (agentId === null) return;
+
+  const commission = await withRetry(() =>
+    prisma.rentalCommission.findUnique({
+      where: { id: commissionId },
+      select: { createdById: true, vendedorAgentId: true, captadorAgentId: true },
+    })
+  );
+  if (!commission) throw new Error("La comisión no existe.");
+  if (
+    commission.createdById !== agentId &&
+    commission.vendedorAgentId !== agentId &&
+    commission.captadorAgentId !== agentId
+  ) {
+    throw new Error("No tenés acceso a esta comisión — no participaste en la operación.");
+  }
+}
+
+// Las tasaciones no tienen captador (ver el modelo Appraisal): la regla
+// se evalúa con creador y vendedor nada más.
+export async function assertAppraisalInScope(appraisalId: number, profile: Profile): Promise<void> {
+  const agentId = cajaOwnerId(profile);
+  if (agentId === null) return;
+
+  const appraisal = await withRetry(() =>
+    prisma.appraisal.findUnique({
+      where: { id: appraisalId },
+      select: { createdById: true, vendedorAgentId: true },
+    })
+  );
+  if (!appraisal) throw new Error("La tasación no existe.");
+  if (appraisal.createdById !== agentId && appraisal.vendedorAgentId !== agentId) {
+    throw new Error("No tenés acceso a esta tasación — no participaste en la operación.");
+  }
+}
+
+// Idem para una cuota de comisión: resuelve de qué venta o comisión de
+// alquiler viene y delega.
+export async function assertInstallmentInScope(installmentId: number, profile: Profile): Promise<void> {
+  if (cajaOwnerId(profile) === null) return;
+
+  const installment = await withRetry(() =>
+    prisma.commissionInstallment.findUnique({
+      where: { id: installmentId },
+      select: { saleId: true, rentalCommissionId: true },
+    })
+  );
+  if (!installment) throw new Error("La cuota no existe.");
+  if (installment.saleId !== null) return assertSaleInScope(installment.saleId, profile);
+  if (installment.rentalCommissionId !== null) {
+    return assertRentalCommissionInScope(installment.rentalCommissionId, profile);
+  }
+}
+
 // Cualquier perfil puede ver su propio saldo en Pagos a agentes — ver
 // el de OTRO agente pide agentes.ver_todos.
 export async function requireSelfOrAgentesVerTodos(targetAgentId: string): Promise<Profile> {

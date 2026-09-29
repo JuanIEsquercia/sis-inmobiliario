@@ -211,10 +211,15 @@ export function agentLabel(agent: { firstName: string | null; lastName: string |
   return agent ? `${agent.firstName} ${agent.lastName}` : "Inmobiliaria";
 }
 
-export async function getCashMovements(filters?: { source?: CashMovementSource }) {
+export async function getCashMovements(
+  filters?: { source?: CashMovementSource },
+  agentId: string | null = null
+) {
   return withRetry(() =>
     prisma.cashMovement.findMany({
-      where: filters?.source ? { source: filters.source } : undefined,
+      where: {
+        AND: [filters?.source ? { source: filters.source } : {}, cashMovementOwnerWhere(agentId)],
+      },
       orderBy: { occurredAt: "desc" },
       take: 200,
     })
@@ -222,38 +227,93 @@ export async function getCashMovements(filters?: { source?: CashMovementSource }
 }
 
 // Totales agrupados por fuente y moneda — nunca se suma ARS con USD.
-export async function getCashMovementTotals() {
+// Van con el mismo filtro que la lista: si los totales fueran de toda la
+// inmobiliaria, delatarían justo lo que la lista esconde.
+export async function getCashMovementTotals(agentId: string | null = null) {
   return withRetry(() =>
-    prisma.cashMovement.groupBy({ by: ["source", "currency"], _sum: { amount: true } })
+    prisma.cashMovement.groupBy({
+      by: ["source", "currency"],
+      where: cashMovementOwnerWhere(agentId),
+      _sum: { amount: true },
+    })
   );
 }
 
-export async function getSales(query?: string) {
+// ---------------------------------------------------------------------
+// Where-clauses de pertenencia. `agentId` null = sin restricción (ver
+// cajaOwnerId). Un registro es tuyo si figurás como creador, vendedor o
+// captador; las tasaciones no tienen captador y los movimientos de caja
+// no tienen creador, así que cada uno tiene su variante.
+// ---------------------------------------------------------------------
+function saleOwnerWhere(agentId: string | null) {
+  if (!agentId) return {};
+  return { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] };
+}
+
+function rentalCommissionOwnerWhere(agentId: string | null) {
+  if (!agentId) return {};
+  return { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] };
+}
+
+function appraisalOwnerWhere(agentId: string | null) {
+  if (!agentId) return {};
+  return { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }] };
+}
+
+// Un movimiento de caja no tiene creador propio: es tuyo si figurás como
+// vendedor, o si es tuyo el registro que lo originó. Los movimientos de
+// administración (source ADMINISTRACION, atados a una liquidación) entran
+// por vendedorAgentId, que confirmarCobroComision copia del contrato.
+function cashMovementOwnerWhere(agentId: string | null) {
+  if (!agentId) return {};
+  return {
+    OR: [
+      { vendedorAgentId: agentId },
+      { sale: saleOwnerWhere(agentId) },
+      { rentalCommission: rentalCommissionOwnerWhere(agentId) },
+      { appraisal: appraisalOwnerWhere(agentId) },
+      {
+        commissionInstallment: {
+          OR: [{ sale: saleOwnerWhere(agentId) }, { rentalCommission: rentalCommissionOwnerWhere(agentId) }],
+        },
+      },
+    ],
+  };
+}
+
+export async function getSales(query?: string, agentId: string | null = null) {
   const q = query?.trim();
+  const busqueda = q
+    ? {
+        OR: [
+          { unit: { propertyCode: { contains: q, mode: "insensitive" as const } } },
+          { unit: { address: { contains: q, mode: "insensitive" as const } } },
+          { seller: { firstName: { contains: q, mode: "insensitive" as const } } },
+          { seller: { lastName: { contains: q, mode: "insensitive" as const } } },
+          { buyer: { firstName: { contains: q, mode: "insensitive" as const } } },
+          { buyer: { lastName: { contains: q, mode: "insensitive" as const } } },
+        ],
+      }
+    : {};
+
   return withRetry(() =>
     prisma.sale.findMany({
-      where: q
-        ? {
-            OR: [
-              { unit: { propertyCode: { contains: q, mode: "insensitive" } } },
-              { unit: { address: { contains: q, mode: "insensitive" } } },
-              { seller: { firstName: { contains: q, mode: "insensitive" } } },
-              { seller: { lastName: { contains: q, mode: "insensitive" } } },
-              { buyer: { firstName: { contains: q, mode: "insensitive" } } },
-              { buyer: { lastName: { contains: q, mode: "insensitive" } } },
-            ],
-          }
-        : undefined,
+      // AND de los dos filtros: la búsqueda no puede ampliar el alcance
+      // (dos OR sueltos en el mismo where se pisarían).
+      where: { AND: [busqueda, saleOwnerWhere(agentId)] },
       include: { unit: true, seller: true, buyer: true, vendedorAgent: true, captadorAgent: true },
       orderBy: { closedAt: "desc" },
     })
   );
 }
 
-export async function getSaleById(id: number) {
+// findFirst y no findUnique: hay que combinar el id con el filtro de
+// pertenencia, igual que getContractById con el scope de cartera. Una
+// venta ajena da `null` — como si no existiera, sin delatar que existe.
+export async function getSaleById(id: number, agentId: string | null = null) {
   return withRetry(() =>
-    prisma.sale.findUnique({
-      where: { id },
+    prisma.sale.findFirst({
+      where: { AND: [{ id }, saleOwnerWhere(agentId)] },
       include: {
         unit: true,
         seller: true,
@@ -268,28 +328,30 @@ export async function getSaleById(id: number) {
   );
 }
 
-export async function getAppraisals(query?: string) {
+export async function getAppraisals(query?: string, agentId: string | null = null) {
   const q = query?.trim();
+  const busqueda = q
+    ? {
+        OR: [
+          { unit: { propertyCode: { contains: q, mode: "insensitive" as const } } },
+          { unit: { address: { contains: q, mode: "insensitive" as const } } },
+        ],
+      }
+    : {};
+
   return withRetry(() =>
     prisma.appraisal.findMany({
-      where: q
-        ? {
-            OR: [
-              { unit: { propertyCode: { contains: q, mode: "insensitive" } } },
-              { unit: { address: { contains: q, mode: "insensitive" } } },
-            ],
-          }
-        : undefined,
+      where: { AND: [busqueda, appraisalOwnerWhere(agentId)] },
       include: { unit: true, vendedorAgent: true, cashMovement: true },
       orderBy: { completedAt: "desc" },
     })
   );
 }
 
-export async function getAppraisalById(id: number) {
+export async function getAppraisalById(id: number, agentId: string | null = null) {
   return withRetry(() =>
-    prisma.appraisal.findUnique({
-      where: { id },
+    prisma.appraisal.findFirst({
+      where: { AND: [{ id }, appraisalOwnerWhere(agentId)] },
       include: { unit: true, vendedorAgent: true, createdBy: true, cashMovement: true },
     })
   );
@@ -303,9 +365,10 @@ export async function getAppraisalById(id: number) {
 // select acotado y tope de 200 (mismo criterio que getCashMovements y
 // getExpenses) queda en una fracción, y el detalle completo sigue
 // estando en getRentalCommissionById cuando se abre una.
-export async function getRentalCommissions() {
+export async function getRentalCommissions(agentId: string | null = null) {
   return withRetry(() =>
     prisma.rentalCommission.findMany({
+      where: rentalCommissionOwnerWhere(agentId),
       include: {
         contract: {
           select: {
@@ -325,10 +388,10 @@ export async function getRentalCommissions() {
   );
 }
 
-export async function getRentalCommissionById(id: number) {
+export async function getRentalCommissionById(id: number, agentId: string | null = null) {
   return withRetry(() =>
-    prisma.rentalCommission.findUnique({
-      where: { id },
+    prisma.rentalCommission.findFirst({
+      where: { AND: [{ id }, rentalCommissionOwnerWhere(agentId)] },
       include: {
         contract: { include: { unit: true, tenant: true } },
         vendedorAgent: true,

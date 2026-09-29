@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getSales, agentLabel } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 import { SearchField } from "@/components/backoffice/SearchField";
@@ -15,7 +15,7 @@ interface PageProps {
 export default async function VentasPage({ searchParams }: PageProps) {
   const profile = await requirePermission("caja.ver");
   const { q } = await searchParams;
-  const sales = await getSales(q);
+  const sales = await getSales(q, cajaOwnerId(profile));
 
   return (
     <div className="space-y-6">

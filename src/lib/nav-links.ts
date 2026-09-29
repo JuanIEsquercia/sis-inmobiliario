@@ -39,7 +39,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/backoffice/caja/tasaciones", label: "Tasaciones" },
       { href: "/backoffice/caja/comisiones", label: "Comisión alquileres" },
       { href: "/backoffice/caja/administracion", label: "Administración" },
-      { href: "/backoffice/caja/egresos", label: "Egresos" },
+      { href: "/backoffice/caja/egresos", label: "Egresos", permission: "caja.egresos.ver" },
       { href: "/backoffice/caja/consolidado", label: "Consolidado", permission: "caja.consolidado.ver" },
       { href: "/backoffice/caja/proyeccion", label: "Proyección", permission: "caja.proyeccion.ver" },
     ],
