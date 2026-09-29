@@ -590,6 +590,27 @@ enum PaymentMethod {
   TRANSFERENCIA
 }
 
+// A quién le llegó la plata del alquiler. Es una pregunta DISTINTA del
+// medio de pago y hasta ahora no se guardaba en ningún lado: el único
+// lugar donde se intentaba insinuar era la etiqueta del combo de medio
+// ("Transferencia a propietario"), que mentía — si el inquilino
+// transfería a la inmobiliaria quedaba guardado igual que si transfería
+// al propietario, indistinguibles.
+//
+// Importa porque determina qué falta hacer después, y son consecuencias
+// espejadas:
+//   PROPIETARIO  -> él ya tiene su plata, NO hay nada que girarle;
+//                   lo que queda pendiente es cobrar nuestra comisión.
+//   INMOBILIARIA -> tenemos la plata, hay que girarle el neto;
+//                   nuestra comisión ya está en mano.
+// Sin este dato el sistema asumía siempre el segundo caso, así que en el
+// caso habitual (el inquilino le paga directo al propietario) exigía
+// registrar un giro que nunca existió.
+enum PaymentRecipient {
+  INMOBILIARIA
+  PROPIETARIO
+}
+
 // PENDIENTE: todavía se está armando (montos editables). ENVIADA: los
 // montos ya están cargados y se le mandó al inquilino (ver el PDF
 // exportable) — se congela (ver guardarLiquidacion) hasta que se reabra
@@ -662,11 +683,17 @@ model PaymentPartialPayment {
 
   amount Decimal        @db.Decimal(14, 2)
   paidAt DateTime       @default(now())
-  // Cómo pagó el inquilino esta parte — ej. efectivo, o transferencia
-  // directa al propietario (en ese caso la inmobiliaria todavía no tiene
-  // en mano su comisión, aunque el inquilino ya haya pagado del todo:
-  // ver Payment.cashMovement / confirmarCobroComision).
+  // Cómo pagó el inquilino esta parte: efectivo o transferencia. Solo el
+  // medio — a quién se lo pagó es `receivedBy`, que antes no existía y
+  // se intentaba meter acá adentro.
   method PaymentMethod?
+  // A quién le entró esta parte (ver PaymentRecipient). Va por cobro y
+  // no por liquidación a propósito: un mes puede pagarse parte en
+  // efectivo en la inmobiliaria y parte directo al propietario, y así el
+  // caso mixto queda registrado sin ninguna estructura extra.
+  // Nullable porque los cobros cargados antes de que este campo
+  // existiera no tienen forma de saberlo: null = "no registrado".
+  receivedBy PaymentRecipient?
   notes  String?
 
   createdAt DateTime @default(now())

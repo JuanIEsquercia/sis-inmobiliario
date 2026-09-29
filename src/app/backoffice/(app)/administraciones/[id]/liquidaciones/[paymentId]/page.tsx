@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getPaymentById, paymentBreakdown, clientLabel } from "@/lib/alquileres";
+import { getPaymentById, paymentBreakdown, ownerSettlement, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import {
   guardarLiquidacion,
@@ -53,6 +53,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
   );
   const cobrado = Number(payment.paidAmount ?? 0);
   const saldo = total - cobrado;
+  const settlement = ownerSettlement(payment.partialPayments, managementFee, netForOwner);
 
   return (
     <div className="max-w-6xl w-full mx-auto">
@@ -407,14 +408,30 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                   Pagado el {fmtDate.format(payment.ownerPaidAt)} ·{" "}
                   {payment.ownerPaymentMethod === "EFECTIVO" ? "Efectivo" : "Transferencia"}
                 </p>
+              ) : !settlement.requiereGiro ? (
+                /* El inquilino le pagó directo al propietario: no hay
+                   neto que girarle. Antes esto pedía igual el giro (ver
+                   ownerSettlement). */
+                <p className="text-xs text-muted">
+                  El inquilino le pagó <span className="font-semibold text-foreground">directo al propietario</span> —
+                  no hay neto que girarle.
+                </p>
               ) : canEdit ? (
                 <form action={registrarPagoPropietario.bind(null, payment.id)} className="flex flex-col gap-3">
                   <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                    <span className="text-muted">Neto propietario</span>
+                    <span className="text-muted">
+                      {settlement.recibidoPorPropietario > 0 ? "A girar (lo que entró acá)" : "Neto propietario"}
+                    </span>
                     <span className="font-medium text-foreground">
-                      {payment.currency} {fmtMoney(netForOwner)}
+                      {payment.currency} {fmtMoney(settlement.aGirar)}
                     </span>
                   </div>
+                  {settlement.recibidoPorPropietario > 0 && (
+                    <p className="text-[10px] leading-relaxed text-muted">
+                      Mes mixto: {payment.currency} {fmtMoney(settlement.recibidoPorPropietario)} ya los cobró el
+                      propietario directo. Se gira solo lo que entró a la inmobiliaria, menos la comisión.
+                    </p>
+                  )}
                   <div className="flex flex-col gap-1">
                     <label htmlFor="ownerPaidAt" className="text-xs text-muted">
                       Fecha de pago

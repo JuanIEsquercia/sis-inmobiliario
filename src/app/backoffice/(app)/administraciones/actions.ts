@@ -701,6 +701,15 @@ export async function registrarCobro(paymentId: number, formData: FormData) {
   const paidAt = optionalStr(formData.get("paidAt")) ? requiredDate(formData.get("paidAt"), "Fecha") : new Date();
   const method = requiredStr(formData.get("method"), "Medio de cobro") as "EFECTIVO" | "TRANSFERENCIA";
   if (method !== "EFECTIVO" && method !== "TRANSFERENCIA") throw new Error("Medio de cobro inválido");
+  // A quién le entró la plata — ver PaymentRecipient. Es lo que define si
+  // después hay que girarle al propietario o si lo que queda pendiente es
+  // cobrar nuestra comisión.
+  const receivedBy = requiredStr(formData.get("receivedBy"), "Destinatario del pago") as
+    | "INMOBILIARIA"
+    | "PROPIETARIO";
+  if (receivedBy !== "INMOBILIARIA" && receivedBy !== "PROPIETARIO") {
+    throw new Error("Destinatario del pago inválido");
+  }
   const notes = optionalStr(formData.get("notes"));
 
   await withRetry(() =>
@@ -713,7 +722,7 @@ export async function registrarCobro(paymentId: number, formData: FormData) {
         throw new Error("Esta liquidación ya está pagada.");
       }
 
-      await tx.paymentPartialPayment.create({ data: { paymentId, amount, paidAt, method, notes } });
+      await tx.paymentPartialPayment.create({ data: { paymentId, amount, paidAt, method, receivedBy, notes } });
 
       // El total de la liquidación (lo que paga el inquilino) es
       // independiente de si la inmobiliaria ya tiene en mano su propia
@@ -760,12 +769,29 @@ export async function registrarPagoPropietario(paymentId: number, formData: Form
 
   await withRetry(() =>
     prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
+      const payment = await tx.payment.findUniqueOrThrow({
+        where: { id: paymentId },
+        include: { partialPayments: { select: { receivedBy: true } } },
+      });
       if (payment.status !== "PAGADO") {
         throw new Error("Esta liquidación todavía no está totalmente cobrada por el inquilino.");
       }
       if (payment.ownerPaidAt) {
         throw new Error("Ya se registró el pago al propietario.");
+      }
+      // Si TODOS los cobros fueron directo al propietario, no hay neto
+      // que girarle: él ya tiene la plata. Registrarlo igual documentaría
+      // una transferencia que nunca existió — que es justo lo que el
+      // sistema venía obligando a hacer. Se exige que haya al menos un
+      // cobro registrado para poder afirmarlo: los cobros viejos sin
+      // `receivedBy` no permiten descartar nada y pasan como antes.
+      const cobros = payment.partialPayments;
+      const todoAlPropietario =
+        cobros.length > 0 && cobros.every((c) => c.receivedBy === "PROPIETARIO");
+      if (todoAlPropietario) {
+        throw new Error(
+          "El inquilino le pagó directo al propietario — no hay neto que girarle. Lo que queda pendiente es cobrar la comisión de administración."
+        );
       }
 
       await tx.payment.update({

@@ -176,6 +176,66 @@ export function paymentBreakdown(
   return { total, managementFee, netForOwner: total - managementFee };
 }
 
+export interface OwnerSettlement {
+  recibidoPorInmobiliaria: number;
+  recibidoPorPropietario: number;
+  /** Cobros viejos, cargados antes de que existiera `receivedBy`. */
+  sinRegistrar: number;
+  /** Cuánto hay que girarle al propietario. */
+  aGirar: number;
+  /** Si no entró nada a la inmobiliaria, no hay giro que hacer. */
+  requiereGiro: boolean;
+}
+
+// Qué queda pendiente del lado del propietario, según a quién le entró
+// realmente la plata (ver PaymentRecipient).
+//
+// Antes esto no se podía saber y el sistema asumía siempre que la plata
+// pasaba por la inmobiliaria: en el caso habitual (el inquilino le
+// transfiere directo al propietario) te exigía registrar un giro que
+// nunca existió. Las consecuencias son espejadas: si cobró el
+// propietario, no hay nada que girarle y lo que queda pendiente es
+// cobrar nuestra comisión; si cobró la inmobiliaria, la comisión ya está
+// en mano y lo que queda es girarle el neto.
+//
+// Lo que se gira es lo que entró ACÁ menos la comisión, no el neto
+// completo de la liquidación: en un mes mixto (parte en efectivo acá,
+// parte directo al propietario) girar el neto entero sería girar plata
+// que nunca pasó por nosotros. Nunca negativo — si lo que entró no
+// alcanza a cubrir la comisión, no hay nada que girar y lo que falta es
+// terminar de cobrarla.
+export function ownerSettlement(
+  partials: { amount: unknown; receivedBy: string | null }[],
+  managementFee: number,
+  netForOwner: number
+): OwnerSettlement {
+  let recibidoPorInmobiliaria = 0;
+  let recibidoPorPropietario = 0;
+  let sinRegistrar = 0;
+
+  for (const p of partials) {
+    const amount = Number(p.amount ?? 0);
+    if (p.receivedBy === "INMOBILIARIA") recibidoPorInmobiliaria += amount;
+    else if (p.receivedBy === "PROPIETARIO") recibidoPorPropietario += amount;
+    else sinRegistrar += amount;
+  }
+
+  // Con algún cobro sin registrar no se puede afirmar que no haya nada
+  // que girar, así que se cae al comportamiento viejo (ofrecer el giro
+  // por el neto completo) en vez de esconder un paso que podría faltar.
+  if (sinRegistrar > 0) {
+    return { recibidoPorInmobiliaria, recibidoPorPropietario, sinRegistrar, aGirar: netForOwner, requiereGiro: true };
+  }
+
+  return {
+    recibidoPorInmobiliaria,
+    recibidoPorPropietario,
+    sinRegistrar,
+    aGirar: Math.max(0, recibidoPorInmobiliaria - managementFee),
+    requiereGiro: recibidoPorInmobiliaria > 0,
+  };
+}
+
 // Contratos activos cuya próxima indexación vence dentro de los
 // próximos `withinDays` días (por defecto 30) O YA VENCIÓ y todavía no
 // se aplicó — es una lista de tareas, no un calendario: una actualización
@@ -236,6 +296,11 @@ export async function getPaymentsForPeriod(scope: ContractGroupScope, periodMont
       include: {
         items: { include: { concept: true } },
         contract: { include: { unit: true, owner: true, tenant: true } },
+        // Hacen falta para saber qué queda pendiente de cada liquidación:
+        // los cobros dicen a quién le entró la plata (ver ownerSettlement)
+        // y el cashMovement dice si ya cobramos nuestra comisión.
+        partialPayments: { select: { amount: true, receivedBy: true } },
+        cashMovement: { select: { id: true } },
       },
       orderBy: { contractId: "asc" },
     })

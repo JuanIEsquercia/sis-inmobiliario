@@ -116,7 +116,29 @@ export function CobrarDialog({
             </div>
           </div>
 
+          {/* Dos preguntas distintas que antes estaban colapsadas en una:
+              el combo de medio decía "Transferencia a propietario", así
+              que no había forma de distinguir una transferencia que
+              entró acá de una que fue directo al propietario. Y como el
+              dato no existía, el sistema asumía siempre que la plata
+              pasaba por la inmobiliaria y después exigía registrar un
+              giro al propietario que, en el caso habitual, nunca pasó. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`cobrar-destino-${paymentId}`} className="text-xs font-semibold text-foreground/80">
+                ¿A quién le pagó? *
+              </label>
+              <select
+                id={`cobrar-destino-${paymentId}`}
+                name="receivedBy"
+                defaultValue="PROPIETARIO"
+                required
+                className="field"
+              >
+                <option value="PROPIETARIO">Al propietario (directo)</option>
+                <option value="INMOBILIARIA">A la inmobiliaria</option>
+              </select>
+            </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={`cobrar-medio-${paymentId}`} className="text-xs font-semibold text-foreground/80">
                 Medio de cobro *
@@ -128,20 +150,27 @@ export function CobrarDialog({
                 required
                 className="field"
               >
+                <option value="TRANSFERENCIA">Transferencia</option>
                 <option value="EFECTIVO">Efectivo</option>
-                <option value="TRANSFERENCIA">Transferencia a propietario</option>
               </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor={`cobrar-notas-${paymentId}`} className="text-xs font-semibold text-foreground/80">
-                Notas / Referencia
-              </label>
-              <input id={`cobrar-notas-${paymentId}`} name="notes" className="field" placeholder="Opcional" />
             </div>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={`cobrar-notas-${paymentId}`} className="text-xs font-semibold text-foreground/80">
+              Notas / Referencia
+            </label>
+            <input id={`cobrar-notas-${paymentId}`} name="notes" className="field" placeholder="Opcional" />
+          </div>
+
           <p className="text-[11px] text-muted leading-relaxed">
-            * Si el monto no cubre la totalidad, la liquidación quedará retenida en estado <span className="font-semibold text-foreground">&quot;Parcial&quot;</span> registrando la deuda restante.
+            Si le pagó <span className="font-semibold text-foreground">directo al propietario</span>, no hay nada que
+            girarle después — lo que queda pendiente es cobrar nuestra comisión. Si le pagó{" "}
+            <span className="font-semibold text-foreground">a la inmobiliaria</span>, la comisión ya está en mano y lo
+            que queda es girarle el neto.
+            <br />
+            Si el monto no cubre la totalidad, la liquidación queda en{" "}
+            <span className="font-semibold text-foreground">&quot;Parcial&quot;</span> registrando la deuda restante.
           </p>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/50">

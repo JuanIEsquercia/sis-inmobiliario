@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPaymentsForPeriod, getConcepts, paymentBreakdown, clientLabel } from "@/lib/alquileres";
+import { getPaymentsForPeriod, getConcepts, paymentBreakdown, ownerSettlement, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
 import { CustomMonthPicker } from "@/components/backoffice/CustomMonthPicker";
@@ -7,6 +7,7 @@ import { CargarConceptosDialog } from "@/components/backoffice/CargarConceptosDi
 import { CobrarDialog } from "@/components/backoffice/CobrarDialog";
 import { PagarPropietarioDialog } from "@/components/backoffice/PagarPropietarioDialog";
 import { marcarLiquidacionEnviada, reabrirLiquidacion } from "../actions";
+import { confirmarCobroComision } from "../../caja/actions";
 
 const monthNames = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -29,6 +30,10 @@ interface PageProps {
 export default async function LiquidacionesPage({ searchParams }: PageProps) {
   const profile = await requirePermission("administraciones.ver");
   const canEdit = profile.permissions.includes("administraciones.pagos");
+  // Confirmar el cobro de la comisión es un permiso de Caja, no de
+  // Administraciones — se ofrece acá para no hacerte cambiar de módulo,
+  // pero sigue respetando su propio permiso.
+  const canConfirmarComision = profile.permissions.includes("caja.administracion.confirmar");
   const scope = await getContractGroupScope(profile);
   const sp = await searchParams;
 
@@ -110,6 +115,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                   p.contract.managementFeePercent
                 );
                 const saldo = total - Number(p.paidAmount ?? 0);
+                const settlement = ownerSettlement(p.partialPayments, managementFee, netForOwner);
                 return (
                   <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface">
                     <td className="px-4 py-3 text-muted">{p.contract.unit.propertyCode}</td>
@@ -200,20 +206,65 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                             saldo={saldo}
                           />
                         )}
-                        {p.status === "PAGADO" &&
-                          (p.ownerPaidAt ? (
-                            <span className="text-xs text-muted">✓ Propietario pagado</span>
-                          ) : (
-                            <PagarPropietarioDialog
-                              paymentId={p.id}
-                              propertyCode={p.contract.unit.propertyCode}
-                              address={p.contract.unit.address}
-                              ownerName={clientLabel(p.contract.owner)}
-                              periodLabel={`${monthNames[p.periodMonth - 1]} ${p.periodYear}`}
-                              currency={p.currency}
-                              netAmount={netForOwner}
-                            />
-                          ))}
+                        {/* Qué falta hacer depende de a quién le entró la
+                            plata, y son consecuencias espejadas (ver
+                            ownerSettlement). Antes se asumía siempre que
+                            había pasado por la inmobiliaria, así que en
+                            el caso habitual —el inquilino le transfiere
+                            directo al propietario— pedía registrar un
+                            giro que nunca existió, y el paso que sí
+                            faltaba (cobrar nuestra comisión) quedaba
+                            escondido en otro módulo. */}
+                        {p.status === "PAGADO" && (
+                          <>
+                            {p.ownerPaidAt ? (
+                              <span className="text-xs text-muted">✓ Propietario pagado</span>
+                            ) : settlement.requiereGiro ? (
+                              <PagarPropietarioDialog
+                                paymentId={p.id}
+                                propertyCode={p.contract.unit.propertyCode}
+                                address={p.contract.unit.address}
+                                ownerName={clientLabel(p.contract.owner)}
+                                periodLabel={`${monthNames[p.periodMonth - 1]} ${p.periodYear}`}
+                                currency={p.currency}
+                                netAmount={settlement.aGirar}
+                              />
+                            ) : (
+                              <span
+                                className="text-xs text-muted"
+                                title="El inquilino le pagó directo al propietario: no hay neto que girarle"
+                              >
+                                ✓ Cobró el propietario
+                              </span>
+                            )}
+
+                            {/* El paso que de verdad queda pendiente
+                                cuando cobró el propietario: nuestra
+                                comisión. Se confirma acá mismo en vez de
+                                mandarte a Caja › Administración. */}
+                            {canConfirmarComision &&
+                              (p.cashMovement ? (
+                                <span className="text-xs text-muted">✓ Comisión cobrada</span>
+                              ) : (
+                                <form
+                                  action={confirmarCobroComision.bind(null, p.id)}
+                                  className="flex items-center gap-1.5"
+                                >
+                                  <select name="method" defaultValue="TRANSFERENCIA" required className="field py-1 text-xs">
+                                    <option value="TRANSFERENCIA">Transferencia</option>
+                                    <option value="EFECTIVO">Efectivo</option>
+                                  </select>
+                                  <button
+                                    type="submit"
+                                    title={`Confirmar que cobramos la comisión de ${p.currency} ${fmtMoney(managementFee)}`}
+                                    className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface cursor-pointer"
+                                  >
+                                    Cobré comisión
+                                  </button>
+                                </form>
+                              ))}
+                          </>
+                        )}
                         </div>
                       </td>
                     )}
