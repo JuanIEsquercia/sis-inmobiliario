@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requireProfile, getContractGroupScope, contractGroupWhere } from "@/lib/auth";
+import { requireProfile, getContractGroupScope, contractGroupWhere, cajaOwnerId } from "@/lib/auth";
+import { firstAvailableSection } from "@/lib/nav-links";
 import {
   getPendingCollectionsSummary,
   getLoadedThisMonth,
@@ -86,10 +88,33 @@ const icons = {
 
 export default async function BackofficeDashboard() {
   const profile = await requireProfile();
+
+  // El Panel ahora pide permiso propio. Pero /backoffice es la pantalla
+  // de aterrizaje de todo el backoffice (la empuja el login, el proxy, y
+  // requirePermission cuando falta un permiso), así que a quien no lo
+  // tenga hay que llevarlo a la primera sección que sí tenga. Si no
+  // tiene ninguna NO se redirige — sería el rebote infinito — se corta
+  // acá con un cartel.
+  if (!profile.permissions.includes("panel.ver")) {
+    const destino = firstAvailableSection(profile.permissions);
+    if (destino) redirect(destino);
+    return (
+      <div className="mx-auto max-w-lg rounded-2xl border border-border/60 bg-surface p-8 text-center">
+        <h1 className="text-lg font-bold text-foreground">Tu usuario no tiene ninguna sección habilitada</h1>
+        <p className="mt-2 text-sm text-muted">
+          Hablá con un administrador para que te asigne permisos.
+        </p>
+      </div>
+    );
+  }
+
   const scope = await getContractGroupScope(profile);
   const canPedidos = profile.permissions.includes("pedidos.ver");
   const canAdmin = profile.permissions.includes("administraciones.ver");
   const canCaja = profile.permissions.includes("caja.ver");
+  // Mismo alcance que las listas de Caja: las tarjetas y la lista de
+  // pendientes de un agente cuentan solo sus operaciones.
+  const agentId = cajaOwnerId(profile);
 
   const [pedidosAbiertos, contratosActivos, pagosPendientes, collectionsSummary, loadedThisMonth, pendingList, alertsSummary] =
     await withRetry(() =>
@@ -114,10 +139,12 @@ export default async function BackofficeDashboard() {
               },
             })
           : Promise.resolve(0),
-        canCaja ? getPendingCollectionsSummary() : Promise.resolve(null),
-        canCaja || canAdmin ? getLoadedThisMonth() : Promise.resolve(null),
-        canCaja || canAdmin ? getUnifiedPendingList(scope) : Promise.resolve([]),
-        canAdmin || canCaja ? getAlertsSummary(scope, canAdmin, canCaja) : Promise.resolve(null),
+        canCaja ? getPendingCollectionsSummary(agentId) : Promise.resolve(null),
+        canCaja || canAdmin ? getLoadedThisMonth(agentId) : Promise.resolve(null),
+        canCaja || canAdmin
+          ? getUnifiedPendingList(scope, undefined, undefined, agentId)
+          : Promise.resolve([]),
+        canAdmin || canCaja ? getAlertsSummary(scope, canAdmin, canCaja, agentId) : Promise.resolve(null),
       ])
     );
 

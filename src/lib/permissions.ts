@@ -13,6 +13,19 @@ export interface PermissionGroup {
 
 export const PERMISSION_TREE: PermissionGroup[] = [
   {
+    key: "panel",
+    label: "Panel",
+    children: [
+      // El Panel resume cuotas, liquidaciones por cobrar y alertas de
+      // vencimientos. Hay usuarios que no trabajan con nada de eso (el
+      // que solo carga presupuestos, o el que gestiona el sitio), y para
+      // esos es ruido. Sin este permiso, entrar al backoffice te deja
+      // directo en la primera sección que sí tengas (ver
+      // firstAvailableSection).
+      { key: "panel.ver", label: "Ver el panel de inicio (resumen, pendientes de cobro y alertas)" },
+    ],
+  },
+  {
     key: "pedidos",
     label: "Pedidos",
     children: [
@@ -200,6 +213,7 @@ export function expandPermissions(keys: string[]): string[] {
 export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
   ADMIN: ALL_PERMISSION_KEYS,
   AGENTE: [
+    "panel.ver",
     "pedidos.ver",
     "pedidos.crear",
     "pedidos.estado",

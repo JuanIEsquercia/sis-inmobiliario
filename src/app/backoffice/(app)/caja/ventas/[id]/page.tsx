@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, cajaOwnerId } from "@/lib/auth";
-import { getSaleById, agentLabel } from "@/lib/caja";
+import { getSaleById, getAgents, agentLabel } from "@/lib/caja";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
 import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
-import { marcarCuotaPagada, actualizarPartesVenta, eliminarVenta } from "../../actions";
+import { AgentSelect } from "@/components/backoffice/AgentSelect";
+import { marcarCuotaPagada, actualizarPartesVenta, eliminarVenta, actualizarAgentesVenta } from "../../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -34,6 +35,10 @@ export default async function VentaDetailPage({ params }: PageProps) {
 
   const sale = await getSaleById(numericId, cajaOwnerId(profile));
   if (!sale) notFound();
+  // Reasignar la atribución define quién ve esta venta, así que va con
+  // caja.ver_todos y no con el permiso de cargar ventas.
+  const canReasignar = profile.permissions.includes("caja.ver_todos");
+  const agents = canReasignar ? await getAgents() : [];
 
   const canCollect = profile.permissions.includes("caja.ventas.crear");
   const totalCobrado = sale.installments
@@ -149,6 +154,44 @@ export default async function VentaDetailPage({ params }: PageProps) {
           </div>
         )}
       </dl>
+
+      {/* Corregir la atribución. Con el alcance por agente esto pasó a ser
+          necesario: una venta sin agente asignado, o con el equivocado, es
+          una venta que ese agente no ve — y antes la única salida era
+          borrarla y recargarla. Solo para quien tiene caja.ver_todos: el
+          que decide quién ve qué. */}
+      {canReasignar && (
+        <details className="mt-4 rounded-xl border border-dashed border-border p-4">
+          <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-muted">
+            Corregir atribución de agentes
+          </summary>
+          <p className="mt-2 mb-3 text-[11px] leading-relaxed text-muted">
+            Define quién ve esta venta: además de vos, la ven el vendedor y el captador asignados.
+          </p>
+          <form action={actualizarAgentesVenta.bind(null, sale.id)} className="flex flex-wrap items-end gap-3">
+            <AgentSelect
+              agents={agents}
+              name="vendedorAgentId"
+              label="Vendedor"
+              defaultValue={sale.vendedorAgentId ?? ""}
+              required={false}
+            />
+            <AgentSelect
+              agents={agents}
+              name="captadorAgentId"
+              label="Captador"
+              defaultValue={sale.captadorAgentId ?? ""}
+              required={false}
+            />
+            <button
+              type="submit"
+              className="rounded-lg border border-border px-4 py-2 text-xs font-semibold hover:bg-surface cursor-pointer"
+            >
+              Guardar atribución
+            </button>
+          </form>
+        </details>
+      )}
 
       {/* Cuotas de la Comisión */}
       <div className="space-y-3">

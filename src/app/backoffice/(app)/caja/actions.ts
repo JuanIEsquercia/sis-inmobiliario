@@ -288,6 +288,60 @@ export async function actualizarPartesVenta(saleId: number, formData: FormData) 
   revalidatePath(`/backoffice/caja/ventas/${saleId}`);
 }
 
+// Corregir/completar la atribución (vendedor y captador) de una
+// operación ya cargada — espejo de actualizarAgentesContrato, que ya
+// existía para contratos pero no para nada de Caja.
+//
+// Pasó a ser imprescindible con el alcance por agente: si una operación
+// se carga sin agente, o con el equivocado, ese agente NUNCA la va a ver
+// y la única salida era borrarla y recargarla (destruyendo sus
+// movimientos de caja).
+//
+// Pide caja.ver_todos a propósito, y no el permiso de crear: quien puede
+// editar la atribución decide quién ve qué. Con solo el permiso de crear,
+// un agente podría sacarse a sí mismo (perdiendo el acceso para siempre,
+// sin poder deshacerlo) o meter a otro en una operación ajena.
+export async function actualizarAgentesVenta(saleId: number, formData: FormData) {
+  await requirePermission("caja.ver_todos");
+
+  const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
+  const captadorAgentId = optionalStr(formData.get("captadorAgentId"));
+
+  await withRetry(() => prisma.sale.update({ where: { id: saleId }, data: { vendedorAgentId, captadorAgentId } }));
+
+  revalidatePath("/backoffice/caja/ventas");
+  revalidatePath(`/backoffice/caja/ventas/${saleId}`);
+}
+
+export async function actualizarAgentesComisionAlquiler(rentalCommissionId: number, formData: FormData) {
+  await requirePermission("caja.ver_todos");
+
+  const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
+  const captadorAgentId = optionalStr(formData.get("captadorAgentId"));
+
+  await withRetry(() =>
+    prisma.rentalCommission.update({
+      where: { id: rentalCommissionId },
+      data: { vendedorAgentId, captadorAgentId },
+    })
+  );
+
+  revalidatePath("/backoffice/caja/comisiones");
+  revalidatePath(`/backoffice/caja/comisiones/${rentalCommissionId}`);
+}
+
+// Las tasaciones no tienen captador (ver el modelo Appraisal).
+export async function actualizarAgenteTasacion(appraisalId: number, formData: FormData) {
+  await requirePermission("caja.ver_todos");
+
+  const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
+
+  await withRetry(() => prisma.appraisal.update({ where: { id: appraisalId }, data: { vendedorAgentId } }));
+
+  revalidatePath("/backoffice/caja/tasaciones");
+  revalidatePath(`/backoffice/caja/tasaciones/${appraisalId}`);
+}
+
 // Elimina una venta POR COMPLETO, con todo lo vinculado: cuotas de
 // comisión, sus cobros ya confirmados (CashMovement, que es plata que
 // ya entró a Caja) y lo ya pagado a agentes por esa venta. Para

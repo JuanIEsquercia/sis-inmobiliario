@@ -1,4 +1,4 @@
-import { requireProfile, getContractGroupScope } from "@/lib/auth";
+import { requireProfile, getContractGroupScope, cajaOwnerId } from "@/lib/auth";
 import { getAlertsSummary } from "@/lib/dashboard";
 import { AlertsBell } from "./AlertsBell";
 
@@ -19,7 +19,15 @@ export async function AlertsBellSlot() {
   const canCaja = profile.permissions.includes("caja.ver");
   if (!canAdmin && !canCaja) return null;
 
-  const alerts = await getAlertsSummary(await getContractGroupScope(profile), canAdmin, canCaja);
+  // Mismo alcance por agente que las listas de Caja: el numerito de la
+  // campanita no puede contar cobros atrasados de operaciones que quien
+  // mira no puede ni ver.
+  const alerts = await getAlertsSummary(
+    await getContractGroupScope(profile),
+    canAdmin,
+    canCaja,
+    cajaOwnerId(profile)
+  );
 
   return <AlertsBell alerts={alerts} canAdmin={canAdmin} canCaja={canCaja} />;
 }

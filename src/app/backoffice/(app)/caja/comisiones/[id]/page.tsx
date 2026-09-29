@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, cajaOwnerId } from "@/lib/auth";
-import { getRentalCommissionById, agentLabel } from "@/lib/caja";
+import { getRentalCommissionById, getAgents, agentLabel } from "@/lib/caja";
 import { clientLabel } from "@/lib/alquileres";
 import { AlquilerCronogramaFields } from "@/components/backoffice/AlquilerCronogramaFields";
-import { confirmarCobroComisionAlquiler, registrarCronogramaAlquiler, marcarCuotaPagada } from "../../actions";
+import { AgentSelect } from "@/components/backoffice/AgentSelect";
+import { confirmarCobroComisionAlquiler, registrarCronogramaAlquiler, marcarCuotaPagada, actualizarAgentesComisionAlquiler } from "../../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -34,6 +35,8 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
 
   const commission = await getRentalCommissionById(numericId, cajaOwnerId(profile));
   if (!commission) notFound();
+  const canReasignar = profile.permissions.includes("caja.ver_todos");
+  const agents = canReasignar ? await getAgents() : [];
 
   const isRenewal = commission.origin === "RENOVACION";
   const totalCobrado = commission.installments
@@ -220,6 +223,43 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
             </p>
           )}
         </>
+      )}
+
+      {/* Define quién ve esta comisión — ver actualizarAgentesComisionAlquiler. */}
+      {canReasignar && (
+        <details className="mt-6 rounded-xl border border-dashed border-border p-4">
+          <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-muted">
+            Corregir atribución de agentes
+          </summary>
+          <p className="mt-2 mb-3 text-[11px] leading-relaxed text-muted">
+            Define quién ve esta comisión: además de vos, la ven el vendedor y el captador asignados.
+          </p>
+          <form
+            action={actualizarAgentesComisionAlquiler.bind(null, commission.id)}
+            className="flex flex-wrap items-end gap-3"
+          >
+            <AgentSelect
+              agents={agents}
+              name="vendedorAgentId"
+              label="Vendedor"
+              defaultValue={commission.vendedorAgentId ?? ""}
+              required={false}
+            />
+            <AgentSelect
+              agents={agents}
+              name="captadorAgentId"
+              label="Captador"
+              defaultValue={commission.captadorAgentId ?? ""}
+              required={false}
+            />
+            <button
+              type="submit"
+              className="rounded-lg border border-border px-4 py-2 text-xs font-semibold hover:bg-surface cursor-pointer"
+            >
+              Guardar atribución
+            </button>
+          </form>
+        </details>
       )}
     </div>
   );

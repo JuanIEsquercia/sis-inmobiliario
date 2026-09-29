@@ -16,7 +16,7 @@ export interface NavSection {
 }
 
 export const NAV_SECTIONS: NavSection[] = [
-  { href: "/backoffice", label: "Panel", permission: null },
+  { href: "/backoffice", label: "Panel", permission: "panel.ver" },
   { href: "/backoffice/pedidos", label: "Pedidos", permission: "pedidos.ver" },
   {
     href: "/backoffice/administraciones",
@@ -80,3 +80,20 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   { href: "/backoffice/sitio", label: "Sitio público", permission: "sitio.gestionar" },
 ];
+
+// Primera sección a la que este usuario SÍ puede entrar, salteando el
+// Panel. Existe porque /backoffice es la pantalla de aterrizaje de todo
+// el backoffice: la empuja el login y también el proxy, y además es a
+// donde redirige requirePermission cuando falta un permiso. Desde que el
+// Panel pide `panel.ver`, alguien sin ese permiso que caiga ahí tiene que
+// poder seguir a algún lado, o queda rebotando.
+//
+// Devuelve `null` si no hay ninguna sección disponible — en ese caso NO
+// hay que redirigir a ningún lado (sería el rebote), sino mostrar un
+// cartel de "sin acceso" y cortar.
+export function firstAvailableSection(permissions: string[]): string | null {
+  const section = NAV_SECTIONS.find(
+    (s) => s.href !== "/backoffice" && (s.permission === null || permissions.includes(s.permission))
+  );
+  return section?.href ?? null;
+}

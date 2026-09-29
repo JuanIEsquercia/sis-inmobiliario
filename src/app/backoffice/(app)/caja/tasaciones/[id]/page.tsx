@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, cajaOwnerId } from "@/lib/auth";
-import { getAppraisalById } from "@/lib/caja";
+import { getAppraisalById, getAgents } from "@/lib/caja";
 import { getSignedDocumentUrl } from "@/lib/supabase/storage";
-import { subirInformeTasacion, confirmarCobroTasacion } from "../../actions";
+import { AgentSelect } from "@/components/backoffice/AgentSelect";
+import { subirInformeTasacion, confirmarCobroTasacion, actualizarAgenteTasacion } from "../../actions";
 
 const fmtDate = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 const fmtMoney = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
@@ -22,6 +23,8 @@ export default async function TasacionDetailPage({ params }: PageProps) {
 
   const appraisal = await getAppraisalById(numericId, cajaOwnerId(profile));
   if (!appraisal) notFound();
+  const canReasignar = profile.permissions.includes("caja.ver_todos");
+  const agents = canReasignar ? await getAgents() : [];
 
   const reportUrl = appraisal.reportStoragePath ? await getSignedDocumentUrl(appraisal.reportStoragePath) : null;
 
@@ -134,6 +137,33 @@ export default async function TasacionDetailPage({ params }: PageProps) {
           </form>
         )}
       </div>
+
+      {/* Las tasaciones no tienen captador: solo vendedor. */}
+      {canReasignar && (
+        <details className="mt-6 rounded-xl border border-dashed border-border p-4">
+          <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-muted">
+            Corregir atribución de agente
+          </summary>
+          <p className="mt-2 mb-3 text-[11px] leading-relaxed text-muted">
+            Define quién ve esta tasación: además de vos, la ve el agente asignado.
+          </p>
+          <form action={actualizarAgenteTasacion.bind(null, appraisal.id)} className="flex flex-wrap items-end gap-3">
+            <AgentSelect
+              agents={agents}
+              name="vendedorAgentId"
+              label="Agente"
+              defaultValue={appraisal.vendedorAgentId ?? ""}
+              required={false}
+            />
+            <button
+              type="submit"
+              className="rounded-lg border border-border px-4 py-2 text-xs font-semibold hover:bg-surface cursor-pointer"
+            >
+              Guardar atribución
+            </button>
+          </form>
+        </details>
+      )}
     </div>
   );
 }

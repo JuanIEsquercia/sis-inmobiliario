@@ -46,11 +46,30 @@ function mergeAmounts(...groups: CurrencyAmount[][]): CurrencyAmount[] {
 // RENOVACION) se confirma de una sola vez, sin cuotas, directo sobre
 // RentalCommission.cashMovement. Para el dashboard son la misma bolsa de
 // plata ("comisión de alquiler pendiente"), así que se suman.
-export async function getPendingCollectionsSummary(): Promise<{
+export async function getPendingCollectionsSummary(agentId: string | null = null): Promise<{
   ventas: PendingBucket;
   alquileres: PendingBucket;
   tasaciones: PendingBucket;
 }> {
+  // Mismo criterio de pertenencia que las listas de Caja (ver
+  // cajaOwnerId): si estas tarjetas contaran todo, delatarían el volumen
+  // del negocio a alguien que en las listas solo ve lo suyo.
+  const deVenta = agentId
+    ? { sale: { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] } }
+    : {};
+  const deAlquiler = agentId
+    ? {
+        rentalCommission: {
+          OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }],
+        },
+      }
+    : {};
+  const comisionPropia = agentId
+    ? { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] }
+    : {};
+  const tasacionPropia = agentId
+    ? { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }] }
+    : {};
   const [
     ventasCount,
     ventasSum,
@@ -64,32 +83,32 @@ export async function getPendingCollectionsSummary(): Promise<{
     tasacionesSum,
   ] = await withRetry(() =>
     Promise.all([
-      prisma.commissionInstallment.count({ where: { source: "VENTA", status: "PENDIENTE" } }),
+      prisma.commissionInstallment.count({ where: { source: "VENTA", status: "PENDIENTE", ...deVenta } }),
       prisma.commissionInstallment.groupBy({
         by: ["currency"],
-        where: { source: "VENTA", status: "PENDIENTE" },
+        where: { source: "VENTA", status: "PENDIENTE", ...deVenta },
         _sum: { amount: true },
       }),
       // distinct saleId detrás de esas cuotas — una venta con 2 cuotas
       // pendientes da 2 filas arriba pero 1 sola acá.
-      prisma.commissionInstallment.groupBy({ by: ["saleId"], where: { source: "VENTA", status: "PENDIENTE" } }),
-      prisma.commissionInstallment.count({ where: { source: "ALQUILER", status: "PENDIENTE" } }),
+      prisma.commissionInstallment.groupBy({ by: ["saleId"], where: { source: "VENTA", status: "PENDIENTE", ...deVenta } }),
+      prisma.commissionInstallment.count({ where: { source: "ALQUILER", status: "PENDIENTE", ...deAlquiler } }),
       prisma.commissionInstallment.groupBy({
         by: ["currency"],
-        where: { source: "ALQUILER", status: "PENDIENTE" },
+        where: { source: "ALQUILER", status: "PENDIENTE", ...deAlquiler },
         _sum: { amount: true },
       }),
-      prisma.commissionInstallment.groupBy({ by: ["rentalCommissionId"], where: { source: "ALQUILER", status: "PENDIENTE" } }),
-      prisma.rentalCommission.count({ where: { origin: "RENOVACION", cashMovement: null } }),
+      prisma.commissionInstallment.groupBy({ by: ["rentalCommissionId"], where: { source: "ALQUILER", status: "PENDIENTE", ...deAlquiler } }),
+      prisma.rentalCommission.count({ where: { origin: "RENOVACION", cashMovement: null, ...comisionPropia } }),
       prisma.rentalCommission.groupBy({
         by: ["currency"],
-        where: { origin: "RENOVACION", cashMovement: null },
+        where: { origin: "RENOVACION", cashMovement: null, ...comisionPropia },
         _sum: { amount: true },
       }),
-      prisma.appraisal.count({ where: { cashMovement: null } }),
+      prisma.appraisal.count({ where: { cashMovement: null, ...tasacionPropia } }),
       prisma.appraisal.groupBy({
         by: ["currency"],
-        where: { cashMovement: null },
+        where: { cashMovement: null, ...tasacionPropia },
         _sum: { amount: true },
       }),
     ])
@@ -124,19 +143,26 @@ export interface LoadedThisMonth {
 // cierre/tasación/etc. — esos campos de negocio se pueden backdatear al
 // cargar una operación vieja, y acá se quiere pulso de carga real, no de
 // cuándo pasó el negocio.
-export async function getLoadedThisMonth(): Promise<LoadedThisMonth> {
+export async function getLoadedThisMonth(agentId: string | null = null): Promise<LoadedThisMonth> {
   const now = new Date();
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  // "Cargado este mes" mide pulso de carga, así que acá el criterio es
+  // solo el creador — no la atribución. Para un agente, lo que cargó él.
+  const cargadoPor = agentId ? { createdById: agentId } : {};
 
   const [ventas, tasaciones, alquileresColocados, contratosAdministrados] = await withRetry(() =>
     Promise.all([
-      prisma.sale.count({ where: { createdAt: { gte: startOfMonth } } }),
-      prisma.appraisal.count({ where: { createdAt: { gte: startOfMonth } } }),
+      prisma.sale.count({ where: { createdAt: { gte: startOfMonth }, ...cargadoPor } }),
+      prisma.appraisal.count({ where: { createdAt: { gte: startOfMonth }, ...cargadoPor } }),
       // Solo colocación (origin ALQUILER) — una renovación no es una
       // propiedad nueva colocada, es la continuidad de una que ya
       // administrábamos.
-      prisma.rentalCommission.count({ where: { createdAt: { gte: startOfMonth }, origin: "ALQUILER" } }),
-      prisma.contract.count({ where: { createdAt: { gte: startOfMonth }, isAdministered: true } }),
+      prisma.rentalCommission.count({
+        where: { createdAt: { gte: startOfMonth }, origin: "ALQUILER", ...cargadoPor },
+      }),
+      prisma.contract.count({
+        where: { createdAt: { gte: startOfMonth }, isAdministered: true, ...cargadoPor },
+      }),
     ])
   );
 
@@ -203,23 +229,37 @@ export function pendingHorizonLimit(withinDays = PENDING_HORIZON_DAYS): Date {
 export async function getUnifiedPendingList(
   scope: ContractGroupScope,
   take = 40,
-  withinDays = PENDING_HORIZON_DAYS
+  withinDays = PENDING_HORIZON_DAYS,
+  agentId: string | null = null
 ): Promise<PendingItem[]> {
   const groupWhere = contractGroupWhere(scope);
   const limit = pendingHorizonLimit(withinDays);
+  // Las liquidaciones (ADMINISTRACION) se acotan por cartera; las otras
+  // tres, por atribución de agente — son dos mundos distintos y cada uno
+  // lleva su propio filtro (ver cajaOwnerId).
+  const deVenta = agentId
+    ? { sale: { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] } }
+    : {};
+  const deAlquiler = agentId
+    ? { rentalCommission: { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] } }
+    : {};
+  const comisionPropia = agentId
+    ? { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] }
+    : {};
+  const tasacionPropia = agentId ? { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }] } : {};
 
   const [ventaInstallments, alquilerInstallments, renovaciones, tasaciones, payments] = await withRetry(() =>
     Promise.all([
       prisma.commissionInstallment.findMany({
         // Mismo corte para las cuotas de comisión: una venta con la
         // comisión en 12 cuotas también inundaba la lista.
-        where: { source: "VENTA", status: "PENDIENTE", dueDate: { lte: limit } },
+        where: { source: "VENTA", status: "PENDIENTE", dueDate: { lte: limit }, ...deVenta },
         include: { sale: { include: { unit: true } } },
         orderBy: { dueDate: "asc" },
         take,
       }),
       prisma.commissionInstallment.findMany({
-        where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lte: limit } },
+        where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lte: limit }, ...deAlquiler },
         include: { rentalCommission: { include: { contract: { include: { unit: true } } } } },
         orderBy: { dueDate: "asc" },
         take,
@@ -228,13 +268,13 @@ export async function getUnifiedPendingList(
       // fecha (earnedAt / completedAt) es cuándo se devengó el trabajo,
       // que ya pasó — nunca hay futuras.
       prisma.rentalCommission.findMany({
-        where: { origin: "RENOVACION", cashMovement: null },
+        where: { origin: "RENOVACION", cashMovement: null, ...comisionPropia },
         include: { contract: { include: { unit: true } } },
         orderBy: { earnedAt: "asc" },
         take,
       }),
       prisma.appraisal.findMany({
-        where: { cashMovement: null },
+        where: { cashMovement: null, ...tasacionPropia },
         include: { unit: true },
         orderBy: { completedAt: "asc" },
         take,
@@ -360,9 +400,24 @@ function toAmounts(rows: { currency: string; _sum: { amount: unknown } }[]): Cur
 export const getAlertsSummary = cache(async function getAlertsSummary(
   scope: ContractGroupScope,
   canAdmin: boolean,
-  canCaja: boolean
+  canCaja: boolean,
+  agentId: string | null = null
 ): Promise<AlertsSummary> {
   const perms = { canAdmin, canCaja };
+  // Los cobros atrasados de ventas, alquileres y tasaciones se acotan por
+  // atribución igual que las listas de Caja: un contador que sume lo
+  // ajeno delata lo que las listas esconden. La parte de morosidad
+  // (liquidaciones) ya va por cartera dentro de getOverduePayments.
+  const deVenta = agentId
+    ? { sale: { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] } }
+    : {};
+  const deAlquiler = agentId
+    ? { rentalCommission: { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] } }
+    : {};
+  const comisionPropia = agentId
+    ? { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }, { captadorAgentId: agentId }] }
+    : {};
+  const tasacionPropia = agentId ? { OR: [{ createdById: agentId }, { vendedorAgentId: agentId }] } : {};
   const now = new Date();
 
   const [
@@ -383,42 +438,42 @@ export const getAlertsSummary = cache(async function getAlertsSummary(
       perms.canAdmin ? getContractsNearingEnd(scope, 60) : Promise.resolve([]),
       perms.canAdmin ? getOverduePayments(scope) : Promise.resolve([]),
       perms.canCaja
-        ? prisma.commissionInstallment.count({ where: { source: "VENTA", status: "PENDIENTE", dueDate: { lt: now } } })
+        ? prisma.commissionInstallment.count({ where: { source: "VENTA", status: "PENDIENTE", dueDate: { lt: now }, ...deVenta } })
         : Promise.resolve(0),
       perms.canCaja
         ? prisma.commissionInstallment.groupBy({
             by: ["currency"],
-            where: { source: "VENTA", status: "PENDIENTE", dueDate: { lt: now } },
+            where: { source: "VENTA", status: "PENDIENTE", dueDate: { lt: now }, ...deVenta },
             _sum: { amount: true },
           })
         : Promise.resolve([]),
       perms.canCaja
-        ? prisma.commissionInstallment.count({ where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lt: now } } })
+        ? prisma.commissionInstallment.count({ where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lt: now }, ...deAlquiler } })
         : Promise.resolve(0),
       perms.canCaja
         ? prisma.commissionInstallment.groupBy({
             by: ["currency"],
-            where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lt: now } },
+            where: { source: "ALQUILER", status: "PENDIENTE", dueDate: { lt: now }, ...deAlquiler },
             _sum: { amount: true },
           })
         : Promise.resolve([]),
       perms.canCaja
-        ? prisma.rentalCommission.count({ where: { origin: "RENOVACION", cashMovement: null, earnedAt: { lt: now } } })
+        ? prisma.rentalCommission.count({ where: { origin: "RENOVACION", cashMovement: null, earnedAt: { lt: now }, ...comisionPropia } })
         : Promise.resolve(0),
       perms.canCaja
         ? prisma.rentalCommission.groupBy({
             by: ["currency"],
-            where: { origin: "RENOVACION", cashMovement: null, earnedAt: { lt: now } },
+            where: { origin: "RENOVACION", cashMovement: null, earnedAt: { lt: now }, ...comisionPropia },
             _sum: { amount: true },
           })
         : Promise.resolve([]),
       perms.canCaja
-        ? prisma.appraisal.count({ where: { cashMovement: null, completedAt: { lt: now } } })
+        ? prisma.appraisal.count({ where: { cashMovement: null, completedAt: { lt: now }, ...tasacionPropia } })
         : Promise.resolve(0),
       perms.canCaja
         ? prisma.appraisal.groupBy({
             by: ["currency"],
-            where: { cashMovement: null, completedAt: { lt: now } },
+            where: { cashMovement: null, completedAt: { lt: now }, ...tasacionPropia },
             _sum: { amount: true },
           })
         : Promise.resolve([]),
