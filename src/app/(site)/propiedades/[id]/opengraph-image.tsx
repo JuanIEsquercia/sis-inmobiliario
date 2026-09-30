@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getListingByCode, getListingById } from "@/lib/listings";
+import { resolveListingParam } from "@/lib/listings";
 import { formatPrice, operationLabel } from "@/lib/format";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
@@ -56,10 +56,16 @@ const ANCHO_INFO = size.width - ANCHO_FOTO;
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  // Mismo criterio que la ficha: por código, y si no, por id interno
-  // (links viejos) — así el preview nunca queda en blanco.
-  const listing =
-    (await getListingByCode(id)) ?? (Number.isFinite(Number(id)) ? await getListingById(Number(id)) : null);
+  // Misma resolución que la ficha, y por el mismo camino: si acá se
+  // repitiera la lógica a mano, las dos podrían divergir y el link
+  // compartido mostraría una propiedad distinta de la que abre.
+  //
+  // Solo se dibuja la propiedad si está publicada. Si se dio de baja, o
+  // si el link es viejo y habría que redirigir, se cae a la imagen de
+  // marca: compartir una propiedad que ya no está con su precio y su
+  // foto sería peor que no mostrar nada.
+  const r = await resolveListingParam(id);
+  const listing = r.estado === "ok" ? r.listing : null;
 
   const logoData = await readFile(join(process.cwd(), "public", "logo-light.png"));
   const logoSrc = `data:image/png;base64,${logoData.toString("base64")}`;

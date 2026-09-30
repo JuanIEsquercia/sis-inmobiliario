@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Gallery } from "@/components/Gallery";
 import { ShareButton } from "@/components/ShareButton";
-import { getListingByCode, getListingById } from "@/lib/listings";
+import { resolveListingParam, type ListingDetail } from "@/lib/listings";
 import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
 import { AGENCY_PHONE, toWhatsAppLink } from "@/lib/whatsapp";
 import { SITE_NAME, SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
@@ -34,8 +34,23 @@ function buildListingTitle(displayTitle: string, opLabel: string, city: string |
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
 
-  const listing = await getListingByCode(id);
-  if (!listing) return {};
+  const r = await resolveListingParam(id);
+
+  // Solo las propiedades publicadas declaran metadata.
+  //
+  // Para las dadas de baja no se devuelve nada A PROPÓSITO, y tampoco
+  // sirve poner un `metadata` en not-found.tsx: cuando la página llama a
+  // notFound(), Next descarta la metadata de este segmento y deja la del
+  // layout raíz. Se probó de las dos formas y ninguna llega al HTML.
+  //
+  // No hace falta igual: Next inyecta él mismo <meta name="robots"
+  // content="noindex"> al renderizar un not-found (verificado en el HTML
+  // de /propiedades/203), y sobre todo la página devuelve un 404 de
+  // verdad, que es lo que hace que Google saque la propiedad del
+  // buscador. Lo único que queda genérico es el título de la pestaña.
+  if (r.estado !== "ok") return {};
+
+  const listing = r.listing;
 
   const displayTitle = listing.contentTitle ?? listing.title;
   const opLabel = operationLabel(listing.operationType);
@@ -80,31 +95,22 @@ function youtubeEmbedUrl(url: string): string | null {
 
 export default async function PropertyDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const r = await resolveListingParam(id);
 
-  const listing = await getListingByCode(id);
+  // Dada de baja o inexistente: las dos caen en el not-found de este
+  // segmento, que muestra el cartel de "ya no está disponible" con el
+  // link al listado. Van juntas a propósito — desde la URL no se puede
+  // saber si un número que nunca fue código es un error de tipeo o una
+  // propiedad vieja, y el cartel sirve para los dos casos. notFound()
+  // además devuelve un 404 de verdad, que es lo que hace que Google
+  // saque la propiedad del buscador en vez de seguir ofreciéndola.
+  if (r.estado === "no-disponible" || r.estado === "inexistente") notFound();
+  if (r.estado === "redirigir") permanentRedirect(`/propiedades/${r.code}`);
 
-  if (!listing) {
-    // No hay ninguna propiedad con ese código. Puede ser un link viejo,
-    // de cuando la URL llevaba el id interno de la tabla (los que
-    // circulan por WhatsApp y los que indexó Google): se resuelve por id
-    // y se redirige permanentemente al código, así el link sigue
-    // llevando a la propiedad correcta y Google actualiza la URL buena.
-    const numericId = Number(id);
-    if (Number.isFinite(numericId)) {
-      const porId = await getListingById(numericId);
-      // Con código, se redirige al canónico. Sin código (el feed no lo
-      // trajo), no hay a dónde redirigir: se muestra acá mismo, para que
-      // la propiedad no quede inalcanzable.
-      if (porId?.code) permanentRedirect(`/propiedades/${porId.code}`);
-      if (porId) return <PropertyDetail listing={porId} />;
-    }
-    notFound();
-  }
-
-  return <PropertyDetail listing={listing} />;
+  return <PropertyDetail listing={r.listing} />;
 }
 
-function PropertyDetail({ listing }: { listing: NonNullable<Awaited<ReturnType<typeof getListingByCode>>> }) {
+function PropertyDetail({ listing }: { listing: ListingDetail }) {
 
   const displayTitle = listing.contentTitle ?? listing.title;
   const locationText = [listing.address, listing.city, listing.region].filter(Boolean).join(", ");

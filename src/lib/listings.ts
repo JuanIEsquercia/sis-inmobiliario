@@ -136,17 +136,69 @@ export async function getFeaturedListings(take = 6) {
 // existía para nadie ("/propiedades/674" era el código 345) y además
 // contradecía al mensaje de WhatsApp de esa misma página, que ya decía
 // el código correcto.
+// OJO: estas dos NO filtran por isActive. Traen la propiedad esté
+// publicada o no, y quien llama decide qué hacer. Es a propósito: hay
+// que poder distinguir "esta propiedad se dio de baja" de "este número
+// no existió nunca", y con el filtro adentro las dos cosas llegaban
+// como null. Para resolver una URL, usar resolveListingParam.
 export const getListingByCode = cache(async (code: string) => {
   return withRetry(() =>
     prisma.listing.findFirst({
-      where: { code, isActive: true },
+      where: { code },
       select: listingDetailSelect,
     })
   );
 });
 
 export const getListingById = cache(async (id: number) => {
-  return withRetry(() => prisma.listing.findFirst({ where: { id, isActive: true }, select: listingDetailSelect }));
+  return withRetry(() => prisma.listing.findFirst({ where: { id }, select: listingDetailSelect }));
+});
+
+export type ListingDetail = Prisma.ListingGetPayload<{ select: typeof listingDetailSelect }>;
+
+export type ListingResolution =
+  | { estado: "ok"; listing: ListingDetail }
+  | { estado: "redirigir"; code: string }
+  | { estado: "no-disponible" }
+  | { estado: "inexistente" };
+
+// Resuelve el parámetro de /propiedades/{algo} a una propiedad.
+//
+// El parámetro es el CÓDIGO público (el que se le dicta al cliente).
+// Pero códigos e ids internos son los dos números y comparten el mismo
+// espacio: hoy hay 46 propiedades publicadas cuyo código coincide con el
+// id interno de OTRA propiedad publicada. Por eso el orden importa y por
+// eso el id es el último recurso, nunca el primero.
+//
+// El orden de abajo arregla un problema real: cuando una propiedad se
+// daba de baja, su código dejaba de encontrarse y el sistema probaba el
+// número como id interno — con lo cual el visitante terminaba
+// REDIRIGIDO a una propiedad distinta, creyendo que era la que había
+// pedido, y encima con un 308 permanente que el navegador se guarda.
+// Pasó con tres códigos reales (45, 203 y 210, que llevaban a 112, 277 y
+// 289). Ahora un código conocido que está dado de baja corta acá y
+// devuelve "no-disponible": no se sigue buscando.
+export const resolveListingParam = cache(async (param: string): Promise<ListingResolution> => {
+  const porCodigo = await getListingByCode(param);
+  if (porCodigo) {
+    return porCodigo.isActive ? { estado: "ok", listing: porCodigo } : { estado: "no-disponible" };
+  }
+
+  // Recién acá, cuando el número NO es código de ninguna propiedad (ni
+  // publicada ni dada de baja), se prueba como id interno. Es para los
+  // links viejos, de cuando la URL llevaba el id: siguen funcionando y
+  // se redirigen al código canónico.
+  const numero = Number(param);
+  if (!Number.isInteger(numero) || numero <= 0) return { estado: "inexistente" };
+
+  const porId = await getListingById(numero);
+  if (!porId) return { estado: "inexistente" };
+  if (!porId.isActive) return { estado: "no-disponible" };
+
+  // Con código, se redirige al canónico. Sin código (el feed no lo
+  // trajo), no hay a dónde redirigir: se muestra acá mismo, para que la
+  // propiedad no quede inalcanzable.
+  return porId.code ? { estado: "redirigir", code: porId.code } : { estado: "ok", listing: porId };
 });
 
 // Un solo select compartido por la búsqueda por código (la normal) y la
@@ -156,6 +208,10 @@ const listingDetailSelect = {
   id: true,
   externalId: true,
   code: true,
+  // Hace falta en el select porque las búsquedas de arriba ya no
+  // filtran por estado: es lo que deja distinguir una propiedad dada de
+  // baja de una que no existe.
+  isActive: true,
   title: true,
   contentTitle: true,
   description: true,
