@@ -141,7 +141,12 @@ export const PERMISSION_TREE: PermissionGroup[] = [
   {
     key: "sitio",
     label: "Sitio público",
-    children: [{ key: "sitio.gestionar", label: "Administrar logos de marcas del sitio público" }],
+    children: [
+      {
+        key: "sitio.gestionar",
+        label: "Administrar el sitio público (sincronizar el catálogo y los logos de marcas)",
+      },
+    ],
   },
 ];
 

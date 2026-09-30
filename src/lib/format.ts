@@ -31,3 +31,21 @@ export function formatDate(value: Date | string | null): string | null {
   if (Number.isNaN(d.getTime())) return null;
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" }).format(d);
 }
+
+// Fecha Y hora, siempre en hora de Argentina.
+//
+// El timeZone va explícito a propósito: el servidor de producción corre
+// en UTC, así que sin esto una sincronización de las 18:00 se mostraría
+// como las 21:00 — justo el dato que esto viene a mostrar. Además lo
+// hace determinístico entre servidor y navegador, que si no difieren y
+// React avisa por hidratación.
+export function formatDateTime(value: Date | string | null): string | null {
+  if (!value) return null;
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(d);
+}

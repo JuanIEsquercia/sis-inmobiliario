@@ -1,16 +1,62 @@
 import Image from "next/image";
 import { requirePermission } from "@/lib/auth";
-import { getAllPartnerLogos } from "@/lib/site";
-import { crearMarca, actualizarMarca, eliminarMarca } from "./actions";
+import { getAllPartnerLogos, getSyncState } from "@/lib/site";
+import { FormWithFeedback } from "@/components/backoffice/FormWithFeedback";
+import { formatDateTime } from "@/lib/format";
+import { crearMarca, actualizarMarca, eliminarMarca, sincronizarFeed } from "./actions";
+
+// La pantalla no se cachea: si se cacheara, después de sincronizar
+// seguiría mostrando la fecha vieja.
+export const dynamic = "force-dynamic";
 
 export default async function SitioPage() {
   await requirePermission("sitio.gestionar");
-  const logos = await getAllPartnerLogos();
+  const [logos, sync] = await Promise.all([getAllPartnerLogos(), getSyncState()]);
 
   return (
     <div className="max-w-6xl w-full mx-auto">
       <h1 className="mb-1 text-xl font-semibold text-foreground">Sitio público</h1>
       <p className="mb-6 text-sm text-muted">
+        Sincronización del catálogo con Adinco y logos de marcas de la portada.
+      </p>
+
+      <section className="mb-8 rounded-xl border border-border p-5">
+        <h2 className="mb-1 text-sm font-medium text-foreground">Catálogo de propiedades</h2>
+        <p className="mb-4 text-sm text-muted">
+          Las propiedades del sitio se traen del archivo que publica Adinco. Se sincroniza solo, todos los días a las
+          18:00. Usá el botón si cargaste algo en Adinco y lo querés ver publicado ahora mismo.
+        </p>
+
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">Última sincronización:</span>
+          {sync.lastSyncedAt ? (
+            <span className={`font-semibold ${sync.atrasado ? "text-destructive" : "text-foreground"}`}>
+              {formatDateTime(sync.lastSyncedAt)}
+            </span>
+          ) : (
+            <span className="font-semibold text-destructive">nunca</span>
+          )}
+          {sync.atrasado && (
+            <span className="rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">
+              Atrasada
+            </span>
+          )}
+        </div>
+
+        <FormWithFeedback
+          action={sincronizarFeed}
+          submitLabel="Sincronizar ahora"
+          pendingLabel="Sincronizando... (puede tardar hasta un minuto)"
+          submitClassName="w-fit rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+        >
+          {/* Sin campos: el formulario es solo el botón. El children es
+              obligatorio en FormWithFeedback, así que va vacío. */}
+          <></>
+        </FormWithFeedback>
+      </section>
+
+      <h2 className="mb-1 text-sm font-medium text-foreground">Marcas de la portada</h2>
+      <p className="mb-4 text-sm text-muted">
         Logos de marcas y servicios que aparecen en el carrusel de confianza de la portada (Adinco, Argenprop, etc.).
         Solo se muestran las marcadas como activas, en el orden indicado.
       </p>
