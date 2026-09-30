@@ -2,10 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Gallery } from "@/components/Gallery";
+import { ShareButton } from "@/components/ShareButton";
 import { getListingByCode, getListingById } from "@/lib/listings";
 import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
 import { AGENCY_PHONE, toWhatsAppLink } from "@/lib/whatsapp";
-import { SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
+import { SITE_NAME, SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
 
 interface PageProps {
   // El parámetro de la ruta es el CÓDIGO público de la propiedad (la
@@ -49,8 +50,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       );
 
   const canonical = `/propiedades/${listing.code}`;
-  const ogImage = listing.images[0]?.url;
 
+  // A propósito SIN `images` acá: la imagen de previsualización la genera
+  // opengraph-image.tsx de este mismo segmento (foto + logo + precio +
+  // código, a 1200x630). Si se declarara acá, pisaría a ese archivo — y
+  // además habría que mantener sincronizadas las dos cosas. Es lo que
+  // recomienda la doc de Next, y el archivo agrega solo las etiquetas
+  // og:image:type/width/height que antes faltaban.
   return {
     title,
     description,
@@ -60,9 +66,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       url: absoluteUrl(canonical),
       type: "website",
-      images: ogImage ? [{ url: ogImage }] : undefined,
     },
-    twitter: ogImage ? { card: "summary_large_image", images: [ogImage] } : undefined,
+    twitter: { card: "summary_large_image" },
   };
 }
 
@@ -145,6 +150,20 @@ function PropertyDetail({ listing }: { listing: NonNullable<Awaited<ReturnType<t
   // nuevo desde el último sync — ahí se omite el paréntesis entero en
   // vez de mostrar un código que no es.
   const whatsappMessage = `Hola! Me interesa obtener más información sobre la propiedad: "${displayTitle}"${listing.code ? ` (Código ${listing.code})` : ""}.`;
+
+  // Texto institucional que acompaña al link cuando un agente comparte
+  // la propiedad. Va armado por el sistema —tipo, operación, precio,
+  // ubicación y código— para que todos compartan igual y el cliente
+  // reciba siempre el código con el que después va a preguntar.
+  const shareMessage = [
+    `${listing.propertyType} en ${operationLabel(listing.operationType).toLowerCase()}`,
+    [listing.address, listing.city].filter(Boolean).join(", "),
+    formatPrice(listing),
+    listing.code ? `Código ${listing.code}` : null,
+    `${SITE_NAME}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   // RealEstateListing (tipo oficial de schema.org para esto, aunque
   // Google todavía no le da una viñeta especial en el buscador clásico —
@@ -507,6 +526,12 @@ function PropertyDetail({ listing }: { listing: NonNullable<Awaited<ReturnType<t
               >
                 <span>Hablar con un asesor</span>
               </Link>
+
+              {/* Para que el agente comparta la propiedad con el texto ya
+                  armado, en vez de escribirlo a mano cada vez. El link es
+                  el canónico por código: es el que trae la
+                  previsualización con foto, logo, precio y código. */}
+              <ShareButton url={absoluteUrl(`/propiedades/${listing.code ?? listing.id}`)} message={shareMessage} />
             </div>
 
             {/* Sello de Confianza García Propiedades */}
