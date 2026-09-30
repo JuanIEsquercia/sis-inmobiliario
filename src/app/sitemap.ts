@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const listings = await withRetry(() =>
     prisma.listing.findMany({
       where: { isActive: true },
-      select: { id: true, sourceUpdatedAt: true },
+      select: { code: true, sourceUpdatedAt: true },
       orderBy: { sourceUpdatedAt: "desc" },
     })
   );
@@ -21,12 +21,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/equipo`, changeFrequency: "monthly", priority: 0.5 },
   ];
 
-  const listingRoutes: MetadataRoute.Sitemap = listings.map((listing) => ({
-    url: `${SITE_URL}/propiedades/${listing.id}`,
-    lastModified: listing.sourceUpdatedAt ?? undefined,
-    changeFrequency: "weekly",
-    priority: 0.8,
-  }));
+  // Se publican solo las que tienen código: la URL va por ahí, así que
+  // una sin código no tendría dirección estable que ofrecerle a Google.
+  const listingRoutes: MetadataRoute.Sitemap = listings
+    .filter((listing) => listing.code)
+    .map((listing) => ({
+      url: `${SITE_URL}/propiedades/${listing.code}`,
+      lastModified: listing.sourceUpdatedAt ?? undefined,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    }));
 
   return [...staticRoutes, ...listingRoutes];
 }

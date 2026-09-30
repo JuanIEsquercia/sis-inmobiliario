@@ -1,13 +1,16 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { Gallery } from "@/components/Gallery";
-import { getListingById } from "@/lib/listings";
+import { getListingByCode, getListingById } from "@/lib/listings";
 import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
 import { AGENCY_PHONE, toWhatsAppLink } from "@/lib/whatsapp";
 import { SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
 
 interface PageProps {
+  // El parámetro de la ruta es el CÓDIGO público de la propiedad (la
+  // carpeta se sigue llamando [id] por compatibilidad de links viejos,
+  // que se redirigen; ver PropertyDetailPage).
   params: Promise<{ id: string }>;
 }
 
@@ -22,12 +25,15 @@ function buildListingTitle(displayTitle: string, opLabel: string, city: string |
   return `${trimmedTitle}${suffix}`;
 }
 
+// La URL lleva el CÓDIGO público de la propiedad (el que se le dicta al
+// cliente y el que sale en el mensaje de WhatsApp), no el id interno de
+// la tabla. Un link viejo con el id igual tiene que seguir funcionando,
+// así que si el parámetro no matchea ningún código se prueba como id y
+// se redirige al canónico — ver resolveListing.
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const numericId = Number(id);
-  if (!Number.isFinite(numericId)) return {};
 
-  const listing = await getListingById(numericId);
+  const listing = await getListingByCode(id);
   if (!listing) return {};
 
   const displayTitle = listing.contentTitle ?? listing.title;
@@ -42,7 +48,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         }. ${formatPrice(listing)}.`
       );
 
-  const canonical = `/propiedades/${listing.id}`;
+  const canonical = `/propiedades/${listing.code}`;
   const ogImage = listing.images[0]?.url;
 
   return {
@@ -69,11 +75,31 @@ function youtubeEmbedUrl(url: string): string | null {
 
 export default async function PropertyDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const numericId = Number(id);
-  if (!Number.isFinite(numericId)) notFound();
 
-  const listing = await getListingById(numericId);
-  if (!listing) notFound();
+  const listing = await getListingByCode(id);
+
+  if (!listing) {
+    // No hay ninguna propiedad con ese código. Puede ser un link viejo,
+    // de cuando la URL llevaba el id interno de la tabla (los que
+    // circulan por WhatsApp y los que indexó Google): se resuelve por id
+    // y se redirige permanentemente al código, así el link sigue
+    // llevando a la propiedad correcta y Google actualiza la URL buena.
+    const numericId = Number(id);
+    if (Number.isFinite(numericId)) {
+      const porId = await getListingById(numericId);
+      // Con código, se redirige al canónico. Sin código (el feed no lo
+      // trajo), no hay a dónde redirigir: se muestra acá mismo, para que
+      // la propiedad no quede inalcanzable.
+      if (porId?.code) permanentRedirect(`/propiedades/${porId.code}`);
+      if (porId) return <PropertyDetail listing={porId} />;
+    }
+    notFound();
+  }
+
+  return <PropertyDetail listing={listing} />;
+}
+
+function PropertyDetail({ listing }: { listing: NonNullable<Awaited<ReturnType<typeof getListingByCode>>> }) {
 
   const displayTitle = listing.contentTitle ?? listing.title;
   const locationText = [listing.address, listing.city, listing.region].filter(Boolean).join(", ");

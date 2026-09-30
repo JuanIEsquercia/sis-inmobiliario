@@ -4,6 +4,8 @@ import { formatArea, formatPrice, operationLabel } from "@/lib/format";
 
 export interface PropertyCardListing {
   id: number;
+  // El código público de Adinco: es lo que va en la URL, no el id.
+  code: string | null;
   title: string;
   // El feed trae "title" como "{dirección} - {precio} - {tipo} - {operación}"
   // concatenado — se ve repetido con la placa de tipo y el precio de
@@ -32,7 +34,9 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
 
   return (
     <Link
-      href={`/propiedades/${listing.id}`}
+      // La URL va por el código público. Si alguna propiedad llegara sin
+      // código, se cae al id interno — la ficha lo resuelve igual.
+      href={`/propiedades/${listing.code ?? listing.id}`}
       className="group flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-surface shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-premium"
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-background">

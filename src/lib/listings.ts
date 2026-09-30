@@ -55,6 +55,11 @@ function buildWhere(filters: ListingFilters): Prisma.ListingWhereInput {
 const listingCardSelect = {
   id: true,
   externalId: true,
+  // El identificador PÚBLICO de la propiedad: es el número que la
+  // inmobiliaria le dicta al cliente y el que sale en el mensaje de
+  // WhatsApp ("Código 345"). Las URLs del sitio van por acá, no por
+  // `id` — ver getListingByCode.
+  code: true,
   title: true,
   contentTitle: true,
   operationType: true,
@@ -123,53 +128,70 @@ export async function getFeaturedListings(take = 6) {
 // cache() de React (no next/cache) — dedupea dentro de un mismo request:
 // generateMetadata y el propio componente de la página piden el mismo
 // listing, y sin esto serían dos consultas a la base en vez de una.
-export const getListingById = cache(async (id: number) => {
+// Busca por el CÓDIGO público (el de Adinco, el que se le dicta al
+// cliente), que es lo que va en la URL del sitio. Antes la ficha se
+// abría por `id`, la clave autoincremental interna de la tabla: como
+// las propiedades entran y salen del feed, esos ids llegaron a 677
+// habiendo solo 155 activas, así que la URL mostraba un número que no
+// existía para nadie ("/propiedades/674" era el código 345) y además
+// contradecía al mensaje de WhatsApp de esa misma página, que ya decía
+// el código correcto.
+export const getListingByCode = cache(async (code: string) => {
   return withRetry(() =>
     prisma.listing.findFirst({
-      where: { id, isActive: true },
-      select: {
-        id: true,
-        externalId: true,
-        code: true,
-        title: true,
-        contentTitle: true,
-        description: true,
-        operationType: true,
-        propertyType: true,
-        priceAmount: true,
-        priceCurrency: true,
-        priceRaw: true,
-        pricePerHectare: true,
-        expenses: true,
-        address: true,
-        region: true,
-        city: true,
-        latitude: true,
-        longitude: true,
-        floorArea: true,
-        plotArea: true,
-        landArea: true,
-        rooms: true,
-        bathrooms: true,
-        condition: true,
-        year: true,
-        buildingFloors: true,
-        buildingMainElevators: true,
-        buildingCategory: true,
-        coveredGarages: true,
-        aptoCredito: true,
-        fieldLength: true,
-        fieldWidth: true,
-        countryType: true,
-        services: true,
-        otherData: true,
-        sourceUpdatedAt: true,
-        images: { orderBy: { sortOrder: "asc" } },
-        videos: true,
-      },
+      where: { code, isActive: true },
+      select: listingDetailSelect,
     })
   );
 });
+
+export const getListingById = cache(async (id: number) => {
+  return withRetry(() => prisma.listing.findFirst({ where: { id, isActive: true }, select: listingDetailSelect }));
+});
+
+// Un solo select compartido por la búsqueda por código (la normal) y la
+// búsqueda por id (solo para redirigir links viejos), así las dos
+// devuelven exactamente la misma forma.
+const listingDetailSelect = {
+  id: true,
+  externalId: true,
+  code: true,
+  title: true,
+  contentTitle: true,
+  description: true,
+  operationType: true,
+  propertyType: true,
+  priceAmount: true,
+  priceCurrency: true,
+  priceRaw: true,
+  pricePerHectare: true,
+  expenses: true,
+  address: true,
+  region: true,
+  city: true,
+  latitude: true,
+  longitude: true,
+  floorArea: true,
+  plotArea: true,
+  landArea: true,
+  rooms: true,
+  bathrooms: true,
+  condition: true,
+  year: true,
+  buildingFloors: true,
+  buildingMainElevators: true,
+  buildingCategory: true,
+  coveredGarages: true,
+  aptoCredito: true,
+  fieldLength: true,
+  fieldWidth: true,
+  countryType: true,
+  services: true,
+  otherData: true,
+  sourceUpdatedAt: true,
+  images: { orderBy: { sortOrder: "asc" } },
+  videos: true,
+} satisfies Prisma.ListingSelect;
 
 export async function getFilterOptions() {
   const cities = await withRetry(() =>
