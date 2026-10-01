@@ -707,7 +707,21 @@ export async function confirmarCobroComision(paymentId: number, formData: FormDa
       }
 
       const { managementFee } = paymentBreakdown(payment.items, payment.contract.managementFeePercent);
-      if (managementFee <= 0) return;
+      // Antes acá había un `return` pelado, y era un agujero: la acción
+      // terminaba bien, no creaba el CashMovement, y la liquidación
+      // volvía a aparecer como pendiente. Desde la pantalla se veía
+      // como un botón que no responde, sin ningún mensaje, y no había
+      // forma de sacarla de la lista nunca más.
+      //
+      // Ahora la pantalla ya no ofrece el botón cuando no hay comisión
+      // (ver getPaymentsPendingFeeConfirmation), así que llegar hasta
+      // acá significa una pantalla vieja o un pedido armado a mano: se
+      // explica en vez de quedarse callado.
+      if (managementFee <= 0) {
+        throw new Error(
+          "Esta liquidación no genera comisión de administración (el contrato está al 0% o el período no tiene base para calcularla). No hay nada que confirmar."
+        );
+      }
 
       await tx.cashMovement.create({
         data: {

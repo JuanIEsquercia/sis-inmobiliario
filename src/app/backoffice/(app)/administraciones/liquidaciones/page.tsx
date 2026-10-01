@@ -245,6 +245,20 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                             {canConfirmarComision &&
                               (p.cashMovement ? (
                                 <span className="text-xs text-muted">✓ Comisión cobrada</span>
+                              ) : managementFee <= 0 ? (
+                                // Sin comisión no hay nada que confirmar:
+                                // el contrato está al 0% (familiares,
+                                // acuerdos particulares) o el período no
+                                // tiene base, como un mes de gracia. Antes
+                                // igual se mostraba el botón y al apretarlo
+                                // no pasaba nada, así que la liquidación
+                                // quedaba pendiente para siempre.
+                                <span
+                                  className="text-xs text-muted"
+                                  title="Este contrato no cobra comisión de administración para este período"
+                                >
+                                  ✓ Sin comisión
+                                </span>
                               ) : (
                                 <form
                                   action={confirmarCobroComision.bind(null, p.id)}

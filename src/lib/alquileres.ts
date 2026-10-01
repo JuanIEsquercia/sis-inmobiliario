@@ -312,8 +312,22 @@ export async function getPaymentsForPeriod(scope: ContractGroupScope, periodMont
 // administración (sin CashMovement todavía) — para Caja > Administración.
 // Sin filtro por grupo: Caja no está scopeada por cartera, la ve
 // cualquiera con permiso de Caja.
+//
+// Quedan afuera las que no generan comisión, que son dos casos reales:
+// contratos con el % de administración en 0 (familiares, acuerdos
+// particulares) y meses sin base para calcular, como un mes de gracia.
+// En los dos la comisión da 0: no hay nada en mano que confirmar, así
+// que la liquidación ya está cerrada y listarla como pendiente es
+// pedir un paso que no existe.
+//
+// Esto arregla algo que dejaba liquidaciones trabadas para siempre:
+// aparecían acá con "Comisión $0" y un botón Confirmar que no hacía
+// nada, porque la acción cortaba sin crear el CashMovement y entonces
+// la liquidación seguía contando como pendiente. El filtro va en JS y
+// no en el where porque la comisión no es una columna: se calcula a
+// partir de los ítems y del % del contrato (ver paymentBreakdown).
 export async function getPaymentsPendingFeeConfirmation() {
-  return withRetry(() =>
+  const pagos = await withRetry(() =>
     prisma.payment.findMany({
       where: { status: "PAGADO", cashMovement: null },
       include: {
@@ -323,6 +337,8 @@ export async function getPaymentsPendingFeeConfirmation() {
       orderBy: { paidAt: "desc" },
     })
   );
+
+  return pagos.filter((p) => paymentBreakdown(p.items, p.contract.managementFeePercent).managementFee > 0);
 }
 
 export interface MoraChargeSummary {
