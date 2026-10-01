@@ -54,6 +54,23 @@ export async function requirePermission(key: string): Promise<Profile> {
   return profile;
 }
 
+// Exige el ROL ADMIN, no un permiso.
+//
+// La diferencia importa: un ADMIN recibe el catálogo completo de
+// permisos (ver getCurrentProfile), así que crear una clave nueva no
+// serviría para reservarle algo — a un AGENTE se le podría otorgar esa
+// misma clave y quedaría igualado. Para lo que tiene que ser
+// exclusivamente de la dueña o el dueño del sistema, hay que mirar el
+// rol.
+//
+// Se reserva para correcciones sobre datos ya cargados, que arreglan un
+// error de carga y no son parte de la operación de todos los días.
+export async function requireAdmin(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (profile.role !== "ADMIN") redirect("/backoffice");
+  return profile;
+}
+
 export async function requireAnyPermission(keys: string[]): Promise<Profile> {
   const profile = await requireProfile();
   if (!keys.some((k) => profile.permissions.includes(k))) redirect("/backoffice");

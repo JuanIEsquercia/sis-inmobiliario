@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requirePermission, assertContractInScope, assertPaymentInScope } from "@/lib/auth";
+import { requirePermission, requireAdmin, assertContractInScope, assertPaymentInScope } from "@/lib/auth";
+import type { ActionResult } from "@/app/backoffice/(app)/usuarios/actions";
 import { addMonths, buildPaymentSchedule, computeEndDate, paymentTotal } from "@/lib/alquileres";
 import { resolveClient, resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadContractDocument, deleteContractDocuments } from "@/lib/supabase/storage";
@@ -1183,4 +1184,103 @@ export async function asignarGrupoContrato(contractId: number, formData: FormDat
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/administraciones");
+}
+
+// Corrige el esquema de actualización de un contrato ya cargado: cada
+// cuántos meses se actualiza y con qué índice.
+//
+// SOLO ADMIN, y a propósito. No es parte de la operación diaria: existe
+// para arreglar un error de carga o una renegociación, que son
+// excepciones. Por eso va con requireAdmin (el rol) y no con un permiso
+// nuevo — a un ADMIN se le dan todos los permisos automáticamente, así
+// que una clave nueva no reservaría nada: se le podría otorgar a un
+// agente y quedaría igualado.
+//
+// Hasta ahora esto solo se podía tocar entrando a la base a mano, y ahí
+// está el verdadero motivo de esta pantalla: hay que cambiar DOS
+// columnas juntas y la segunda es derivada. Cambiar solo el plazo deja
+// la próxima fecha vieja, y el sistema sigue avisando cuando no
+// corresponde.
+export async function corregirEsquemaActualizacion(
+  contractId: number,
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  try {
+    const contract = await withRetry(() =>
+      prisma.contract.findUniqueOrThrow({
+        where: { id: contractId },
+        select: {
+          isAdministered: true,
+          startDate: true,
+          indexationFrequencyMonths: true,
+          nextIndexationDueAt: true,
+        },
+      })
+    );
+
+    if (!contract.isAdministered) {
+      return { ok: false, error: "Este contrato no se administra: no tiene esquema de actualización." };
+    }
+
+    const meses = optionalInt(formData.get("indexationFrequencyMonths"));
+    if (meses !== null && (meses < 1 || meses > 60)) {
+      return { ok: false, error: "El plazo tiene que estar entre 1 y 60 meses. Vacío = no se actualiza." };
+    }
+    const indexTypeId = optionalInt(formData.get("indexTypeId"));
+
+    // El ancla del cronograma, que es lo que NO hay que mover.
+    //
+    // El sistema avanza la fecha como "la que tocaba + plazo" (ver
+    // registrarIndexacion), así que la última fecha de corte real es
+    // `nextIndexationDueAt - plazo viejo`. Desde ahí se recuenta con el
+    // plazo nuevo y el cronograma sigue cayendo los mismos días.
+    //
+    // Si nunca se actualizó (o no tenía esquema), el ancla es el inicio
+    // del contrato, igual que en el alta.
+    const ancla =
+      contract.nextIndexationDueAt && contract.indexationFrequencyMonths
+        ? addMonths(contract.nextIndexationDueAt, -contract.indexationFrequencyMonths)
+        : contract.startDate;
+
+    const proxima = meses ? addMonths(ancla, meses) : null;
+
+    await withRetry(() =>
+      prisma.contract.update({
+        where: { id: contractId },
+        data: {
+          indexationFrequencyMonths: meses,
+          indexTypeId,
+          // Las dos juntas, siempre. Que esto no se pueda hacer a medias
+          // es el motivo de que exista esta acción.
+          nextIndexationDueAt: proxima,
+        },
+      })
+    );
+
+    revalidatePath(`/backoffice/administraciones/${contractId}`);
+    revalidatePath("/backoffice/administraciones");
+    revalidatePath("/backoffice/administraciones/actualizaciones");
+
+    if (!proxima) {
+      return { ok: true, message: "Listo: este contrato queda sin actualizaciones programadas." };
+    }
+
+    const fecha = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "UTC" }).format(proxima);
+    // Si la fecha recalculada ya pasó, el contrato aparece como atrasado
+    // enseguida. Es correcto —con el plazo nuevo ese corte ya vencía—
+    // pero es mejor avisarlo que dejar que aparezca una alerta de la
+    // nada.
+    const vencida = proxima.getTime() < Date.now();
+    return {
+      ok: true,
+      message: `Actualiza cada ${meses} meses. La próxima pasa a ser el ${fecha}${
+        vencida ? " — esa fecha ya pasó, así que figura como pendiente de actualizar." : "."
+      }`,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "No se pudo corregir el esquema de actualización" };
+  }
 }

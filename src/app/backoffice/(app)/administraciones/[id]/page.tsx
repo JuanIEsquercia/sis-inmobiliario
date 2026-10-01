@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getContractById, getContractGroups, paymentTotal } from "@/lib/alquileres";
+import { getContractById, getContractGroups, getIndexTypes, paymentTotal } from "@/lib/alquileres";
 import { getAgents, getActiveCommissionScheme, agentLabel, toRepartoSchemeInfo } from "@/lib/caja";
 import { getSignedDocumentUrl } from "@/lib/supabase/storage";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
@@ -14,6 +14,7 @@ import {
   marcarContratoFirmado,
   asignarGrupoContrato,
   actualizarRenovacionEsperada,
+  corregirEsquemaActualizacion,
 } from "../actions";
 import { crearComisionAlquiler } from "../../caja/actions";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
@@ -23,6 +24,7 @@ import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 import { EditableAgentesCard } from "@/components/backoffice/EditableAgentesCard";
 import { EditableRenovacionCard } from "@/components/backoffice/EditableRenovacionCard";
+import { EditableActualizacionCard } from "@/components/backoffice/EditableActualizacionCard";
 
 const statusLabels: Record<string, string> = {
   BORRADOR: "Borrador",
@@ -106,10 +108,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
 
   // Estas tres sí dependen de `contract` (recién resuelto arriba), pero
   // no dependen entre sí — misma idea, una sola tanda en paralelo.
-  const [documentsWithUrls, agents, alquilerScheme] = await Promise.all([
+  // indexTypes solo se consulta para ADMIN: es lo único que lo usa (el
+  // formulario para corregir el esquema de actualización), así que un
+  // agente no paga esa consulta.
+  const [documentsWithUrls, agents, alquilerScheme, indexTypes] = await Promise.all([
     Promise.all(contract.documents.map(async (doc) => ({ ...doc, url: await getSignedDocumentUrl(doc.storagePath) }))),
     needsCommissionForm || canEditAgentes ? getAgents() : Promise.resolve([]),
     needsCommissionForm ? getActiveCommissionScheme(isRenewal ? "RENOVACION" : "ALQUILER") : Promise.resolve(null),
+    profile.role === "ADMIN" && contract.isAdministered ? getIndexTypes() : Promise.resolve([]),
   ]);
 
   // Solo se puede anular si todavía no movió plata — ver anularContrato.
@@ -237,10 +243,23 @@ export default async function ContractDetailPage({ params }: PageProps) {
               {contract.isAdministered && (
                 <div>
                   <dt className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Actualización</dt>
-                  <dd className="text-foreground font-medium">
-                    {contract.indexationFrequencyMonths
-                      ? `Cada ${contract.indexationFrequencyMonths} meses ${contract.indexType ? `(${contract.indexType.code})` : ""}`
-                      : "No aplica"}
+                  <dd>
+                    {/* Corregir el esquema es solo para ADMIN: arregla un
+                        error de carga o una renegociación, no es parte
+                        de la operación diaria. El servidor lo vuelve a
+                        validar con requireAdmin — esto solo decide si se
+                        muestra el enlace. */}
+                    <EditableActualizacionCard
+                      frequencyMonths={contract.indexationFrequencyMonths}
+                      indexTypeId={contract.indexTypeId}
+                      indexTypeCode={contract.indexType?.code ?? null}
+                      nextDueLabel={
+                        contract.nextIndexationDueAt ? fmtDate.format(contract.nextIndexationDueAt) : null
+                      }
+                      indexTypes={indexTypes}
+                      canEdit={profile.role === "ADMIN"}
+                      action={corregirEsquemaActualizacion.bind(null, contract.id)}
+                    />
                   </dd>
                 </div>
               )}

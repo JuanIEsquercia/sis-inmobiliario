@@ -8,13 +8,22 @@ interface IndexTypeOption {
   code: string;
 }
 
-export function IndexTypeSelect({ initialIndexTypes }: { initialIndexTypes: IndexTypeOption[] }) {
+// `defaultValue` es para reusarlo en pantallas de edición, donde el
+// contrato ya tiene un índice elegido. En el alta no se pasa y arranca
+// vacío, como antes.
+export function IndexTypeSelect({
+  initialIndexTypes,
+  defaultValue = null,
+}: {
+  initialIndexTypes: IndexTypeOption[];
+  defaultValue?: number | null;
+}) {
   const [indexTypes, setIndexTypes] = useState(initialIndexTypes);
   const [adding, setAdding] = useState(false);
   const [newCode, setNewCode] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string>("");
+  const [selected, setSelected] = useState<string>(defaultValue != null ? String(defaultValue) : "");
 
   function addIndexType() {
     if (!newCode.trim()) return;
