@@ -58,7 +58,7 @@ export default async function ImprimirIndexacionPage({ params }: PageProps) {
       {/* Cabecera Corporativa */}
       <div className="mb-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b border-neutral-200 pb-8">
         <div className="flex items-center gap-4">
-          <Image src="/logo-light.png" alt="Garcia Propiedades" width={455} height={337} priority className="h-16 w-auto" />
+          <Image src="/logo-light.png" alt="Garcia Propiedades" width={455} height={337} unoptimized priority className="h-16 w-auto" />
           <div className="h-12 w-px bg-neutral-200 hidden sm:block" />
           <div>
             <h1 className="text-xl font-bold uppercase tracking-wider text-[#c52125]">Garcia Propiedades</h1>

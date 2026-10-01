@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { adincoImage } from "@/lib/adinco-images";
 
 export function Gallery({ images, title }: { images: { url: string }[]; title: string }) {
   const [active, setActive] = useState(0);
@@ -48,9 +49,10 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
             className="relative aspect-[16/9] max-h-[420px] w-full cursor-pointer overflow-hidden group"
           >
             <Image
-              src={images[0].url}
+              src={adincoImage(images[0].url, "extra_large")}
               alt={title}
               fill
+              unoptimized
               sizes="(min-width: 1024px) 70vw, 100vw"
               className="object-cover transition-transform duration-500 group-hover:scale-105"
               priority
@@ -66,9 +68,10 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
                 className="relative h-full w-full cursor-pointer overflow-hidden rounded-2xl group"
               >
                 <Image
-                  src={img.url}
+                  src={adincoImage(img.url, "large")}
                   alt={`${title} - foto ${i + 1}`}
                   fill
+                  unoptimized
                   sizes="50vw"
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
                   priority={i === 0}
@@ -85,9 +88,10 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
               className="relative md:col-span-8 h-full w-full cursor-pointer overflow-hidden rounded-2xl group"
             >
               <Image
-                src={images[0].url}
+                src={adincoImage(images[0].url, "extra_large")}
                 alt={`${title} - principal`}
                 fill
+                unoptimized
                 sizes="(min-width: 768px) 60vw, 100vw"
                 className="object-cover transition-transform duration-500 group-hover:scale-105"
                 priority
@@ -103,9 +107,10 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
                   className="relative h-full w-full cursor-pointer overflow-hidden rounded-2xl group"
                 >
                   <Image
-                    src={img.url}
+                    src={adincoImage(img.url, "large")}
                     alt={`${title} - foto ${i + 2}`}
                     fill
+                    unoptimized
                     sizes="30vw"
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
@@ -145,7 +150,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
               }`}
               aria-label={`Ver foto ${i + 1}`}
             >
-              <Image src={img.url} alt="" fill sizes="80px" className="object-cover" />
+              <Image src={adincoImage(img.url, "small")} alt="" fill unoptimized sizes="80px" className="object-cover" />
             </button>
           ))}
         </div>
@@ -190,9 +195,10 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
             {/* Foto Activa */}
             <div className="relative h-full w-full max-h-[75vh]">
               <Image
-                src={images[active].url}
+                src={adincoImage(images[active].url, "extra_large")}
                 alt={`${title} - vista completa`}
                 fill
+                unoptimized
                 sizes="100vw"
                 className="object-contain"
                 priority
@@ -226,7 +232,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
                     i === active ? "ring-2 ring-accent scale-105 opacity-100" : "opacity-40 hover:opacity-100"
                   }`}
                 >
-                  <Image src={img.url} alt="" fill sizes="80px" className="object-cover" />
+                  <Image src={adincoImage(img.url, "small")} alt="" fill unoptimized sizes="80px" className="object-cover" />
                 </button>
               ))}
             </div>

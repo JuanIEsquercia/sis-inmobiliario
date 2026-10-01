@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { adincoImage } from "@/lib/adinco-images";
 import { formatArea, formatPrice, operationLabel } from "@/lib/format";
 
 export interface PropertyCardListing {
@@ -42,9 +43,18 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-background">
         {image ? (
           <Image
-            src={image}
+            // La variante de 640 px de Adinco (20 KB) en vez de la de
+            // 1920 (84 KB): la tarjeta se ve a ~420 px en escritorio y a
+            // lo ancho de la pantalla en celular, así que 640 alcanza y
+            // la grilla de 12 tarjetas pesa 240 KB en vez de 1 MB.
+            src={adincoImage(image, "medium")}
             alt={displayTitle}
             fill
+            // unoptimized: la foto ya viene en el tamaño correcto desde
+            // el CDN de Adinco, no hace falta que Vercel la reprocese
+            // (ver adinco-images.ts: el cupo de optimización se agotó y
+            // dejaba el sitio entero sin imágenes).
+            unoptimized
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
           />
