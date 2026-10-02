@@ -193,3 +193,22 @@ dialog::backdrop {
   }
 }
 
+
+/* Chat de Kommo: fuera de la vista en celular.
+   
+   La defensa principal es NO cargar el script en pantallas chicas (ver
+   CrmChatButton). Esto es la red de seguridad para un caso que el
+   componente no puede resolver: si alguien entra desde escritorio y
+   después achica la ventana, el widget ya se dibujó en document.body,
+   fuera del árbol de React, así que React no lo puede sacar.
+
+   Las clases son las que crea el propio button.js de Kommo: la cápsula
+   del botón flotante y el panel de chat cuando está abierto. Van con
+   !important porque el widget escribe sus estilos en línea. 768px es el
+   `md` de Tailwind, el mismo corte que usa el resto del sitio. */
+@media (max-width: 767px) {
+  .amo-button-holder,
+  .amo-livechat-first-container {
+    display: none !important;
+  }
+}
