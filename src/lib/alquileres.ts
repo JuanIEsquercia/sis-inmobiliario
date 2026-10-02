@@ -46,10 +46,61 @@ export interface PaymentPeriod {
   dueDate: Date;
 }
 
+// Suma (o resta, con meses negativos) meses de calendario, recortando al
+// último día del mes destino cuando el día de origen no existe ahí.
+//
+// Antes esto era un setUTCMonth pelado, y ahí estaba el problema: si el
+// día no existe en el mes destino, JavaScript NO avisa, desborda al mes
+// siguiente. El 31 de enero más un mes daba 3 de marzo (enero tiene 31
+// días, febrero 28: sobran 3 y se los lleva a marzo). El 30 de enero
+// daba 2 de marzo, y el 29 daba 1 de marzo. En un año bisiesto el 31 de
+// enero daba 2 de marzo en vez del 29 de febrero.
+//
+// Afectaba a la fecha de fin de contrato y a la de próxima
+// actualización: un contrato que empieza el 31/08 a 6 meses terminaba el
+// 3 de marzo en vez del 28 de febrero, corriendo el vencimiento a otro
+// mes.
+//
+// Los vencimientos mensuales de las liquidaciones NO tenían este
+// problema: buildPaymentSchedule ya recortaba con Math.min(dueDay,
+// díasDelMes). Esta función ahora hace lo mismo, así las dos partes del
+// sistema tratan el fin de mes igual.
+//
+// Es el mismo criterio que usan las librerías de fechas conocidas
+// (date-fns, Luxon): "un mes después del 31 de enero" es el 28 (o 29) de
+// febrero, no el 3 de marzo.
+//
+// Consecuencia a tener presente: con recorte, ir y volver no siempre
+// devuelve la fecha original (31/03 menos un mes da 28/02, y sumarle uno
+// da 28/03). Es inherente a contar meses de calendario, no un defecto de
+// esta implementación.
 export function addMonths(date: Date, months: number): Date {
-  const d = new Date(date);
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return d;
+  const año = date.getUTCFullYear();
+  const mes = date.getUTCMonth();
+  const dia = date.getUTCDate();
+
+  // Día 1 del mes destino, para que normalizar el desborde de meses
+  // (negativos o más de 12) no arrastre también el día.
+  const destino = new Date(Date.UTC(año, mes + months, 1));
+  const añoDestino = destino.getUTCFullYear();
+  const mesDestino = destino.getUTCMonth();
+
+  // Día 0 del mes siguiente = último día del mes destino.
+  const diasDelMesDestino = new Date(Date.UTC(añoDestino, mesDestino + 1, 0)).getUTCDate();
+
+  return new Date(
+    Date.UTC(
+      añoDestino,
+      mesDestino,
+      Math.min(dia, diasDelMesDestino),
+      // La hora se conserva tal cual venía: estas fechas se guardan a
+      // medianoche UTC, pero no es tarea de esta función decidirlo.
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds(),
+      date.getUTCMilliseconds()
+    )
+  );
 }
 
 export function computeEndDate(startDate: Date, durationMonths: number): Date {
