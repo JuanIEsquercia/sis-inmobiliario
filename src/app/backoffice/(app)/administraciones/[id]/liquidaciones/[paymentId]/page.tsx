@@ -257,7 +257,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
               </div>
               <div className="flex items-center justify-between border-t border-border/80 pt-3">
                 <span className="font-bold text-foreground">Neto Propietario</span>
-                <span className="text-lg font-bold text-[#c52125]">
+                <span className="text-lg font-bold text-accent">
                   {payment.currency} {fmtMoney(netForOwner)}
                 </span>
               </div>

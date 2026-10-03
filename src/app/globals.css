@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+/* Conecta el prefijo `dark:` de Tailwind con el tema de la app.
+ *
+ * Sin esto estaban enchufados a interruptores distintos y nadie lo
+ * notaba hasta ver los colores: las variables de abajo (--background,
+ * --accent, etc.) responden a `data-theme`, que es el botón de la app,
+ * pero el `dark:` de Tailwind v4 responde por defecto a
+ * prefers-color-scheme, que es la configuración del SISTEMA OPERATIVO.
+ *
+ * El resultado era que con la compu en claro y la app en oscuro, el
+ * fondo se ponía oscuro pero un `dark:text-emerald-400` NO se aplicaba:
+ * quedaba el verde oscuro pensado para fondo blanco, ilegible sobre
+ * negro. Y al revés, con la compu en oscuro y la app en claro, se
+ * aplicaban los colores claros sobre fondo blanco, lavados.
+ *
+ * Las dos ramas de abajo copian exactamente la misma lógica con la que
+ * se definen las variables, para que no vuelvan a separarse:
+ *   1. data-theme="dark" puesto a mano desde la app.
+ *   2. sin data-theme (modo "sistema"), el sistema operativo decide.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
+}
+
 :root {
   /* Paleta Premium Garcia Propiedades (Muted Crimson & Soft Warm Neutrals) */
   --background: #faf9f8;

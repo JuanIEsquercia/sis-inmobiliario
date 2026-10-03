@@ -322,14 +322,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
               <div className="overflow-x-auto rounded-lg border border-border/60">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-neutral-50/50 border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted">
+                    {/* bg-background, no bg-neutral-50: el gris fijo se quedaba
+                        claro en modo oscuro. */}
+                    <tr className="bg-background/50 border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted">
                       <th className="px-4 py-2.5 font-bold">Período</th>
                       <th className="px-4 py-2.5 font-bold">Vence</th>
                       <th className="px-4 py-2.5 font-bold">Total</th>
                       <th className="px-4 py-2.5 font-bold">Estado</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/40 bg-white">
+                  <tbody className="divide-y divide-border/40 bg-surface">
                     {contract.payments.map((p) => (
                       <tr key={p.id} className="hover:bg-surface/60 transition-colors">
                         <td className="px-4 py-2.5">
