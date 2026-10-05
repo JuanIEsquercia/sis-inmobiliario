@@ -4,7 +4,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // (prefijo del path) es lo que separa contratos de tasaciones, no el
 // bucket.
 const BUCKET = "contract-documents";
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// 3,5 MB por archivo, no 10 como decía antes. Esos 10 MB eran
+// inalcanzables: los archivos llegan por una Server Action, y ese envío
+// está limitado a 4 MB (ver next.config.ts) contra un techo de 4,5 MB de
+// la plataforma que no se puede mover. Un archivo de 6 MB nunca llegaba
+// hasta esta validación — lo frenaba el framework antes, con un 413 sin
+// mensaje.
+//
+// Queda deliberadamente POR DEBAJO del límite del envío para que, cuando
+// un archivo sea muy grande, el que corte sea este control y no el
+// framework: así se ve el motivo en pantalla en vez de un error mudo.
+const MAX_FILE_SIZE = Math.round(3.5 * 1024 * 1024);
 
 // Nombre seguro para usarlo como parte de la key del bucket — se sacan
 // separadores de path y caracteres raros y se acota el largo. El nombre
@@ -30,7 +40,7 @@ async function assertIsPdf(file: File): Promise<void> {
 async function uploadPdf(pathPrefix: string, file: File): Promise<{ storagePath: string }> {
   await assertIsPdf(file);
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error("El archivo no puede superar los 10MB");
+    throw new Error("El archivo no puede superar los 3,5 MB. Si es un escaneo, bajá la calidad o dividilo y subilo en partes.");
   }
 
   const storagePath = `${pathPrefix}/${crypto.randomUUID()}-${safeFileName(file.name)}`;

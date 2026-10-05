@@ -4,6 +4,7 @@ import { getAgents, getActiveCommissionScheme, toRepartoSchemeInfo } from "@/lib
 import { GuarantorFields } from "@/components/backoffice/GuarantorFields";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
 import { UnitPicker } from "@/components/backoffice/UnitPicker";
+import { DocumentosContratoFields } from "@/components/backoffice/DocumentosContratoFields";
 import { AdministracionFields } from "@/components/backoffice/AdministracionFields";
 import { ComisionAlquilerFields } from "@/components/backoffice/ComisionAlquilerFields";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
@@ -160,35 +161,7 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
           <textarea id="notes" name="notes" rows={3} className="field" />
         </div>
 
-        <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <legend className="col-span-full mb-1 text-sm font-medium text-foreground">
-            Documentos <span className="font-normal text-muted">(opcional, en PDF — también se pueden subir después)</span>
-          </legend>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="contratoFile" className="text-xs text-muted">
-              Contrato
-            </label>
-            <input id="contratoFile" name="contratoFile" type="file" accept="application/pdf" className="field" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="dniInquilinoFile" className="text-xs text-muted">
-              DNI INQUILINO + INGRESOS + INFORME BCRA UNIFICADOS
-            </label>
-            <input id="dniInquilinoFile" name="dniInquilinoFile" type="file" accept="application/pdf" className="field" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="dniGaranteFile" className="text-xs text-muted">
-              DNI GARANTE + INGRESOS + INFORME BCRA UNIFICADOS
-            </label>
-            <input id="dniGaranteFile" name="dniGaranteFile" type="file" accept="application/pdf" className="field" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="otroFile" className="text-xs text-muted">
-              DOCUMENTACIÓN RESPALDATORIA EXTRA
-            </label>
-            <input id="otroFile" name="otroFile" type="file" accept="application/pdf" className="field" />
-          </div>
-        </fieldset>
+        <DocumentosContratoFields />
 
         {/* El alta arma el contrato, su cronograma entero de
             liquidaciones (hasta 24 meses x varios conceptos) y sube los
