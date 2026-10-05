@@ -74,6 +74,47 @@ export interface PaymentPeriod {
 // devuelve la fecha original (31/03 menos un mes da 28/02, y sumarle uno
 // da 28/03). Es inherente a contar meses de calendario, no un defecto de
 // esta implementación.
+const ZONA = "America/Argentina/Buenos_Aires";
+
+// El día de calendario argentino de un instante, como "2026-10-05".
+//
+// Hace falta convertir el huso: el servidor corre en UTC, y Argentina
+// está 3 horas atrás. Un cobro registrado el 5 a las 22:00 de Argentina
+// es el 6 a las 01:00 en UTC, así que mirarlo en UTC lo correría un día
+// y lo haría figurar como pagado tarde.
+//
+// "en-CA" se usa porque formatea como AAAA-MM-DD, que además se puede
+// comparar como texto y ordena igual que la fecha.
+function diaArgentino(instante: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZONA,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instante);
+}
+
+// El día que representa una fecha de vencimiento.
+//
+// Estas NO se convierten de huso, a propósito: no son un instante sino
+// un día del calendario, y se guardan a medianoche UTC justamente para
+// representarlo (ver buildPaymentSchedule, que las arma con Date.UTC).
+// Pasarlas a hora argentina las correría al día anterior a las 21:00.
+function diaDeVencimiento(vencimiento: Date): string {
+  return vencimiento.toISOString().slice(0, 10);
+}
+
+// Medianoche UTC del día de HOY en Argentina, para comparar contra las
+// fechas de vencimiento en consultas a la base.
+//
+// No alcanza con la medianoche UTC de hoy: entre las 21:00 y las 24:00
+// de Argentina, en UTC ya es el día siguiente, así que una liquidación
+// que vence mañana figuraba como vencida durante esas tres horas.
+export function inicioDeHoyArgentina(): Date {
+  const [a, m, d] = diaArgentino(new Date()).split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d));
+}
+
 export function addMonths(date: Date, months: number): Date {
   const año = date.getUTCFullYear();
   const mes = date.getUTCMonth();
@@ -479,8 +520,11 @@ export function moraBucketFor(daysLate: number): MoraBucket {
 // base para el seguimiento de morosidad: días de atraso a hoy,
 // categorización por rango y promedio se calculan a partir de esto.
 export async function getOverduePayments(scope: ContractGroupScope): Promise<OverduePayment[]> {
-  const now = new Date();
-  const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  // El inicio del día ARGENTINO, no el de UTC. Con UTC, entre las 21:00
+  // y las 24:00 de acá el servidor ya está en el día siguiente, así que
+  // una liquidación que vencía al otro día aparecía como vencida durante
+  // esas tres horas todas las noches.
+  const startOfToday = inicioDeHoyArgentina();
 
   const payments = await withRetry(() =>
     prisma.payment.findMany({
@@ -538,10 +582,21 @@ export interface ContractPunctuality {
 // vez de depender de un status): acá se calcula igual, comparando contra
 // hoy, para que el resumen de puntualidad del cliente no muestre "0
 // atrasados" aunque tenga pagos vencidos sin cobrar.
+//
+// Todo se compara por DÍA DE CALENDARIO, no por instante. Antes se
+// comparaban las fechas crudas y eso daba un resultado falso: dueDate se
+// guarda a medianoche (buildPaymentSchedule arma la fecha con Date.UTC,
+// sin hora), mientras que paidAt es el momento exacto en que se registró
+// el cobro. Entonces `paidAt <= dueDate` solo era verdadero si se pagaba
+// ANTES de la medianoche del día de vencimiento: pagar el mismo día que
+// vencía contaba como tarde.
+//
+// Caso real: el contrato de 25 de Mayo 1720 vencía el 05/10 y se cobró
+// el 05/10 a las 09:21 de la mañana. Figuraba como "pagada tarde".
 function summarizePunctuality(
   payments: { status: string; dueDate: Date; paidAt: Date | null }[]
 ): ContractPunctuality {
-  const now = new Date();
+  const hoy = diaArgentino(new Date());
   let paidOnTime = 0;
   let paidLate = 0;
   let overdue = 0;
@@ -549,9 +604,13 @@ function summarizePunctuality(
 
   for (const p of payments) {
     if (p.status === "PAGADO") {
-      if (p.paidAt && p.paidAt <= p.dueDate) paidOnTime++;
+      // Sin paidAt no se puede saber cuándo se pagó (cobros viejos,
+      // cargados antes de que se registrara la fecha). Se cuentan como
+      // tarde para no inflar la puntualidad con algo que no consta.
+      if (p.paidAt && diaArgentino(p.paidAt) <= diaDeVencimiento(p.dueDate)) paidOnTime++;
       else paidLate++;
-    } else if (p.dueDate < now) {
+    } else if (diaDeVencimiento(p.dueDate) < hoy) {
+      // Estrictamente menor: la que vence HOY todavía no está atrasada.
       overdue++;
     } else {
       pending++;
