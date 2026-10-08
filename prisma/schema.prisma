@@ -58,6 +58,17 @@ model Listing {
   expenses        Decimal? @db.Decimal(14, 2)
 
   address          String?
+  // `address` ya normalizado para buscar: sin tildes, sin eñes y en
+  // minúscula (ver normalizeForSearch). Es una copia derivada, no un
+  // dato nuevo del feed: existe solo para que el buscador por calle o
+  // zona del sitio encuentre "España 1000" cuando alguien escribe
+  // "espana", que es como se escribe en un buscador.
+  //
+  // Se guarda en una columna en vez de normalizar al vuelo en la
+  // consulta porque así la búsqueda sigue siendo un `contains` común de
+  // Prisma, dentro del mismo constructor de filtros que el resto, y no
+  // depende de tener instalada la extensión `unaccent` de Postgres.
+  addressSearch    String?
   addressName      String?
   addressNumber    String?
   addressFloor     String?
@@ -120,6 +131,7 @@ model Listing {
   @@index([propertyType])
   @@index([city])
   @@index([code])
+  @@index([addressSearch])
   // Compuesto en vez de un @@index([isActive]) suelto: el listado
   // público siempre filtra isActive Y ordena por sourceUpdatedAt, así
   // que un solo índice cubre las dos cosas sin duplicar mantenimiento.

@@ -2,6 +2,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { PROPERTY_TYPES } from "@/lib/property-types";
+import { normalizeForSearch } from "@/lib/search-text";
 import type { Prisma } from "@/generated/prisma/client";
 
 const PAGE_SIZE = 12;
@@ -28,6 +29,19 @@ export interface ListingFilters {
   // probó con contains y buscar "4" matcheaba cualquier código con un 4
   // en cualquier posición — un resultado inútil.
   code?: string;
+  // Calle o zona, con coincidencia PARCIAL — al revés que `code`, que es
+  // exacto. Acá se busca justo lo contrario: quien escribe "lavalle"
+  // quiere las cuatro de esa calle, no una.
+  //
+  // Se compara contra addressSearch (la dirección ya sin tildes ni
+  // eñes), normalizando también lo que escribió la persona, así "espana"
+  // encuentra "España 1000".
+  //
+  // OJO con las alturas: Adinco publica los números redondeados a la
+  // cuadra (el 78% termina en "00"), así que "Lavalle 1156" no encuentra
+  // nada y "Lavalle 1100" sí. Por eso el campo del sitio se llama "calle
+  // o zona" y no "dirección": no promete algo que el dato no tiene.
+  street?: string;
   page?: number;
 }
 
@@ -39,6 +53,13 @@ function buildWhere(filters: ListingFilters): Prisma.ListingWhereInput {
   if (filters.city) where.city = filters.city;
   if (filters.rooms) where.rooms = { gte: filters.rooms };
   if (filters.code) where.code = filters.code.trim();
+  if (filters.street) {
+    const buscado = normalizeForSearch(filters.street);
+    // Si lo que escribieron queda vacío al normalizar (solo espacios o
+    // signos), no se filtra: mostrar cero resultados por eso sería
+    // confuso.
+    if (buscado) where.addressSearch = { contains: buscado };
+  }
   // Sin marcar, no filtra (se ven aptas y no aptas) — marcado, solo las
   // que el feed mandó explícitamente en true (no las que vinieron null).
   if (filters.aptoCredito) where.aptoCredito = true;

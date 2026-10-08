@@ -16,6 +16,7 @@ interface FilterBarProps {
     dormitorios?: string;
     aptoCredito?: string;
     codigo?: string;
+    calle?: string;
   };
 }
 
@@ -31,6 +32,7 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
       defaults.precioMax ||
       defaults.dormitorios ||
       defaults.codigo ||
+      defaults.calle ||
       isAptoCredito
   );
 
@@ -72,6 +74,34 @@ export function FilterBar({ action, cities, propertyTypes, defaults }: FilterBar
             className="w-full h-full bg-transparent px-4 text-sm sm:text-base font-semibold text-foreground placeholder:text-muted/60 outline-none"
           />
         </div>
+      </div>
+
+      {/* Calle o zona. Se llama así y no "dirección" a propósito: Adinco
+          publica las alturas redondeadas a la cuadra (el 78% termina en
+          "00"), así que buscar "Lavalle 1156" no encontraría nada.
+          Buscar la calle sí funciona, y es lo que de verdad se usa
+          cuando un cliente pregunta "¿tenés algo por Junín?". */}
+      <div className="flex flex-col gap-2">
+        <label htmlFor="calle" className="text-[11px] font-extrabold uppercase tracking-wider text-muted/90 px-1 flex items-center gap-1.5">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-accent">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+          </svg>
+          Buscar por calle o zona
+        </label>
+        <div className="relative flex h-14 items-center rounded-2xl border border-border/80 bg-background/70 shadow-xs transition-all duration-200 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft hover:border-border">
+          <input
+            id="calle"
+            type="text"
+            name="calle"
+            placeholder="Ej: Junín, Barrio Ponce, Ruta 12"
+            defaultValue={defaults.calle ?? ""}
+            className="w-full h-full bg-transparent px-4 text-sm sm:text-base font-semibold text-foreground placeholder:text-muted/60 outline-none"
+          />
+        </div>
+        <p className="px-1 text-[11px] text-muted/80 leading-relaxed">
+          Alcanza con el nombre de la calle. Las tildes no hacen falta.
+        </p>
       </div>
 
       {/* Cabecera de Pestañas de Operación y Reset */}

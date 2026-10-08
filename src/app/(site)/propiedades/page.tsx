@@ -18,6 +18,10 @@ interface PageSearchParams {
   // puntual de una persona, no una categoría con intención de búsqueda
   // real que valga indexar aparte.
   codigo?: string;
+  // Calle o zona, coincidencia parcial. Fuera del título y la canónica
+  // igual que el código: es una búsqueda puntual de una persona, no una
+  // categoría que valga indexar aparte.
+  calle?: string;
   page?: string;
 }
 
@@ -86,6 +90,7 @@ function buildPageHref(sp: Awaited<PageProps["searchParams"]>, page: number): st
   if (sp.dormitorios) params.set("dormitorios", sp.dormitorios);
   if (sp.aptoCredito) params.set("aptoCredito", sp.aptoCredito);
   if (sp.codigo) params.set("codigo", sp.codigo);
+  if (sp.calle) params.set("calle", sp.calle);
   params.set("page", String(page));
   return `/propiedades?${params.toString()}`;
 }
@@ -107,6 +112,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
       rooms: toNumber(sp.dormitorios),
       aptoCredito: sp.aptoCredito === "true" ? true : undefined,
       code: sp.codigo,
+      street: sp.calle,
       page: toNumber(sp.page),
     }),
   ]);

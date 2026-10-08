@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { parseFeed, type NormalizedAgency } from "@/lib/feed";
+import { normalizeForSearch } from "@/lib/search-text";
 import { withRetry } from "@/lib/db-retry";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -120,7 +121,15 @@ export async function runSync(
     const agencyId = listing.agency ? agencyIdByExternalId.get(listing.agency.externalId) : undefined;
     const { images, videos, agency: _agency, rawData, ...rest } = listing;
     void _agency;
-    const data = { ...rest, rawData: rawData as Prisma.InputJsonValue };
+    const data = {
+      ...rest,
+      rawData: rawData as Prisma.InputJsonValue,
+      // Copia de `address` normalizada para buscar (ver
+      // normalizeForSearch). Se calcula acá, al guardar, y no al
+      // consultar: así el buscador por calle del sitio es un `contains`
+      // común y no depende de extensiones de Postgres.
+      addressSearch: rest.address ? normalizeForSearch(rest.address) : null,
+    };
 
     if (existing) updated++;
     else created++;
