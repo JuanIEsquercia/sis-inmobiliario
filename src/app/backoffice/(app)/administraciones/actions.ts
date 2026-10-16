@@ -86,9 +86,63 @@ export async function buscarUnidades(query: string) {
   );
 }
 
-export async function createContract(formData: FormData) {
+// El alta devuelve el error en vez de tirarlo. Antes cualquier validación
+// ("Falta Código de propiedad", un DNI repetido...) se lanzaba como
+// excepción: caía en el error.tsx del backoffice, que reemplaza la
+// página entera — el agente perdía todo lo que había cargado y, encima,
+// en producción ese camino a veces se rompía y mostraba un error interno
+// de React (#441) en vez del motivo. Ahora el formulario
+// (ContractCreateForm) recibe { ok: false, error } y lo muestra al lado
+// del botón, con todo lo cargado intacto para corregir y reenviar.
+//
+// requirePermission y el redirect final quedan FUERA del try a propósito:
+// los dos se propagan internamente como excepciones de Next, y atraparlos
+// los convertiría en un cartel de error en vez de una redirección (mismo
+// criterio que comoError en usuarios/actions.ts).
+export async function createContract(formData: FormData): Promise<ActionResult | void> {
   const profile = await requirePermission("administraciones.crear");
 
+  let contract: { id: number };
+  try {
+    contract = await validarYCrearContrato(profile, formData);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return {
+        ok: false,
+        error:
+          "Ya existe un registro con esos datos (por ejemplo, un cliente con el mismo DNI o una unidad con el mismo código). Buscalo y elegilo de la lista en vez de cargarlo de nuevo.",
+      };
+    }
+    // Los errores de Prisma traen texto técnico que no le sirve a quien
+    // carga — casi siempre es un corte de conexión con la base, que se
+    // resuelve reintentando. Los de validación propios (new Error("Falta
+    // ...")) sí se muestran tal cual: están escritos para el agente.
+    const esErrorDePrisma =
+      err instanceof Prisma.PrismaClientKnownRequestError ||
+      err instanceof Prisma.PrismaClientUnknownRequestError ||
+      err instanceof Prisma.PrismaClientInitializationError ||
+      err instanceof Prisma.PrismaClientRustPanicError ||
+      err instanceof Prisma.PrismaClientValidationError;
+    if (err instanceof Error && !esErrorDePrisma) {
+      return { ok: false, error: err.message };
+    }
+    console.error("createContract falló:", err);
+    return {
+      ok: false,
+      error: "No se pudo guardar el contrato por un problema de conexión con la base. Probá de nuevo: lo que cargaste sigue en pantalla.",
+    };
+  }
+
+  await subirDocumentosDelAlta(contract.id, profile.id, formData);
+
+  revalidatePath("/backoffice/administraciones");
+  redirect(`/backoffice/administraciones/${contract.id}`);
+}
+
+async function validarYCrearContrato(
+  profile: Awaited<ReturnType<typeof requirePermission>>,
+  formData: FormData
+) {
   const startDate = requiredDate(formData.get("startDate"), "Fecha de inicio");
   const durationMonths = optionalInt(formData.get("durationMonths"));
   if (!durationMonths || durationMonths <= 0) throw new Error("La duración debe ser un número de meses mayor a 0");
@@ -150,7 +204,7 @@ export async function createContract(formData: FormData) {
   const commissionCurrency = optionalStr(formData.get("commissionCurrency")) ?? currency;
   const earnedAt = optionalStr(formData.get("earnedAt")) ? requiredDate(formData.get("earnedAt"), "Fecha de cierre") : startDate;
 
-  const contract = await withRetry(() =>
+  return withRetry(() =>
     prisma.$transaction(async (tx) => {
       // A propósito tolerante — a veces se conoce el negocio (unidad,
       // monto, comisión) antes de tener los datos completos de las
@@ -292,10 +346,12 @@ export async function createContract(formData: FormData) {
     { timeout: 30000, maxWait: 15000 }
     )
   );
+}
 
-  // Los documentos se suben después de que el contrato ya quedó guardado
-  // — un PDF que falla al subir nunca debe hacer perder el alta. Cada
-  // archivo es opcional e independiente de los demás.
+// Los documentos se suben después de que el contrato ya quedó guardado
+// — un PDF que falla al subir nunca debe hacer perder el alta. Cada
+// archivo es opcional e independiente de los demás.
+async function subirDocumentosDelAlta(contractId: number, profileId: string, formData: FormData) {
   const documentFields: { field: string; type: DocumentType }[] = [
     { field: "contratoFile", type: "CONTRATO" },
     { field: "dniInquilinoFile", type: "DNI_INQUILINO" },
@@ -308,19 +364,16 @@ export async function createContract(formData: FormData) {
     if (!(file instanceof File) || file.size === 0) continue;
 
     try {
-      const { storagePath } = await uploadContractDocument(contract.id, file);
+      const { storagePath } = await uploadContractDocument(contractId, file);
       await withRetry(() =>
         prisma.contractDocument.create({
-          data: { contractId: contract.id, type, fileName: file.name, storagePath, uploadedById: profile.id },
+          data: { contractId, type, fileName: file.name, storagePath, uploadedById: profileId },
         })
       );
     } catch (err) {
-      console.error(`No se pudo subir ${field} para el contrato ${contract.id}:`, err);
+      console.error(`No se pudo subir ${field} para el contrato ${contractId}:`, err);
     }
   }
-
-  revalidatePath("/backoffice/administraciones");
-  redirect(`/backoffice/administraciones/${contract.id}`);
 }
 
 // Completa propietario/inquilino después del alta — a propósito no son

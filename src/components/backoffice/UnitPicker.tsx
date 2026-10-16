@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { buscarUnidades } from "@/app/backoffice/(app)/administraciones/actions";
 import { PROPERTY_TYPES } from "@/lib/property-types";
 
@@ -28,6 +28,28 @@ export function UnitPicker({
   const [showNew, setShowNew] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Se prende cuando el navegador frenó el envío por falta de unidad
+  // (evento `invalid`), para marcar el bloque en rojo con el motivo.
+  const [blocked, setBlocked] = useState(false);
+
+  // Lo que se escribe en el buscador NO viaja con el formulario (el
+  // input no tiene name): la unidad recién queda cargada al tocar un
+  // resultado (unit.id) o al completar "Crear unidad nueva". Antes, quien
+  // escribía el código y seguía de largo mandaba el alta sin unidad, el
+  // servidor tiraba "Falta Código de propiedad" y ese error terminaba
+  // tapado por un error interno de React (#441) — el agente veía una
+  // pantalla rota sin saber qué faltaba. Ahora el buscador queda inválido
+  // mientras esté a la vista, así el navegador frena el envío, lleva el
+  // foco acá y dice qué hacer (mismo mecanismo de validación nativa que
+  // DocumentosContratoFields).
+  const missingUnitMessage =
+    query.trim().length > 0
+      ? `Escribiste "${query.trim()}" pero no elegiste ninguna unidad. Tocá el resultado de la lista; si no aparece, usá "+ Crear unidad nueva".`
+      : 'Falta la unidad: buscala por código o dirección y tocá el resultado, o usá "+ Crear unidad nueva".';
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    searchInputRef.current?.setCustomValidity(missingUnitMessage);
+  }, [missingUnitMessage, selected, showNew]);
 
   useEffect(() => {
     if (selected || query.trim().length < 2) return;
@@ -72,7 +94,10 @@ export function UnitPicker({
         {!showNew && (
           <button
             type="button"
-            onClick={() => setShowNew(true)}
+            onClick={() => {
+              setShowNew(true);
+              setBlocked(false);
+            }}
             className="text-xs font-semibold text-accent hover:underline cursor-pointer"
           >
             + Crear unidad nueva
@@ -96,12 +121,21 @@ export function UnitPicker({
               <path strokeLinecap="round" d="m21 21-4.3-4.3" />
             </svg>
             <input
+              ref={searchInputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onInvalid={() => setBlocked(true)}
+              aria-invalid={blocked}
+              aria-describedby={blocked ? "unit-picker-missing" : undefined}
               placeholder="Buscar por código de propiedad (Adinco) o dirección..."
-              className="w-full h-12 sm:h-13 pl-11 pr-4 rounded-2xl border border-border/80 bg-background/70 text-sm font-semibold text-foreground placeholder:text-muted/60 shadow-xs transition-all duration-200 focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent-soft/40 outline-none"
+              className={`w-full h-12 sm:h-13 pl-11 pr-4 rounded-2xl border ${blocked ? "border-destructive" : "border-border/80"} bg-background/70 text-sm font-semibold text-foreground placeholder:text-muted/60 shadow-xs transition-all duration-200 focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent-soft/40 outline-none`}
             />
           </div>
+          {blocked && (
+            <p id="unit-picker-missing" role="alert" className="text-xs font-semibold text-destructive">
+              {missingUnitMessage}
+            </p>
+          )}
           {pending && <p className="text-xs text-muted">Buscando…</p>}
           {query.trim().length >= 2 && results.length > 0 && (
             <ul className="flex flex-col gap-1.5 rounded-xl border border-border/80 bg-surface p-1.5 shadow-sm max-h-48 overflow-y-auto">
@@ -113,6 +147,7 @@ export function UnitPicker({
                       setSelected(u);
                       setQuery("");
                       setResults([]);
+                      setBlocked(false);
                     }}
                     className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-background transition-colors cursor-pointer"
                   >

@@ -9,8 +9,7 @@ import { AdministracionFields } from "@/components/backoffice/AdministracionFiel
 import { ComisionAlquilerFields } from "@/components/backoffice/ComisionAlquilerFields";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { DatePicker } from "@/components/backoffice/DatePicker";
-import { SubmitButton } from "@/components/backoffice/SubmitButton";
-import { createContract } from "../actions";
+import { ContractCreateForm } from "@/components/backoffice/ContractCreateForm";
 
 interface PageProps {
   searchParams: Promise<{ renovarDe?: string }>;
@@ -48,7 +47,7 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
         </p>
       )}
 
-      <form action={createContract} className="flex flex-col gap-6">
+      <ContractCreateForm submitLabel={sourceContract ? "Crear contrato renovado" : "Crear contrato"}>
         {/* Ligado a sourceContract (ya cargado y validado contra el scope
             del usuario), no a sourceContractId crudo — si el contrato
             pedido en ?renovarDe= no existe o no es visible para quien
@@ -163,17 +162,9 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
 
         <DocumentosContratoFields />
 
-        {/* El alta arma el contrato, su cronograma entero de
-            liquidaciones (hasta 24 meses x varios conceptos) y sube los
-            PDFs — tarda. Sin deshabilitar el botón, un segundo click
-            crea un contrato duplicado completo. */}
-        <SubmitButton
-          pendingLabel="Creando contrato..."
-          className="w-fit rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong disabled:opacity-60 disabled:cursor-wait"
-        >
-          {sourceContract ? "Crear contrato renovado" : "Crear contrato"}
-        </SubmitButton>
-      </form>
+        {/* El botón (deshabilitado mientras corre, para no duplicar el
+            alta) y el aviso de error los pone ContractCreateForm. */}
+      </ContractCreateForm>
     </div>
   );
 }
