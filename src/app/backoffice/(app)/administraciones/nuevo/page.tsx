@@ -1,5 +1,5 @@
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
-import { getConcepts, getContractById, getIndexTypes } from "@/lib/alquileres";
+import { getCarterasParaAlta, getConcepts, getContractById, getIndexTypes } from "@/lib/alquileres";
 import { getAgents, getActiveCommissionScheme, toRepartoSchemeInfo } from "@/lib/caja";
 import { GuarantorFields } from "@/components/backoffice/GuarantorFields";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
@@ -28,6 +28,10 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
     sourceContractId && Number.isFinite(sourceContractId) ? getContractById(sourceContractId, scope) : null,
   ]);
   const extraConcepts = concepts.filter((c) => !c.isSystem);
+  // Una renovación hereda la cartera del contrato que renueva — no se
+  // pregunta (ver resolverCarteraDelAlta en ../actions).
+  const carteras = sourceContract ? [] : await getCarterasParaAlta(scope);
+  const sinRestriccion = scope === "all";
 
   // Colocar un inquilino nuevo y renovarle el contrato a uno que ya
   // estaba son unidades de negocio distintas para la comisión — cada
@@ -130,6 +134,35 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
             scheme={commissionScheme && toRepartoSchemeInfo(commissionScheme)}
             isRenewal={isRenewal}
           />
+        )}
+
+        {/* Cartera: a qué grupo va el contrato si se administra. Siempre
+            visible y editable: con un solo grupo viene preseleccionado (el
+            caso común, un clic menos) pero se puede cambiar o dejar "Sin
+            cartera"; con varios hay que elegir. Sin grupos no se muestra:
+            igual lo vas a ver por haberlo cargado. */}
+        {carteras.length > 0 && (
+          <div className="flex flex-col gap-1.5 sm:max-w-sm">
+            <label htmlFor="groupId" className="text-sm font-medium text-foreground">
+              Cartera <span className="font-normal text-muted">(solo si se administra)</span>
+            </label>
+            <select
+              id="groupId"
+              name="groupId"
+              defaultValue={carteras.length === 1 && !sinRestriccion ? String(carteras[0].id) : ""}
+              className="field"
+            >
+              {/* "" = no eligió (con varias carteras el alta lo pide);
+                  "none" = eligió a propósito no asignar ninguna. */}
+              {carteras.length > 1 && !sinRestriccion && <option value="">Elegí la cartera</option>}
+              {carteras.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+              <option value={sinRestriccion ? "" : "none"}>Sin cartera</option>
+            </select>
+          </div>
         )}
 
         {/* Administración al final a propósito — es la excepción, no la

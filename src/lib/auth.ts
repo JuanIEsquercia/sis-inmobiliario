@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { ALL_PERMISSION_KEYS, expandPermissions } from "@/lib/permissions";
-import type { Profile } from "@/generated/prisma/client";
+import type { Prisma, Profile } from "@/generated/prisma/client";
 
 // proxy.ts ya redirige a /backoffice/login si no hay sesión; estos
 // helpers asumen que corren dentro de /backoffice y solo resuelven el
@@ -78,12 +78,22 @@ export async function requireAnyPermission(keys: string[]): Promise<Profile> {
 }
 
 // "all" = sin restricción (administraciones.ver_todos, o ADMIN que ya
-// lo trae incluido). Si no, la lista de ContractGroup a los que
-// pertenece — puede ser [] (sin ningún grupo asignado todavía, no ve
-// ningún contrato). Un contrato sin grupo asignado (groupId null) solo
-// lo ve "all" — nunca queda "suelto y visible para cualquiera" por
-// default, ver comentario en Contract.groupId.
-export type ContractGroupScope = "all" | number[];
+// lo trae incluido). Si no, un agente ve un contrato administrado cuando:
+//   - está en una de SUS carteras (groupIds — puede ser [] si no tiene
+//     ningún grupo asignado), o
+//   - lo cargó él, o figura como agente vendedor o captador.
+//
+// La segunda parte se agregó porque el alta nunca asigna grupo (solo
+// una renovación lo hereda): quien cargaba un contrato lo guardaba bien
+// y al instante dejaba de verlo — la ficha a la que lo lleva el alta le
+// daba "no existe" / error de permisos, y no aparecía en su listado.
+// Mismo criterio de "tuyo" que Caja (cajaOwnerId: creador, vendedor o
+// captador). Solo AGREGA visibilidad, nunca saca: un contrato de tu
+// cartera lo seguís viendo aunque no lo hayas cargado.
+//
+// Un contrato sin grupo (groupId null) y sin vínculo con vos sigue sin
+// verse salvo con "all" — nunca queda suelto y visible para cualquiera.
+export type ContractGroupScope = "all" | { groupIds: number[]; profileId: string };
 
 // Memoizada por request igual que getCurrentProfile, y por el mismo
 // motivo: el layout del backoffice la llama, y después casi toda página
@@ -98,22 +108,42 @@ export const getContractGroupScope = cache(async (profile: Profile): Promise<Con
   const memberships = await withRetry(() =>
     prisma.profileContractGroup.findMany({ where: { profileId: profile.id }, select: { groupId: true } })
   );
-  return memberships.map((m) => m.groupId);
+  return { groupIds: memberships.map((m) => m.groupId), profileId: profile.id };
 });
 
 // Where-clause de Prisma para filtrar Contract (o una relación hacia
 // Contract) según el scope — combinar con spread en el `where` de cada
 // query. `null` cuando el scope es "all" (sin filtro).
-export function contractGroupWhere(scope: ContractGroupScope): { groupId: { in: number[] } } | null {
-  return scope === "all" ? null : { groupId: { in: scope } };
+//
+// Va envuelto en AND a propósito: varias consultas ya traen su propio OR
+// (el buscador del listado, el de la barra de búsqueda) y, si esto
+// devolviera un OR suelto, el spread pisaría uno con el otro — la
+// búsqueda dejaría de filtrar o se perdería la restricción de cartera.
+// Ninguna consulta de Contract usa AND propio, así que no hay choque.
+export function contractGroupWhere(scope: ContractGroupScope): Prisma.ContractWhereInput | null {
+  if (scope === "all") return null;
+  const { groupIds, profileId } = scope;
+  return {
+    AND: [
+      {
+        OR: [
+          { groupId: { in: groupIds } },
+          { createdById: profileId },
+          { vendedorAgentId: profileId },
+          { captadorAgentId: profileId },
+        ],
+      },
+    ],
+  };
 }
 
 // Chequeo de cartera para OPERAR sobre un contrato (cobrar, liquidar,
 // actualizar, anular...), no solo para listarlo — mismo criterio que
 // getContractById: "all" pasa siempre; una colocación (isAdministered
 // false) no pertenece a ninguna cartera y pasa siempre; un administrado
-// pasa solo si su groupId está entre los grupos del usuario (sin grupo
-// no pasa para nadie que no sea "all", igual que en el listado). Tira
+// pasa si su groupId está entre los grupos del usuario o si el usuario
+// lo cargó / es su vendedor o captador (mismo criterio que
+// contractGroupWhere — ver ContractGroupScope). Tira
 // en vez de devolver false para usarse como una línea más al principio
 // de cada acción, justo después de requirePermission — sin esto, el
 // scope se saltaba armando la URL o el form con el id de otro contrato.
@@ -122,11 +152,16 @@ export async function assertContractInScope(contractId: number, profile: Profile
   if (scope === "all") return;
 
   const contract = await withRetry(() =>
-    prisma.contract.findUnique({ where: { id: contractId }, select: { isAdministered: true, groupId: true } })
+    prisma.contract.findUnique({
+      where: { id: contractId },
+      select: { isAdministered: true, groupId: true, createdById: true, vendedorAgentId: true, captadorAgentId: true },
+    })
   );
   if (!contract) throw new Error("El contrato no existe.");
   if (!contract.isAdministered) return;
-  if (contract.groupId === null || !scope.includes(contract.groupId)) {
+  const esDeSuCartera = contract.groupId !== null && scope.groupIds.includes(contract.groupId);
+  const intervino = [contract.createdById, contract.vendedorAgentId, contract.captadorAgentId].includes(scope.profileId);
+  if (!esDeSuCartera && !intervino) {
     throw new Error("No tenés acceso a este contrato — no pertenece a tu cartera.");
   }
 }

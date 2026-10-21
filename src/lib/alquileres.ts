@@ -732,6 +732,19 @@ export async function getContractGroups() {
   );
 }
 
+// Las carteras en las que un usuario puede cargar un contrato nuevo:
+// todas si no tiene restricción ("all"), si no solo las suyas. Es lo que
+// ofrece el campo "Cartera" del alta (ver createContract).
+export async function getCarterasParaAlta(scope: ContractGroupScope) {
+  return withRetry(() =>
+    prisma.contractGroup.findMany({
+      where: scope === "all" ? undefined : { id: { in: scope.groupIds } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    })
+  );
+}
+
 export async function getContractGroupById(id: number) {
   return withRetry(() =>
     prisma.contractGroup.findUnique({

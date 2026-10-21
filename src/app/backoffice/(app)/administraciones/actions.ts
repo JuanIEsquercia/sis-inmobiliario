@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
-import { requirePermission, requireAdmin, assertContractInScope, assertPaymentInScope } from "@/lib/auth";
+import {
+  requirePermission,
+  requireAdmin,
+  assertContractInScope,
+  assertPaymentInScope,
+  getContractGroupScope,
+} from "@/lib/auth";
 import type { ActionResult } from "@/app/backoffice/(app)/usuarios/actions";
 import { addMonths, buildPaymentSchedule, computeEndDate, paymentTotal } from "@/lib/alquileres";
 import { resolveClient, resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
@@ -139,6 +145,40 @@ export async function createContract(formData: FormData): Promise<ActionResult |
   redirect(`/backoffice/administraciones/${contract.id}`);
 }
 
+// En qué cartera (ContractGroup) entra un contrato nuevo. Antes nacían
+// todos sin grupo y quedaban fuera de la vista de cualquier agente con
+// cartera — incluido el que lo acababa de cargar.
+//   - Colocación (no se administra): sin cartera, como siempre.
+//   - "Sin cartera" elegido a propósito ("none"): sin cartera — quien lo
+//     cargó lo sigue viendo (ver ContractGroupScope en auth.ts).
+//   - Sin restricción ("all"): la que elija en el campo, o ninguna.
+//   - Un solo grupo: el campo viene preseleccionado con ese; si llegara
+//     vacío igual se usa ese.
+//   - Varios grupos: el elegido es obligatorio y tiene que ser suyo.
+//   - Ningún grupo: sin cartera — igual lo ve por haberlo cargado.
+// Una renovación ignora esto y hereda la cartera del contrato que renueva.
+// El campo no es `required` en el navegador a propósito: también aparece
+// en las colocaciones, donde no aplica; por eso se valida acá.
+async function resolverCarteraDelAlta(
+  profile: Awaited<ReturnType<typeof requirePermission>>,
+  formData: FormData,
+  isAdministered: boolean
+): Promise<number | null> {
+  if (!isAdministered) return null;
+  if (formData.get("groupId") === "none") return null;
+  const elegida = optionalInt(formData.get("groupId"));
+  const scope = await getContractGroupScope(profile);
+
+  if (scope === "all") return elegida;
+  if (elegida !== null) {
+    if (!scope.groupIds.includes(elegida)) throw new Error("No pertenecés a la cartera elegida. Elegí una de las tuyas.");
+    return elegida;
+  }
+  if (scope.groupIds.length === 1) return scope.groupIds[0];
+  if (scope.groupIds.length > 1) throw new Error('Elegí en qué cartera va este contrato (campo "Cartera").');
+  return null;
+}
+
 async function validarYCrearContrato(
   profile: Awaited<ReturnType<typeof requirePermission>>,
   formData: FormData
@@ -204,6 +244,8 @@ async function validarYCrearContrato(
   const commissionCurrency = optionalStr(formData.get("commissionCurrency")) ?? currency;
   const earnedAt = optionalStr(formData.get("earnedAt")) ? requiredDate(formData.get("earnedAt"), "Fecha de cierre") : startDate;
 
+  const carteraDelAlta = await resolverCarteraDelAlta(profile, formData, isAdministered);
+
   return withRetry(() =>
     prisma.$transaction(async (tx) => {
       // A propósito tolerante — a veces se conoce el negocio (unidad,
@@ -225,7 +267,7 @@ async function validarYCrearContrato(
       // "Comisión de renovación" en vez de como una colocación nueva.
       // El botón ya no aparece para colocaciones, pero la URL
       // (?renovarDe=) se puede escribir a mano, así que se valida acá.
-      let groupId: number | null = null;
+      let groupId: number | null = carteraDelAlta;
       if (renewedFromContractId) {
         const source = await tx.contract.findUniqueOrThrow({
           where: { id: renewedFromContractId },
