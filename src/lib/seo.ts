@@ -13,7 +13,7 @@ export const BUSINESS = {
   addressLocality: "Corrientes",
   addressRegion: "Corrientes",
   addressCountry: "AR",
-  telephone: "+543794088400",
+  telephone: "+543794081010",
   // Formato schema.org (día-día horaInicio-horaFin) — de corrido, sin
   // pausa de mediodía, confirmado por el usuario.
   openingHours: "Mo-Fr 09:00-17:00",

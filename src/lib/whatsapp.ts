@@ -2,7 +2,7 @@
 // página del sitio y el que se usa para "Consultar por WhatsApp" desde
 // la ficha de una propiedad (a diferencia del teléfono de cada agente en
 // /equipo, que es personal y va aparte).
-export const AGENCY_PHONE = "3794 08-8400";
+export const AGENCY_PHONE = "3794 08-1010";
 
 // El teléfono de contacto de un usuario se carga como texto libre (sin
 // formato forzado, ver usuarios/nuevo) — puede venir con o sin +54, con
