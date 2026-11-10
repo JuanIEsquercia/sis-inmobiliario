@@ -32,6 +32,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       { key: "pedidos.ver", label: "Ver pedidos" },
       { key: "pedidos.crear", label: "Crear pedidos" },
       { key: "pedidos.estado", label: "Cambiar estado y tomar pedidos" },
+      { key: "pedidos.eliminar", label: "Eliminar pedidos definitivamente (pruebas, cargas repetidas)" },
     ],
   },
   {
@@ -165,6 +166,7 @@ export const ALL_PERMISSION_KEYS: string[] = PERMISSION_TREE.flatMap((g) =>
 export const PERMISSION_IMPLIES: Record<string, string[]> = {
   "pedidos.crear": ["pedidos.ver"],
   "pedidos.estado": ["pedidos.ver"],
+  "pedidos.eliminar": ["pedidos.ver"],
   "administraciones.ver_todos": ["administraciones.ver"],
   "administraciones.crear": ["administraciones.ver"],
   "administraciones.pagos": ["administraciones.ver"],

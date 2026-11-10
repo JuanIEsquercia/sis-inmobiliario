@@ -86,3 +86,17 @@ export async function soltarPedido(id: number) {
   revalidatePath(`/backoffice/pedidos/${id}`);
   revalidatePath("/backoffice/pedidos");
 }
+
+// Para limpiar pruebas y cargas repetidas: los pedidos que se cierran
+// (Conseguido/Descartado) siguen en el tablero a propósito, como
+// registro, así que lo que no debió existir nunca hay que poder sacarlo.
+// Un Pedido no tiene nada colgando (matchedListing es una referencia
+// hacia afuera), así que se borra la fila sola, sin resguardos extra.
+// Permiso aparte de pedidos.estado: borrar es de quien administra, no
+// del agente que atiende.
+export async function eliminarPedido(id: number) {
+  await requirePermission("pedidos.eliminar");
+  await withRetry(() => prisma.pedido.delete({ where: { id } }));
+  revalidatePath("/backoffice/pedidos");
+  redirect("/backoffice/pedidos");
+}

@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { getPedidoById, tomadoLabel, creadoPorLabel } from "@/lib/pedidos";
 import { PedidoEstadoBadge } from "@/components/backoffice/PedidoEstadoBadge";
 import { requirePermission } from "@/lib/auth";
-import { updatePedidoEstado, tomarPedido, soltarPedido } from "../actions";
+import { updatePedidoEstado, tomarPedido, soltarPedido, eliminarPedido } from "../actions";
+import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 import type { PedidoEstado } from "@/generated/prisma/client";
 
 const estadosDisponibles: { value: PedidoEstado; label: string }[] = [
@@ -32,7 +33,16 @@ export default async function PedidoDetailPage({ params }: PageProps) {
           <h1 className="text-xl font-semibold text-foreground">{pedido.clienteNombre}</h1>
           <p className="text-sm text-muted">Cargado por {creadoPorLabel(pedido.creadoPor)}</p>
         </div>
-        <PedidoEstadoBadge estado={pedido.estado} />
+        <div className="flex items-center gap-3">
+          <PedidoEstadoBadge estado={pedido.estado} />
+          {profile.permissions.includes("pedidos.eliminar") && (
+            <ConfirmDeleteButton
+              action={eliminarPedido.bind(null, pedido.id)}
+              title="¿Eliminar este pedido?"
+              description={`Se borra definitivamente el pedido de ${pedido.clienteNombre}. Usalo para pruebas o cargas repetidas; si el pedido fue real y se cerró, mejor marcarlo Conseguido o Descartado.`}
+            />
+          )}
+        </div>
       </div>
 
       {/* Tomar/soltar — exclusivo: si ya lo tomó otro agente, acá se ve
