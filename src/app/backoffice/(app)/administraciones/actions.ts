@@ -6,13 +6,22 @@ import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import {
   requirePermission,
+  requireAnyPermission,
   requireAdmin,
   assertContractInScope,
   assertPaymentInScope,
   getContractGroupScope,
 } from "@/lib/auth";
 import type { ActionResult } from "@/app/backoffice/(app)/usuarios/actions";
-import { addMonths, buildPaymentSchedule, computeEndDate, paymentTotal } from "@/lib/alquileres";
+import {
+  addMonths,
+  buildPaymentSchedule,
+  computeEndDate,
+  paymentTotal,
+  mesActualArgentina,
+  parseMes,
+  saldarLiquidacionesEnTx,
+} from "@/lib/alquileres";
 import { resolveClient, resolveClientOptional, resolveUnit } from "@/lib/backoffice-resolvers";
 import { uploadContractDocument, deleteContractDocuments } from "@/lib/supabase/storage";
 import { crearRentalCommissionEnTx } from "@/lib/comisiones";
@@ -246,6 +255,18 @@ async function validarYCrearContrato(
 
   const carteraDelAlta = await resolverCarteraDelAlta(profile, formData, isAdministered);
 
+  // Se valida antes de la transacción para cortar con un mensaje claro y
+  // sin crear nada (el mes futuro lo rechaza saldarLiquidacionesEnTx).
+  const alDiaHastaRaw = isAdministered ? optionalStr(formData.get("alDiaHasta")) : null;
+  const alDiaHasta = parseMes(alDiaHastaRaw);
+  if (alDiaHastaRaw && !alDiaHasta) throw new Error('El campo "Al día hasta" no tiene un mes válido.');
+  if (alDiaHasta) {
+    const actual = mesActualArgentina();
+    if (alDiaHasta.year * 12 + alDiaHasta.month > actual.year * 12 + actual.month) {
+      throw new Error('"Al día hasta" no puede ser un mes futuro.');
+    }
+  }
+
   return withRetry(() =>
     prisma.$transaction(async (tx) => {
       // A propósito tolerante — a veces se conoce el negocio (unidad,
@@ -365,6 +386,12 @@ async function validarYCrearContrato(
           }
         }
         await tx.paymentItem.createMany({ data: itemsData });
+
+        // Contrato que ya venía corriendo: los meses hasta "Al día hasta"
+        // se cobraron por fuera y nacen saldados, no como deuda.
+        if (alDiaHasta) {
+          await saldarLiquidacionesEnTx(tx, createdContract.id, alDiaHasta);
+        }
       }
 
       if (commissionAmount) {
@@ -875,6 +902,9 @@ export async function registrarPagoPropietario(paymentId: number, formData: Form
       if (payment.ownerPaidAt) {
         throw new Error("Ya se registró el pago al propietario.");
       }
+      if (payment.saldadaPreSistema) {
+        throw new Error("Este mes se cobró antes de cargar el contrato en el sistema: no hay giro al propietario que registrar.");
+      }
       // Si TODOS los cobros fueron directo al propietario, no hay neto
       // que girarle: él ya tiene la plata. Registrarlo igual documentaría
       // una transferencia que nunca existió — que es justo lo que el
@@ -1064,7 +1094,7 @@ export async function anularContrato(contractId: number, formData: FormData) {
     prisma.$transaction(async (tx) => {
       const contract = await tx.contract.findUniqueOrThrow({
         where: { id: contractId },
-        include: { rentalCommission: true, payments: { select: { status: true } } },
+        include: { rentalCommission: true, payments: { select: { status: true, saldadaPreSistema: true } } },
       });
 
       if (!contract.isAdministered && contract.status === "FIRMADO") {
@@ -1074,8 +1104,10 @@ export async function anularContrato(contractId: number, formData: FormData) {
       if (contract.rentalCommission) {
         throw new Error("Este contrato ya tiene una comisión de alquiler cargada — no se puede anular, hay que finalizarlo.");
       }
+      // Las saldadas antes del sistema no son plata que haya pasado por
+      // acá — no impiden anular un alta recién hecha.
       const yaMovioPlata = contract.payments.some(
-        (p) => p.status === "PAGADO" || p.status === "PARCIAL" || p.status === "ENVIADA"
+        (p) => !p.saldadaPreSistema && (p.status === "PAGADO" || p.status === "PARCIAL" || p.status === "ENVIADA")
       );
       if (yaMovioPlata) {
         throw new Error("Este contrato ya tiene liquidaciones enviadas, cobradas o parciales — no se puede anular, hay que finalizarlo.");
@@ -1377,5 +1409,44 @@ export async function corregirEsquemaActualizacion(
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "No se pudo corregir el esquema de actualización" };
+  }
+}
+
+// "Saldar hasta…" de la ficha del contrato: los meses que se cobraron
+// por fuera antes de que el contrato se cargara en el sistema (ver
+// saldarLiquidacionesEnTx). Lo puede hacer quien registra cobros o quien
+// carga contratos — es completar bien una carga, no un cobro nuevo.
+export async function saldarLiquidacionesContrato(
+  contractId: number,
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const profile = await requireAnyPermission(["administraciones.pagos", "administraciones.crear"]);
+  await assertContractInScope(contractId, profile);
+
+  const hasta = parseMes(optionalStr(formData.get("hasta")));
+  if (!hasta) return { ok: false, error: "Elegí hasta qué mes está al día." };
+
+  try {
+    const { saldadas, parcialesSinTocar } = await withRetry(() =>
+      prisma.$transaction((tx) => saldarLiquidacionesEnTx(tx, contractId, hasta))
+    );
+    console.log(
+      `[saldarLiquidacionesContrato] contrato ${contractId} saldado hasta ${hasta.month}/${hasta.year} por ${profile.id}: ${saldadas} liquidaciones`
+    );
+    revalidatePath(`/backoffice/administraciones/${contractId}`);
+    revalidatePath("/backoffice/administraciones");
+    revalidatePath("/backoffice");
+    const parciales =
+      parcialesSinTocar > 0
+        ? ` Quedaron ${parcialesSinTocar} sin tocar porque ya tienen un cobro parcial registrado: completalas desde la liquidación.`
+        : "";
+    return { ok: true, message: `Listo: ${saldadas} ${saldadas === 1 ? "liquidación saldada" : "liquidaciones saldadas"}.${parciales}` };
+  } catch (err) {
+    if (err instanceof Error && !(err instanceof Prisma.PrismaClientKnownRequestError)) {
+      return { ok: false, error: err.message };
+    }
+    console.error("[saldarLiquidacionesContrato]", err);
+    return { ok: false, error: "No se pudo guardar por un problema de conexión con la base. Probá de nuevo." };
   }
 }

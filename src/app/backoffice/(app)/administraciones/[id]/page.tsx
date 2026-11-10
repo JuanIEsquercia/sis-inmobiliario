@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getContractById, getContractGroups, getIndexTypes, paymentTotal } from "@/lib/alquileres";
+import { getContractById, getContractGroups, getIndexTypes, mesActualArgentina, paymentTotal } from "@/lib/alquileres";
 import { getAgents, getActiveCommissionScheme, agentLabel, toRepartoSchemeInfo } from "@/lib/caja";
 import { getSignedDocumentUrl } from "@/lib/supabase/storage";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
@@ -15,7 +15,9 @@ import {
   asignarGrupoContrato,
   actualizarRenovacionEsperada,
   corregirEsquemaActualizacion,
+  saldarLiquidacionesContrato,
 } from "../actions";
+import { FormWithFeedback } from "@/components/backoffice/FormWithFeedback";
 import { crearComisionAlquiler } from "../../caja/actions";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { RepartoPreview } from "@/components/backoffice/RepartoPreview";
@@ -123,12 +125,32 @@ export default async function ContractDetailPage({ params }: PageProps) {
   // ACTIVO, una colocación es BORRADOR (FIRMADO ya está cerrada).
   const yaMovioPlata =
     !!contract.rentalCommission ||
-    contract.payments.some((p) => p.status === "PAGADO" || p.status === "PARCIAL" || p.status === "ENVIADA");
+    contract.payments.some(
+      (p) => !p.saldadaPreSistema && (p.status === "PAGADO" || p.status === "PARCIAL" || p.status === "ENVIADA")
+    );
   const estadoVigenteParaAnular = contract.isAdministered ? "ACTIVO" : "BORRADOR";
   const canAnular =
     profile.permissions.includes("administraciones.crear") &&
     contract.status === estadoVigenteParaAnular &&
     !yaMovioPlata;
+
+  // "Saldar hasta…": para contratos que ya venían corriendo cuando se
+  // cargaron (ver saldarLiquidacionesEnTx). Solo se ofrece si queda algún
+  // mes ya empezado sin cobro registrado — un contrato al día no lo
+  // necesita y el botón sería ruido.
+  const mesActual = mesActualArgentina();
+  const mesActualValue = `${mesActual.year}-${String(mesActual.month).padStart(2, "0")}`;
+  const mesAnterior = new Date(Date.UTC(mesActual.year, mesActual.month - 2, 1));
+  const mesAnteriorValue = `${mesAnterior.getUTCFullYear()}-${String(mesAnterior.getUTCMonth() + 1).padStart(2, "0")}`;
+  const canSaldar =
+    contract.isAdministered &&
+    contract.status === "ACTIVO" &&
+    (profile.permissions.includes("administraciones.pagos") || profile.permissions.includes("administraciones.crear")) &&
+    contract.payments.some(
+      (p) =>
+        (p.status === "PENDIENTE" || p.status === "ENVIADA" || p.status === "ATRASADO") &&
+        p.periodYear * 12 + p.periodMonth <= mesActual.year * 12 + mesActual.month
+    );
 
   return (
     <div className="max-w-6xl w-full mx-auto">
@@ -319,6 +341,34 @@ export default async function ContractDetailPage({ params }: PageProps) {
           {contract.isAdministered && (
             <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
               <h2 className="text-sm font-bold uppercase tracking-wider text-muted mb-4">Cronograma de Liquidaciones</h2>
+              {canSaldar && (
+                <FormWithFeedback
+                  action={saldarLiquidacionesContrato.bind(null, contract.id)}
+                  submitLabel="Saldar"
+                  pendingLabel="Saldando..."
+                  className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm"
+                >
+                  <p className="mb-2 font-semibold text-foreground">¿Este contrato ya venía corriendo antes de cargarlo?</p>
+                  <p className="mb-3 text-xs text-muted">
+                    Los meses que se cobraron por fuera del sistema se marcan como pagados en término, sin sumar a la caja
+                    de hoy ni dejar comisiones o giros pendientes. Los que tengan un cobro parcial registrado no se tocan.
+                  </p>
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <label htmlFor="saldar-hasta" className="text-xs text-muted">
+                      Al día hasta (inclusive)
+                    </label>
+                    <input
+                      id="saldar-hasta"
+                      name="hasta"
+                      type="month"
+                      required
+                      max={mesActualValue}
+                      defaultValue={mesAnteriorValue}
+                      className="field w-auto py-1 text-sm"
+                    />
+                  </div>
+                </FormWithFeedback>
+              )}
               <div className="overflow-x-auto rounded-lg border border-border/60">
                 <table className="w-full text-sm">
                   <thead>
@@ -348,7 +398,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                         </td>
                         <td className="px-4 py-2.5">
                           <span className={`text-xs font-semibold ${p.status === "PAGADO" ? "text-emerald-700" : "text-muted"}`}>
-                            {paymentStatusLabels[p.status]}
+                            {p.saldadaPreSistema ? "Saldada (antes del sistema)" : paymentStatusLabels[p.status]}
                           </span>
                         </td>
                       </tr>

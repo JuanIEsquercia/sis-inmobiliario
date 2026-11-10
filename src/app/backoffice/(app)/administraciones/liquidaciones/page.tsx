@@ -215,7 +215,15 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                             giro que nunca existió, y el paso que sí
                             faltaba (cobrar nuestra comisión) quedaba
                             escondido en otro módulo. */}
-                        {p.status === "PAGADO" && (
+                        {p.status === "PAGADO" && p.saldadaPreSistema && (
+                          <span
+                            className="text-xs text-muted"
+                            title="Se cobró por fuera, antes de cargar el contrato en el sistema: no hay giro ni comisión pendientes"
+                          >
+                            ✓ Saldada antes del sistema
+                          </span>
+                        )}
+                        {p.status === "PAGADO" && !p.saldadaPreSistema && (
                           <>
                             {p.ownerPaidAt ? (
                               <span className="text-xs text-muted">✓ Propietario pagado</span>

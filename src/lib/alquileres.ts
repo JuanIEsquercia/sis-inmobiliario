@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
+import type { Prisma } from "@/generated/prisma/client";
 import { contractGroupWhere, type ContractGroupScope } from "@/lib/auth";
 
 // Propietario/inquilino son opcionales al cargar un contrato (ver
@@ -113,6 +114,79 @@ function diaDeVencimiento(vencimiento: Date): string {
 export function inicioDeHoyArgentina(): Date {
   const [a, m, d] = diaArgentino(new Date()).split("-").map(Number);
   return new Date(Date.UTC(a, m - 1, d));
+}
+
+// Mes en curso en Argentina, como { year, month } (month 1-12).
+export function mesActualArgentina(): { year: number; month: number } {
+  const [year, month] = diaArgentino(new Date()).split("-").map(Number);
+  return { year, month };
+}
+
+// "2026-10" (lo que manda un <input type="month">) → { year, month }.
+// null si viene vacío o mal formado.
+export function parseMes(value: string | null): { year: number; month: number } | null {
+  const m = value?.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  return month >= 1 && month <= 12 ? { year, month } : null;
+}
+
+// Marca como saldadas antes del sistema las liquidaciones de un contrato
+// hasta `hasta` inclusive. Es para los contratos que ya venían corriendo
+// cuando se cargaron: el cronograma se genera desde la fecha de inicio,
+// así que los meses ya cobrados por fuera aparecían como vencidos impagos
+// y ensuciaban la morosidad, el panel y la puntualidad.
+//
+// Quedan PAGADO con fecha de pago = su vencimiento (pagadas en término,
+// que es lo que pasó) y el total cobrado = su total, pero sin cobros ni
+// CashMovement: no es plata que haya entrado por el sistema, así que no
+// suma a la caja de hoy ni queda pendiente de confirmar comisión o de
+// girar al propietario (ver Payment.saldadaPreSistema).
+//
+// Solo toca las que no tienen ningún cobro (PENDIENTE/ENVIADA/ATRASADO).
+// Una PARCIAL ya tiene un cobro real registrado en el sistema: pisarla
+// inventaría el resto, así que se deja y se informa.
+//
+// Una sola sentencia SQL y no un update por fila: con contratos largos
+// (24+ meses) ir fila por fila dentro de una transacción supera el
+// timeout con la latencia de esta conexión (mismo motivo que el
+// createMany del alta). Cada fila necesita su propio paidAt (su
+// vencimiento) y su propio total (suma de sus ítems), y eso updateMany
+// no lo puede expresar.
+export async function saldarLiquidacionesEnTx(
+  tx: Prisma.TransactionClient,
+  contractId: number,
+  hasta: { year: number; month: number }
+): Promise<{ saldadas: number; parcialesSinTocar: number }> {
+  const actual = mesActualArgentina();
+  if (hasta.year * 12 + hasta.month > actual.year * 12 + actual.month) {
+    throw new Error("Solo se pueden saldar meses que ya empezaron — no meses futuros.");
+  }
+  const tope = hasta.year * 12 + hasta.month;
+
+  const saldadas = await tx.$executeRaw`
+    UPDATE "Payment" p
+    SET "status" = 'PAGADO',
+        "paidAt" = p."dueDate",
+        "paidAmount" = COALESCE((SELECT SUM(i."amount") FROM "PaymentItem" i WHERE i."paymentId" = p."id"), 0),
+        "saldadaPreSistema" = true,
+        "updatedAt" = NOW()
+    WHERE p."contractId" = ${contractId}
+      AND p."status" IN ('PENDIENTE', 'ENVIADA', 'ATRASADO')
+      AND p."periodYear" * 12 + p."periodMonth" <= ${tope}
+  `;
+
+  const parcialesSinTocar = await tx.payment.count({
+    where: { contractId, status: "PARCIAL", OR: periodosHasta(hasta) },
+  });
+
+  return { saldadas, parcialesSinTocar };
+}
+
+// Filtro Prisma de "período <= hasta" (no hay columna de período único).
+function periodosHasta(hasta: { year: number; month: number }): Prisma.PaymentWhereInput[] {
+  return [{ periodYear: { lt: hasta.year } }, { periodYear: hasta.year, periodMonth: { lte: hasta.month } }];
 }
 
 export function addMonths(date: Date, months: number): Date {
@@ -421,7 +495,9 @@ export async function getPaymentsForPeriod(scope: ContractGroupScope, periodMont
 export async function getPaymentsPendingFeeConfirmation() {
   const pagos = await withRetry(() =>
     prisma.payment.findMany({
-      where: { status: "PAGADO", cashMovement: null },
+      // Las saldadas antes del sistema no tienen comisión que confirmar:
+      // se cobró por fuera, en su momento (ver Payment.saldadaPreSistema).
+      where: { status: "PAGADO", cashMovement: null, saldadaPreSistema: false },
       include: {
         items: { include: { concept: true } },
         contract: { include: { unit: true, owner: true } },

@@ -114,6 +114,16 @@ export function AdministracionFields({
                 placeholder="10"
               />
             </div>
+            {/* Para contratos que ya venían corriendo: los meses hasta acá
+                se cobraron por fuera y entran saldados, en vez de nacer
+                como vencidos impagos (ver saldarLiquidacionesEnTx). Vacío
+                = contrato nuevo, todo pendiente como siempre. */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="alDiaHasta" className="text-xs text-muted">
+                Al día hasta (si ya venía corriendo)
+              </label>
+              <input id="alDiaHasta" name="alDiaHasta" type="month" className="field" />
+            </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="renewalCommissionExpected" className="text-xs text-muted">
                 ¿Se cobra comisión en la renovación?

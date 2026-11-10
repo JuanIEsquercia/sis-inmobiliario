@@ -76,7 +76,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
         
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-surface border border-border/80 px-3 py-1 text-xs font-semibold text-foreground mr-2">
-            Estado: {paymentStatusLabels[payment.status]}
+            Estado: {payment.saldadaPreSistema ? "Saldada (antes del sistema)" : paymentStatusLabels[payment.status]}
           </span>
           <Link
             href={`/backoffice/administraciones/${id}/liquidaciones/${payment.id}/imprimir?para=inquilino`}
@@ -275,6 +275,12 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                     {payment.currency} {fmtMoney(cobrado)}
                   </span>
                 </div>
+                {payment.saldadaPreSistema && (
+                  <p className="text-xs text-muted">
+                    Se cobró por fuera, antes de cargar el contrato en el sistema. Queda como pagada en término; no suma a
+                    la caja ni deja giro al propietario o comisión pendientes.
+                  </p>
+                )}
                 {isPartial && (
                   <div className="flex items-center justify-between border-t border-border/40 pt-2.5">
                     <span className="text-muted">Saldo Restante</span>
@@ -396,8 +402,9 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Pago al propietario */}
-          {isPaid && (
+          {/* Pago al propietario — no aplica a un mes saldado antes del
+              sistema: ese giro, si hubo, pasó por fuera y en su momento. */}
+          {isPaid && !payment.saldadaPreSistema && (
             <div className="rounded-xl border border-dashed border-border bg-surface/30 p-5 shadow-xs">
               <h4 className="text-xs font-bold uppercase tracking-wider text-foreground mb-3 flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-accent" />

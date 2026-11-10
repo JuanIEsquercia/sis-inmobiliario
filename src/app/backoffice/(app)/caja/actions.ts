@@ -705,6 +705,9 @@ export async function confirmarCobroComision(paymentId: number, formData: FormDa
       if (payment.cashMovement) {
         throw new Error("Ya se confirmó el cobro de esta comisión.");
       }
+      if (payment.saldadaPreSistema) {
+        throw new Error("Este mes se cobró antes de cargar el contrato en el sistema: no hay comisión que confirmar acá.");
+      }
 
       const { managementFee } = paymentBreakdown(payment.items, payment.contract.managementFeePercent);
       // Antes acá había un `return` pelado, y era un agujero: la acción

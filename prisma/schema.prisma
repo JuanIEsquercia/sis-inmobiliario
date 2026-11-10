@@ -662,6 +662,14 @@ model Payment {
   paidAmount Decimal?      @db.Decimal(14, 2)
   notes      String?
 
+  // Período de un contrato que ya venía corriendo antes de cargarse en
+  // el sistema: se cobró por fuera, en su momento, y nadie lo debe. Se
+  // marca PAGADO (no hay mora ni deuda) pero NO es plata que entró por
+  // el sistema: no lleva cobros ni CashMovement, y no queda pendiente de
+  // confirmar comisión ni de girar al propietario. Sin esta marca esos
+  // meses aparecían como vencidos impagos (ver saldarLiquidacionesEnTx).
+  saldadaPreSistema Boolean @default(false)
+
   // Cuándo (y cómo) la inmobiliaria le entregó al propietario el neto de
   // esta liquidación — evento aparte de que el inquilino haya pagado
   // (`status` PAGADO): si el inquilino transfirió directo al propietario
