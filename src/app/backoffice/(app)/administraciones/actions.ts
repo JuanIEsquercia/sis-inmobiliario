@@ -1450,3 +1450,78 @@ export async function saldarLiquidacionesContrato(
     return { ok: false, error: "No se pudo guardar por un problema de conexión con la base. Probá de nuevo." };
   }
 }
+
+// "Corregir código" de la ficha del contrato. El código es de la UNIDAD
+// (la propiedad), no del contrato, así que hay dos casos:
+//
+// - El código correcto ya existe en otra unidad (se cargó la misma
+//   propiedad dos veces, o con un código inventado mientras Adinco no
+//   lo generaba): el contrato pasa a esa unidad. Si la vieja queda sin
+//   nada colgando (contratos, ventas, tasaciones) se borra, para no
+//   dejar unidades basura en el buscador del alta.
+// - No existe: se le cambia el código a la unidad, y con eso cambia en
+//   todos sus contratos — si el código estaba mal, estaba mal para la
+//   propiedad, no para un contrato en particular.
+//
+// Mismo criterio de permisos que saldar: es corregir una carga.
+export async function corregirCodigoPropiedad(
+  contractId: number,
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const profile = await requireAnyPermission(["administraciones.pagos", "administraciones.crear"]);
+  await assertContractInScope(contractId, profile);
+
+  const code = optionalStr(formData.get("propertyCode"))?.trim();
+  if (!code) return { ok: false, error: "Escribí el código de propiedad correcto." };
+
+  try {
+    const message = await withRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const contract = await tx.contract.findUniqueOrThrow({
+          where: { id: contractId },
+          select: { unitId: true, unit: { select: { propertyCode: true } } },
+        });
+        if (contract.unit.propertyCode === code) {
+          throw new Error("La propiedad ya tiene ese código.");
+        }
+
+        const destino = await tx.unit.findUnique({ where: { propertyCode: code }, select: { id: true, address: true } });
+
+        if (!destino) {
+          await tx.unit.update({ where: { id: contract.unitId }, data: { propertyCode: code } });
+          const otros = await tx.contract.count({ where: { unitId: contract.unitId, id: { not: contractId } } });
+          return otros > 0
+            ? `Código cambiado a ${code}. También se ve en los otros ${otros} contrato(s) de esta propiedad.`
+            : `Código cambiado a ${code}.`;
+        }
+
+        await tx.contract.update({ where: { id: contractId }, data: { unitId: destino.id } });
+
+        const vieja = await tx.unit.findUniqueOrThrow({
+          where: { id: contract.unitId },
+          select: { _count: { select: { contracts: true, sales: true, appraisals: true } } },
+        });
+        const quedoVacia = vieja._count.contracts + vieja._count.sales + vieja._count.appraisals === 0;
+        if (quedoVacia) await tx.unit.delete({ where: { id: contract.unitId } });
+
+        return `El contrato pasó a la propiedad ya cargada con código ${code} (${destino.address}).${
+          quedoVacia ? " La unidad vieja quedó vacía y se eliminó." : ""
+        }`;
+      })
+    );
+    console.log(`[corregirCodigoPropiedad] contrato ${contractId} → código ${code} por ${profile.id}`);
+    revalidatePath(`/backoffice/administraciones/${contractId}`);
+    revalidatePath("/backoffice/administraciones");
+    return { ok: true, message };
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { ok: false, error: "Otra unidad tomó ese código recién. Probá de nuevo." };
+    }
+    if (err instanceof Error && !(err instanceof Prisma.PrismaClientKnownRequestError)) {
+      return { ok: false, error: err.message };
+    }
+    console.error("[corregirCodigoPropiedad]", err);
+    return { ok: false, error: "No se pudo guardar por un problema de conexión con la base. Probá de nuevo." };
+  }
+}

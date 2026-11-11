@@ -16,6 +16,7 @@ import {
   actualizarRenovacionEsperada,
   corregirEsquemaActualizacion,
   saldarLiquidacionesContrato,
+  corregirCodigoPropiedad,
 } from "../actions";
 import { FormWithFeedback } from "@/components/backoffice/FormWithFeedback";
 import { crearComisionAlquiler } from "../../caja/actions";
@@ -142,6 +143,8 @@ export default async function ContractDetailPage({ params }: PageProps) {
   const mesActualValue = `${mesActual.year}-${String(mesActual.month).padStart(2, "0")}`;
   const mesAnterior = new Date(Date.UTC(mesActual.year, mesActual.month - 2, 1));
   const mesAnteriorValue = `${mesAnterior.getUTCFullYear()}-${String(mesAnterior.getUTCMonth() + 1).padStart(2, "0")}`;
+  const canCorregirCodigo =
+    profile.permissions.includes("administraciones.pagos") || profile.permissions.includes("administraciones.crear");
   const canSaldar =
     contract.isAdministered &&
     contract.status === "ACTIVO" &&
@@ -158,6 +161,33 @@ export default async function ContractDetailPage({ params }: PageProps) {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border/50 pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">{contract.unit.address}</h1>
+          {/* El código va acá arriba y no en una tarjeta aparte porque es
+              donde se lo ve mal: se corrige en el mismo lugar. Ver
+              corregirCodigoPropiedad para qué pasa si el código ya existe. */}
+          {canCorregirCodigo && (
+            <details className="mt-2 text-xs">
+              <summary className="w-fit cursor-pointer text-muted hover:text-foreground">
+                Corregir código de propiedad
+              </summary>
+              <FormWithFeedback
+                action={corregirCodigoPropiedad.bind(null, contract.id)}
+                submitLabel="Guardar código"
+                className="mt-2 flex max-w-xl flex-col gap-2 rounded-lg border border-border p-3"
+              >
+                <p className="text-muted">
+                  Si el código ya existe en otra propiedad cargada, el contrato pasa a esa propiedad. Si no existe, se le
+                  cambia el código a esta (y a todos sus contratos).
+                </p>
+                <input
+                  name="propertyCode"
+                  required
+                  defaultValue={contract.unit.propertyCode}
+                  className="field w-full max-w-xs text-sm"
+                  aria-label="Código de propiedad correcto"
+                />
+              </FormWithFeedback>
+            </details>
+          )}
           <p className="text-xs text-muted mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             <Link href={`/backoffice/historial/${contract.unit.id}`} className="hover:underline font-semibold text-accent">
               Código {contract.unit.propertyCode}
