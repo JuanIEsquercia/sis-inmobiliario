@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getCreditChecksByCuit, consultantLabel, evaluarCheck } from "@/lib/central-deudores";
@@ -38,12 +39,12 @@ export default async function HistorialCreditCheckPage({ params }: PageProps) {
           <h1 className="text-xl font-semibold text-foreground">{denominacion ?? "Sin denominación AFIP"}</h1>
           <p className="font-mono text-sm text-muted">CUIT/CUIL {cuit}</p>
         </div>
-        <form action={consultarCreditCheck}>
+        <ActionForm mensajeExito="Consulta realizada" action={consultarCreditCheck}>
           <input type="hidden" name="cuit" value={cuit} />
           <button type="submit" className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong">
             Consultar de nuevo
           </button>
-        </form>
+        </ActionForm>
       </div>
 
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted">
@@ -96,6 +97,7 @@ export default async function HistorialCreditCheckPage({ params }: PageProps) {
                     </Link>
                     {canDelete && (
                       <ConfirmDeleteButton
+                        mensajeExito="Consulta eliminada"
                         action={eliminarCreditCheck.bind(null, cuit, c.id)}
                         triggerClassName="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
                         title="¿Eliminar esta consulta?"

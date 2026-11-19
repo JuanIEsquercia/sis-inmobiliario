@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { ActionForm } from "./ActionForm";
+import type { ResultadoAccion } from "@/lib/accion";
 import { AgentSelect } from "./AgentSelect";
 import type { getAgents } from "@/lib/caja";
 
@@ -25,7 +27,7 @@ export function EditableAgentesCard({
   vendedorLabel: string;
   captadorLabel: string;
   canEdit: boolean;
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<ResultadoAccion>;
 }) {
   const [editing, setEditing] = useState(false);
 
@@ -50,11 +52,12 @@ export function EditableAgentesCard({
   }
 
   return (
-    <form
-      action={(formData) => {
-        setEditing(false);
-        return action(formData);
-      }}
+    <ActionForm
+      action={action}
+      mensajeExito="Agentes actualizados"
+      // Vuelve a solo lectura recién cuando se guardó; si falla, queda
+      // abierto con lo elegido para corregir y reintentar.
+      onExito={() => setEditing(false)}
       className="flex flex-col gap-3"
     >
       <AgentSelect agents={agents} defaultValue={defaultVendedorId} name="vendedorAgentId" label="Agente vendedor" required={false} />
@@ -74,6 +77,6 @@ export function EditableAgentesCard({
           Cancelar
         </button>
       </div>
-    </form>
+    </ActionForm>
   );
 }

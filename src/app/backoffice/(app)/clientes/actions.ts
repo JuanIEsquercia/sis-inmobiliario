@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
@@ -7,7 +8,7 @@ import { requirePermission } from "@/lib/auth";
 import { optionalStr, requiredStr } from "@/lib/form-utils";
 import { toTitleCase } from "@/lib/text-normalize";
 
-export async function actualizarCliente(clientId: number, formData: FormData) {
+export const actualizarCliente = conAviso(async function actualizarCliente(clientId: number, formData: FormData) {
   await requirePermission("clientes.gestionar");
 
   const birthDateRaw = optionalStr(formData.get("birthDate"));
@@ -27,4 +28,4 @@ export async function actualizarCliente(clientId: number, formData: FormData) {
   );
 
   revalidatePath(`/backoffice/clientes/${clientId}`);
-}
+});

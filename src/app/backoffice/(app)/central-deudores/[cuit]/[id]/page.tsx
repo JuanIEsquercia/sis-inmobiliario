@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import {
@@ -62,12 +63,12 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
           <p className="font-mono text-sm text-muted">CUIT/CUIL {check.cuit}</p>
         </div>
         <div className="flex items-center gap-2">
-          <form action={consultarCreditCheck}>
+          <ActionForm mensajeExito="Consulta realizada" action={consultarCreditCheck}>
             <input type="hidden" name="cuit" value={check.cuit} />
             <button type="submit" className="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-surface hover:text-foreground">
               Volver a consultar
             </button>
-          </form>
+          </ActionForm>
           <Link
             href={`/backoffice/central-deudores/${check.cuit}/${check.id}/imprimir`}
             className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong"
@@ -76,6 +77,7 @@ export default async function CreditCheckDetailPage({ params }: PageProps) {
           </Link>
           {canDelete && (
             <ConfirmDeleteButton
+              mensajeExito="Consulta eliminada"
               action={eliminarCreditCheck.bind(null, check.cuit, check.id)}
               triggerLabel="Eliminar"
               triggerClassName="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-surface hover:text-foreground cursor-pointer"

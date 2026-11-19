@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { getContractById, getContractGroups, getIndexTypes, mesActualArgentina, paymentTotal } from "@/lib/alquileres";
 import { getAgents, getActiveCommissionScheme, agentLabel, toRepartoSchemeInfo } from "@/lib/caja";
@@ -237,7 +238,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
           <p className="mb-3 text-xs text-muted">
             No hace falta completarlas al cargar el contrato — se pueden confirmar después.
           </p>
-          <form action={actualizarPartesContrato.bind(null, contract.id)} className="flex flex-col gap-4 sm:flex-row">
+          <ActionForm mensajeExito="Partes actualizadas" action={actualizarPartesContrato.bind(null, contract.id)} className="flex flex-col gap-4 sm:flex-row">
             <div className="flex-1">
               <ClientPicker namePrefix="owner" roleLabel="Propietario" initialSelected={contract.owner} />
             </div>
@@ -250,7 +251,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
             >
               Guardar
             </button>
-          </form>
+          </ActionForm>
         </div>
       )}
 
@@ -467,7 +468,8 @@ export default async function ContractDetailPage({ params }: PageProps) {
                 )}
               </p>
             ) : canCreateCommission ? (
-              <form
+              <ActionForm
+                mensajeExito="Comisión creada"
                 action={crearComisionAlquiler.bind(null, contract.id)}
                 className="flex flex-wrap items-end gap-3"
               >
@@ -524,7 +526,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                     .
                   </p>
                 )}
-              </form>
+              </ActionForm>
             ) : (
               <p className="text-sm text-muted">Sin comisión cargada.</p>
             )}
@@ -624,7 +626,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
               </ul>
             )}
             
-            <form action={subirDocumento.bind(null, contract.id)} className="flex flex-col gap-3 border-t border-border/40 pt-3">
+            <ActionForm mensajeExito="Documento subido" action={subirDocumento.bind(null, contract.id)} className="flex flex-col gap-3 border-t border-border/40 pt-3">
               <div className="flex flex-col gap-1">
                 <label htmlFor="docType" className="text-[10px] font-bold text-muted uppercase tracking-wider">
                   Tipo de archivo
@@ -649,7 +651,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
               >
                 Subir Documento
               </button>
-            </form>
+            </ActionForm>
           </div>
 
           {/* Grupo de Contrato — no aplica a una colocación sin
@@ -660,7 +662,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
             <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
               <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Grupo Asignado</h2>
               {canManageGroups ? (
-                <form action={asignarGrupoContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                <ActionForm mensajeExito="Cartera actualizada" action={asignarGrupoContrato.bind(null, contract.id)} className="flex flex-col gap-3">
                   <select name="groupId" defaultValue={contract.groupId ?? ""} className="field w-full text-xs py-1.5">
                     <option value="">— Sin grupo asignado —</option>
                     {groups.map((g) => (
@@ -672,7 +674,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   <button type="submit" className="w-full rounded-lg border border-border bg-surface py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs transition-colors">
                     Guardar Grupo
                   </button>
-                </form>
+                </ActionForm>
               ) : (
                 <p className="text-xs text-foreground font-semibold">{contract.group?.name ?? "Sin grupo asignado"}</p>
               )}
@@ -723,7 +725,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
               <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Finalizar o Anular</h2>
 
-                <form action={finalizarContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                <ActionForm mensajeExito="Contrato finalizado" action={finalizarContrato.bind(null, contract.id)} className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1">
                     <label htmlFor="terminationStatus" className="text-[10px] font-bold text-muted uppercase tracking-wider">
                       Motivo de Cierre
@@ -745,14 +747,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   >
                     Finalizar Contrato
                   </button>
-                </form>
+                </ActionForm>
 
                 {canAnular ? (
                   <div className="mt-4 border-t border-border/40 pt-4">
                     <p className="mb-2 text-[10px] text-muted leading-relaxed">
                       Si el contrato se cargó por error y nunca debió existir, puedes anularlo. Se eliminarán sus liquidaciones.
                     </p>
-                    <form action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                    <ActionForm mensajeExito="Contrato anulado" action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
                       <div className="flex flex-col gap-1">
                         <label htmlFor="anularReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
                           Motivo de Anulación
@@ -765,7 +767,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                       >
                         Anular Contrato
                       </button>
-                    </form>
+                    </ActionForm>
                   </div>
                 ) : (
                   yaMovioPlata && (
@@ -786,7 +788,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                 <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Firmar o Anular</h2>
 
                 {canMarcarFirmado && (
-                  <form action={marcarContratoFirmado.bind(null, contract.id)} className="flex flex-col gap-2">
+                  <ActionForm mensajeExito="Contrato marcado como firmado" action={marcarContratoFirmado.bind(null, contract.id)} className="flex flex-col gap-2">
                     <p className="text-[10px] text-muted leading-relaxed">
                       Marcala como firmada cuando la operación ya cerró — a partir de ahí, partes y agentes quedan
                       bloqueados (el cobro de la comisión sigue funcionando igual).
@@ -797,7 +799,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                     >
                       Marcar como Firmado
                     </button>
-                  </form>
+                  </ActionForm>
                 )}
 
                 {canAnular && (
@@ -805,7 +807,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                     <p className="mb-2 text-[10px] text-muted leading-relaxed">
                       Si esta colocación se cargó por error y nunca debió existir, podés anularla.
                     </p>
-                    <form action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
+                    <ActionForm mensajeExito="Contrato anulado" action={anularContrato.bind(null, contract.id)} className="flex flex-col gap-3">
                       <div className="flex flex-col gap-1">
                         <label htmlFor="anularReason" className="text-[10px] font-bold text-muted uppercase tracking-wider">
                           Motivo de Anulación
@@ -818,7 +820,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                       >
                         Anular Contrato
                       </button>
-                    </form>
+                    </ActionForm>
                   </div>
                 )}
               </div>
@@ -841,6 +843,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                 los documentos subidos. No hay forma de deshacerlo. Usalo solo para corregir una carga errónea.
               </p>
               <ConfirmDeleteButton
+                mensajeExito="Contrato eliminado"
                 action={eliminarContratoDefinitivo.bind(null, contract.id)}
                 triggerLabel="Eliminar contrato definitivamente"
                 triggerClassName="w-full rounded-lg border border-accent/50 bg-transparent py-2 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors shadow-xs"

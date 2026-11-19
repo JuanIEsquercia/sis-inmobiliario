@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
@@ -116,7 +117,7 @@ export default async function UsuariosPage() {
                   </div>
 
                   {canManage && (
-                    <form action={toggleUserActive.bind(null, p.id, !p.isActive)} className="pt-1">
+                    <ActionForm mensajeExito="Usuario actualizado" action={toggleUserActive.bind(null, p.id, !p.isActive)} className="pt-1">
                       <button
                         type="submit"
                         className={`flex h-10 w-full items-center justify-center rounded-xl border text-xs font-bold transition-colors cursor-pointer ${
@@ -127,7 +128,7 @@ export default async function UsuariosPage() {
                       >
                         {p.isActive ? "Desactivar Usuario" : "Activar Usuario"}
                       </button>
-                    </form>
+                    </ActionForm>
                   )}
                 </div>
               );
@@ -172,11 +173,11 @@ export default async function UsuariosPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     {canManage && (
-                      <form action={toggleUserActive.bind(null, p.id, !p.isActive)}>
+                      <ActionForm mensajeExito="Usuario actualizado" action={toggleUserActive.bind(null, p.id, !p.isActive)}>
                         <button type="submit" className="rounded-lg border border-border px-3 py-1 text-xs font-medium hover:bg-surface cursor-pointer">
                           {p.isActive ? "Desactivar" : "Activar"}
                         </button>
-                      </form>
+                      </ActionForm>
                     )}
                   </td>
                 </tr>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getContracts, getContractGroups, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
@@ -99,7 +100,8 @@ export default async function AdministracionesPage({ searchParams }: PageProps) 
 
       {/* Formulario de Asignación en Lote */}
       {canManageGroups && contracts.length > 0 && (
-        <form
+        <ActionForm
+          mensajeExito="Contratos asignados a la cartera"
           action={asignarContratosAGrupo}
           id={BULK_FORM_ID}
           className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/60 bg-surface/40 p-3.5 text-xs text-muted shadow-xs"
@@ -134,7 +136,7 @@ export default async function AdministracionesPage({ searchParams }: PageProps) 
               </button>
             </div>
           )}
-        </form>
+        </ActionForm>
       )}
 
       {/* Grid Adaptativo (Tarjetas Móviles + Tabla Desktop) */}
@@ -213,7 +215,7 @@ export default async function AdministracionesPage({ searchParams }: PageProps) 
                 </div>
 
                 {canFinalizar && c.status === "ACTIVO" && (
-                  <form action={finalizarContrato.bind(null, c.id)} className="flex items-center gap-2 pt-1 border-t border-border/40">
+                  <ActionForm mensajeExito="Contrato finalizado" action={finalizarContrato.bind(null, c.id)} className="flex items-center gap-2 pt-1 border-t border-border/40">
                     <select
                       name="status"
                       defaultValue="FINALIZADO"
@@ -229,7 +231,7 @@ export default async function AdministracionesPage({ searchParams }: PageProps) 
                     >
                       Aplicar
                     </button>
-                  </form>
+                  </ActionForm>
                 )}
 
                 <div>
@@ -294,7 +296,7 @@ export default async function AdministracionesPage({ searchParams }: PageProps) 
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {canFinalizar && c.status === "ACTIVO" ? (
-                      <form action={finalizarContrato.bind(null, c.id)} className="flex items-center gap-1.5">
+                      <ActionForm mensajeExito="Contrato finalizado" action={finalizarContrato.bind(null, c.id)} className="flex items-center gap-1.5">
                         <select
                           name="status"
                           defaultValue="FINALIZADO"
@@ -310,7 +312,7 @@ export default async function AdministracionesPage({ searchParams }: PageProps) 
                         >
                           Aplicar
                         </button>
-                      </form>
+                      </ActionForm>
                     ) : (
                       statusLabels[c.status]
                     )}

@@ -94,6 +94,7 @@ export default async function PresupuestosPage({ searchParams }: PageProps) {
                     {canManage && (
                       <td className="px-4 py-3">
                         <ConfirmDeleteButton
+                          mensajeExito="Presupuesto eliminado"
                           action={eliminarPresupuesto.bind(null, b.id)}
                           triggerClassName="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:bg-surface hover:text-foreground cursor-pointer"
                           title="¿Eliminar este presupuesto?"

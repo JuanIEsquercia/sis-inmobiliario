@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getPedidoById, tomadoLabel, creadoPorLabel } from "@/lib/pedidos";
 import { PedidoEstadoBadge } from "@/components/backoffice/PedidoEstadoBadge";
 import { requirePermission } from "@/lib/auth";
@@ -37,6 +38,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
           <PedidoEstadoBadge estado={pedido.estado} />
           {profile.permissions.includes("pedidos.eliminar") && (
             <ConfirmDeleteButton
+              mensajeExito="Pedido eliminado"
               action={eliminarPedido.bind(null, pedido.id)}
               title="¿Eliminar este pedido?"
               description={`Se borra definitivamente el pedido de ${pedido.clienteNombre}. Usalo para pruebas o cargas repetidas; si el pedido fue real y se cerró, mejor marcarlo Conseguido o Descartado.`}
@@ -58,21 +60,21 @@ export default async function PedidoDetailPage({ params }: PageProps) {
                 )}
               </span>
               {pedido.tomadoPorId === profile.id && (
-                <form action={soltarPedido.bind(null, pedido.id)}>
+                <ActionForm mensajeExito="Pedido liberado" action={soltarPedido.bind(null, pedido.id)}>
                   <button type="submit" className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-surface">
                     Soltar
                   </button>
-                </form>
+                </ActionForm>
               )}
             </>
           ) : (
             <>
               <span className="text-muted italic">Nadie lo tomó todavía</span>
-              <form action={tomarPedido.bind(null, pedido.id)}>
+              <ActionForm mensajeExito="Pedido tomado" action={tomarPedido.bind(null, pedido.id)}>
                 <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground hover:bg-accent-strong">
                   Tomar pedido
                 </button>
-              </form>
+              </ActionForm>
             </>
           )}
         </div>
@@ -129,14 +131,14 @@ export default async function PedidoDetailPage({ params }: PageProps) {
             {estadosDisponibles
               .filter((e) => e.value !== pedido.estado)
               .map((e) => (
-                <form key={e.value} action={updatePedidoEstado.bind(null, pedido.id, e.value)}>
+                <ActionForm key={e.value} mensajeExito="Estado actualizado" action={updatePedidoEstado.bind(null, pedido.id, e.value)}>
                   <button
                     type="submit"
                     className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-surface"
                   >
                     {e.label}
                   </button>
-                </form>
+                </ActionForm>
               ))}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { requirePermission } from "@/lib/auth";
 import { getLatestCreditChecksGrouped, consultantLabel, type CreditCheckGrouped } from "@/lib/central-deudores";
 import { SITUACION_LABELS, situacionColorClass } from "@/lib/bcra";
@@ -98,7 +99,8 @@ export default async function CentralDeDeudoresPage() {
       </div>
 
       {/* Formulario de Consulta */}
-      <form
+      <ActionForm
+        mensajeExito="Consulta realizada"
         action={consultarCreditCheck}
         className="flex flex-col sm:flex-row sm:items-end gap-3 rounded-2xl border border-border/60 bg-surface p-5 shadow-xs"
       >
@@ -126,7 +128,7 @@ export default async function CentralDeDeudoresPage() {
         >
           Consultar BCRA
         </SubmitButton>
-      </form>
+      </ActionForm>
 
       <div>
         <h2 className="text-sm font-bold uppercase tracking-wider text-muted">Consultas Recientes</h2>

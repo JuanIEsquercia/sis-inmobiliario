@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { requirePermission } from "@/lib/auth";
 import { getAllPartnerLogos, getSyncState } from "@/lib/site";
 import { FormWithFeedback } from "@/components/backoffice/FormWithFeedback";
@@ -71,7 +72,7 @@ export default async function SitioPage() {
                 <Image src={logo.imageUrl} alt={logo.name} width={56} height={56} className="h-full w-full object-contain" unoptimized />
               </div>
 
-              <form action={actualizarMarca.bind(null, logo.id)} className="flex flex-1 flex-wrap items-end gap-3">
+              <ActionForm mensajeExito="Marca actualizada" action={actualizarMarca.bind(null, logo.id)} className="flex flex-1 flex-wrap items-end gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-muted">Nombre</label>
                   <input name="name" defaultValue={logo.name} required className="field text-sm" />
@@ -91,13 +92,13 @@ export default async function SitioPage() {
                 <button type="submit" className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-surface">
                   Guardar
                 </button>
-              </form>
+              </ActionForm>
 
-              <form action={eliminarMarca.bind(null, logo.id)}>
+              <ActionForm mensajeExito="Marca eliminada" action={eliminarMarca.bind(null, logo.id)}>
                 <button type="submit" className="text-xs font-medium text-accent hover:underline">
                   Eliminar
                 </button>
-              </form>
+              </ActionForm>
             </div>
           ))}
         </div>
@@ -105,7 +106,7 @@ export default async function SitioPage() {
 
       <section className="rounded-xl border border-dashed border-border p-5">
         <h2 className="mb-3 text-sm font-medium text-foreground">Agregar marca</h2>
-        <form action={crearMarca} className="flex flex-wrap items-end gap-3">
+        <ActionForm mensajeExito="Marca agregada" action={crearMarca} className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="name" className="text-xs text-muted">
               Nombre*
@@ -133,7 +134,7 @@ export default async function SitioPage() {
           <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong">
             Agregar
           </button>
-        </form>
+        </ActionForm>
       </section>
     </div>
   );

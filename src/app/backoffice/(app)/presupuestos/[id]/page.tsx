@@ -47,6 +47,7 @@ export default async function PresupuestoDetailPage({ params }: PageProps) {
               Editar
             </Link>
             <ConfirmDeleteButton
+              mensajeExito="Presupuesto eliminado"
               action={eliminarPresupuesto.bind(null, budget.id)}
               triggerClassName="rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold text-muted hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
               title="¿Eliminar este presupuesto?"

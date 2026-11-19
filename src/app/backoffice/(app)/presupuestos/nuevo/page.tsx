@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { requirePermission } from "@/lib/auth";
 import { crearPresupuesto } from "../actions";
 import { BudgetItemsSection } from "@/components/backoffice/BudgetItemsSection";
@@ -46,7 +47,7 @@ export default async function NuevoPresupuestoPage({ searchParams }: PageProps) 
         Nuevo presupuesto de {type === "ALQUILER" ? "Alquiler" : "Venta"}
       </h1>
 
-      <form action={crearPresupuesto} className="flex flex-col gap-6">
+      <ActionForm mensajeExito="Presupuesto creado" action={crearPresupuesto} className="flex flex-col gap-6">
         <input type="hidden" name="type" value={type} />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -137,7 +138,7 @@ export default async function NuevoPresupuestoPage({ searchParams }: PageProps) 
             Generar presupuesto
           </button>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

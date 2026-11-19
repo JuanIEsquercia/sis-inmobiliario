@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -8,7 +9,7 @@ import { requirePermission } from "@/lib/auth";
 import { optionalDecimal, optionalInt, optionalStr, requiredStr } from "@/lib/form-utils";
 import type { PedidoEstado } from "@/generated/prisma/client";
 
-export async function createPedido(formData: FormData) {
+export const createPedido = conAviso(async function createPedido(formData: FormData) {
   const profile = await requirePermission("pedidos.crear");
 
   const pedido = await withRetry(() =>
@@ -32,19 +33,19 @@ export async function createPedido(formData: FormData) {
 
   revalidatePath("/backoffice/pedidos");
   redirect(`/backoffice/pedidos/${pedido.id}`);
-}
+});
 
-export async function updatePedidoEstado(id: number, estado: PedidoEstado) {
+export const updatePedidoEstado = conAviso(async function updatePedidoEstado(id: number, estado: PedidoEstado) {
   await requirePermission("pedidos.estado");
   await withRetry(() => prisma.pedido.update({ where: { id }, data: { estado } }));
   revalidatePath(`/backoffice/pedidos/${id}`);
   revalidatePath("/backoffice/pedidos");
-}
+});
 
 // Exclusivo: si ya lo tomó otro agente, no lo pisa — corta con un error
 // claro para que no dos personas llamen al mismo cliente sin saberlo.
 // Tomarlo dos veces la misma persona no hace nada raro (queda igual).
-export async function tomarPedido(id: number) {
+export const tomarPedido = conAviso(async function tomarPedido(id: number) {
   const profile = await requirePermission("pedidos.estado");
 
   await withRetry(() =>
@@ -66,11 +67,11 @@ export async function tomarPedido(id: number) {
 
   revalidatePath(`/backoffice/pedidos/${id}`);
   revalidatePath("/backoffice/pedidos");
-}
+});
 
 // Solo quien lo tomó puede soltarlo — así queda libre de nuevo para que
 // otro (o el mismo, más adelante) lo tome.
-export async function soltarPedido(id: number) {
+export const soltarPedido = conAviso(async function soltarPedido(id: number) {
   const profile = await requirePermission("pedidos.estado");
 
   await withRetry(() =>
@@ -85,7 +86,7 @@ export async function soltarPedido(id: number) {
 
   revalidatePath(`/backoffice/pedidos/${id}`);
   revalidatePath("/backoffice/pedidos");
-}
+});
 
 // Para limpiar pruebas y cargas repetidas: los pedidos que se cierran
 // (Conseguido/Descartado) siguen en el tablero a propósito, como
@@ -94,9 +95,9 @@ export async function soltarPedido(id: number) {
 // hacia afuera), así que se borra la fila sola, sin resguardos extra.
 // Permiso aparte de pedidos.estado: borrar es de quien administra, no
 // del agente que atiende.
-export async function eliminarPedido(id: number) {
+export const eliminarPedido = conAviso(async function eliminarPedido(id: number) {
   await requirePermission("pedidos.eliminar");
   await withRetry(() => prisma.pedido.delete({ where: { id } }));
   revalidatePath("/backoffice/pedidos");
   redirect("/backoffice/pedidos");
-}
+});

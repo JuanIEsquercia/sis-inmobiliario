@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -97,7 +98,7 @@ function parseBudgetForm(formData: FormData) {
   return { type, unitDetail, currency, notes, observations, tenantName, buyerName, ownerName, itemsData };
 }
 
-export async function crearPresupuesto(formData: FormData) {
+export const crearPresupuesto = conAviso(async function crearPresupuesto(formData: FormData) {
   const profile = await requirePermission("presupuestos.crear");
   // `itemsData` se separa a propósito antes de spreadear el resto — no
   // es un campo de Budget (es la lista de BudgetItem a crear aparte), y
@@ -114,7 +115,7 @@ export async function crearPresupuesto(formData: FormData) {
 
   revalidatePath("/backoffice/presupuestos");
   redirect(`/backoffice/presupuestos/${budget.id}`);
-}
+});
 
 // Reemplaza el presupuesto entero (datos + ítems) por lo que venga en el
 // formulario — no hay ninguna otra tabla que referencie un BudgetItem
@@ -123,7 +124,7 @@ export async function crearPresupuesto(formData: FormData) {
 // por fila. El tipo (Alquiler/Venta) no se puede cambiar acá — cambiaría
 // qué campos/roles tiene sentido guardar; para eso hay que cargar un
 // presupuesto nuevo.
-export async function actualizarPresupuesto(id: number, formData: FormData) {
+export const actualizarPresupuesto = conAviso(async function actualizarPresupuesto(id: number, formData: FormData) {
   await requirePermission("presupuestos.crear");
   const existing = await withRetry(() => prisma.budget.findUniqueOrThrow({ where: { id }, select: { type: true } }));
 
@@ -154,17 +155,17 @@ export async function actualizarPresupuesto(id: number, formData: FormData) {
   revalidatePath("/backoffice/presupuestos");
   revalidatePath(`/backoffice/presupuestos/${id}`);
   redirect(`/backoffice/presupuestos/${id}`);
-}
+});
 
 // Un presupuesto no mueve plata ni queda referenciado desde ningún otro
 // registro (a diferencia de anularContrato) — borrarlo es una operación
 // simple, sin resguardos especiales.
-export async function eliminarPresupuesto(id: number) {
+export const eliminarPresupuesto = conAviso(async function eliminarPresupuesto(id: number) {
   await requirePermission("presupuestos.crear");
   await withRetry(() => prisma.budget.delete({ where: { id } }));
   revalidatePath("/backoffice/presupuestos");
   redirect("/backoffice/presupuestos");
-}
+});
 
 export interface ConceptOption {
   id: number;
@@ -220,26 +221,26 @@ export async function crearConceptoDesdeItem(name: string): Promise<ConceptOptio
   return { id: concept.id, name: concept.name };
 }
 
-export async function crearConcepto(formData: FormData) {
+export const crearConcepto = conAviso(async function crearConcepto(formData: FormData) {
   const profile = await requirePermission("presupuestos.conceptos.gestionar");
   const name = requiredStr(formData.get("name"), "Concepto");
 
   await withRetry(() => prisma.budgetConcept.create({ data: { name, createdById: profile.id } }));
 
   revalidatePath("/backoffice/presupuestos/conceptos");
-}
+});
 
-export async function actualizarConcepto(id: number, formData: FormData) {
+export const actualizarConcepto = conAviso(async function actualizarConcepto(id: number, formData: FormData) {
   await requirePermission("presupuestos.conceptos.gestionar");
   const name = requiredStr(formData.get("name"), "Concepto");
 
   await withRetry(() => prisma.budgetConcept.update({ where: { id }, data: { name } }));
 
   revalidatePath("/backoffice/presupuestos/conceptos");
-}
+});
 
-export async function eliminarConcepto(id: number) {
+export const eliminarConcepto = conAviso(async function eliminarConcepto(id: number) {
   await requirePermission("presupuestos.conceptos.gestionar");
   await withRetry(() => prisma.budgetConcept.delete({ where: { id } }));
   revalidatePath("/backoffice/presupuestos/conceptos");
-}
+});

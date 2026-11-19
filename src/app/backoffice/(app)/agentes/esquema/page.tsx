@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getAgents, getCommissionSchemeHistory } from "@/lib/caja";
 import { AgentesTabs } from "@/components/backoffice/AgentesTabs";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
@@ -133,7 +134,8 @@ export default async function EsquemaPage() {
               )}
 
               {canManage && (
-                <form
+                <ActionForm
+                  mensajeExito="Esquema guardado"
                   action={crearEsquemaComision.bind(null, type)}
                   className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-border p-4"
                 >
@@ -193,7 +195,7 @@ export default async function EsquemaPage() {
                   >
                     {active ? "Cargar nueva versión" : "Configurar esquema"}
                   </button>
-                </form>
+                </ActionForm>
               )}
             </section>
           );

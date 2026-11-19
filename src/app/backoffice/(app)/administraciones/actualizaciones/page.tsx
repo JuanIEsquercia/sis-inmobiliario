@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getContractsDueForIndexation, getContractsNearingEnd, getIndexTypes, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
@@ -83,7 +84,8 @@ export default async function ActualizacionesPage() {
                     </td>
                     {canIndexar && (
                       <td className="px-4 py-3">
-                        <form
+                        <ActionForm
+                          mensajeExito="Actualización aplicada"
                           action={aplicarIndexacion.bind(null, c.id)}
                           className="flex flex-wrap items-center gap-1.5"
                         >
@@ -109,7 +111,7 @@ export default async function ActualizacionesPage() {
                           <button type="submit" className="rounded-lg bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground hover:bg-accent-strong">
                             Aplicar
                           </button>
-                        </form>
+                        </ActionForm>
                       </td>
                     )}
                   </tr>
@@ -154,7 +156,7 @@ export default async function ActualizacionesPage() {
                   <td className="px-4 py-3 text-foreground">{daysUntil(c.endDate)} días</td>
                   <td className="px-4 py-3">
                     {canEdit ? (
-                      <form action={actualizarRenovacionEsperada.bind(null, c.id)} className="flex items-center gap-1.5">
+                      <ActionForm mensajeExito="Renovación actualizada" action={actualizarRenovacionEsperada.bind(null, c.id)} className="flex items-center gap-1.5">
                         <select
                           name="renewalCommissionExpected"
                           defaultValue={
@@ -169,7 +171,7 @@ export default async function ActualizacionesPage() {
                         <button type="submit" className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface">
                           Guardar
                         </button>
-                      </form>
+                      </ActionForm>
                     ) : (
                       <span className="text-muted">
                         {c.renewalCommissionExpected === true ? "Sí" : c.renewalCommissionExpected === false ? "No" : "A confirmar"}

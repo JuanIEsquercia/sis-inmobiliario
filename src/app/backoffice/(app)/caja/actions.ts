@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -105,7 +106,7 @@ function asCommissionParty(v: string | null, allowed: readonly CommissionParty[]
   return v && (allowed as readonly string[]).includes(v) ? (v as CommissionParty) : null;
 }
 
-export async function crearVenta(formData: FormData) {
+export const crearVenta = conAviso(async function crearVenta(formData: FormData) {
   const profile = await requirePermission("caja.ventas.crear");
 
   const initialPriceAmount = optionalDecimal(formData.get("initialPriceAmount"));
@@ -207,13 +208,13 @@ export async function crearVenta(formData: FormData) {
   revalidatePath("/backoffice/caja");
   revalidatePath("/backoffice/caja/ventas");
   redirect(`/backoffice/caja/ventas/${sale.id}`);
-}
+});
 
 // Marca una cuota de comisión (de Venta o de Alquiler — mismo mecanismo
 // para las dos) como cobrada y recién ahí genera su movimiento de caja
 // — antes de eso esa plata todavía no entró de verdad a la agencia (ver
 // comentario en el modelo CommissionInstallment).
-export async function marcarCuotaPagada(installmentId: number, formData: FormData) {
+export const marcarCuotaPagada = conAviso(async function marcarCuotaPagada(installmentId: number, formData: FormData) {
   const profile = await requirePermission("caja.ventas.crear");
   // Sin esto el alcance sería solo visual: la lista esconde la venta
   // ajena, pero la acción aceptaba el id igual.
@@ -267,13 +268,13 @@ export async function marcarCuotaPagada(installmentId: number, formData: FormDat
     revalidatePath("/backoffice/caja/comisiones");
   }
   revalidatePath("/backoffice/caja");
-}
+});
 
 // Completa comprador/vendedor después del alta — a propósito no son
 // obligatorios al cargar la venta (ver resolveClientOptional en
 // crearVenta): a veces se sabe el negocio antes de tener los datos
 // completos de las partes.
-export async function actualizarPartesVenta(saleId: number, formData: FormData) {
+export const actualizarPartesVenta = conAviso(async function actualizarPartesVenta(saleId: number, formData: FormData) {
   const profile = await requirePermission("caja.ventas.crear");
   await assertSaleInScope(saleId, profile);
 
@@ -286,7 +287,7 @@ export async function actualizarPartesVenta(saleId: number, formData: FormData) 
   );
 
   revalidatePath(`/backoffice/caja/ventas/${saleId}`);
-}
+});
 
 // Corregir/completar la atribución (vendedor y captador) de una
 // operación ya cargada — espejo de actualizarAgentesContrato, que ya
@@ -301,7 +302,7 @@ export async function actualizarPartesVenta(saleId: number, formData: FormData) 
 // editar la atribución decide quién ve qué. Con solo el permiso de crear,
 // un agente podría sacarse a sí mismo (perdiendo el acceso para siempre,
 // sin poder deshacerlo) o meter a otro en una operación ajena.
-export async function actualizarAgentesVenta(saleId: number, formData: FormData) {
+export const actualizarAgentesVenta = conAviso(async function actualizarAgentesVenta(saleId: number, formData: FormData) {
   await requirePermission("caja.ver_todos");
 
   const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
@@ -311,9 +312,9 @@ export async function actualizarAgentesVenta(saleId: number, formData: FormData)
 
   revalidatePath("/backoffice/caja/ventas");
   revalidatePath(`/backoffice/caja/ventas/${saleId}`);
-}
+});
 
-export async function actualizarAgentesComisionAlquiler(rentalCommissionId: number, formData: FormData) {
+export const actualizarAgentesComisionAlquiler = conAviso(async function actualizarAgentesComisionAlquiler(rentalCommissionId: number, formData: FormData) {
   await requirePermission("caja.ver_todos");
 
   const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
@@ -328,10 +329,10 @@ export async function actualizarAgentesComisionAlquiler(rentalCommissionId: numb
 
   revalidatePath("/backoffice/caja/comisiones");
   revalidatePath(`/backoffice/caja/comisiones/${rentalCommissionId}`);
-}
+});
 
 // Las tasaciones no tienen captador (ver el modelo Appraisal).
-export async function actualizarAgenteTasacion(appraisalId: number, formData: FormData) {
+export const actualizarAgenteTasacion = conAviso(async function actualizarAgenteTasacion(appraisalId: number, formData: FormData) {
   await requirePermission("caja.ver_todos");
 
   const vendedorAgentId = optionalStr(formData.get("vendedorAgentId"));
@@ -340,7 +341,7 @@ export async function actualizarAgenteTasacion(appraisalId: number, formData: Fo
 
   revalidatePath("/backoffice/caja/tasaciones");
   revalidatePath(`/backoffice/caja/tasaciones/${appraisalId}`);
-}
+});
 
 // Elimina una venta POR COMPLETO, con todo lo vinculado: cuotas de
 // comisión, sus cobros ya confirmados (CashMovement, que es plata que
@@ -353,7 +354,7 @@ export async function actualizarAgenteTasacion(appraisalId: number, formData: Fo
 // bloquean el borrado), después AgentDebtPayment (sourceId polimórfico,
 // sin FK real, no cascadea solo), y recién ahí la venta —
 // CommissionInstallment sí cascadea sola al borrar la Sale.
-export async function eliminarVenta(saleId: number, formData: FormData) {
+export const eliminarVenta = conAviso(async function eliminarVenta(saleId: number, formData: FormData) {
   const profile = await requirePermission("caja.ventas.crear");
   await assertSaleInScope(saleId, profile);
   const reason = optionalStr(formData.get("reason"));
@@ -393,9 +394,9 @@ export async function eliminarVenta(saleId: number, formData: FormData) {
   revalidatePath("/backoffice/caja/ventas");
   revalidatePath(`/backoffice/historial/${sale.unitId}`);
   redirect("/backoffice/caja/ventas");
-}
+});
 
-export async function crearTasacion(formData: FormData) {
+export const crearTasacion = conAviso(async function crearTasacion(formData: FormData) {
   const profile = await requirePermission("caja.tasaciones.crear");
 
   const amount = requiredDecimal(formData.get("amount"), "Monto de tasación");
@@ -455,11 +456,11 @@ export async function crearTasacion(formData: FormData) {
   revalidatePath("/backoffice/caja");
   revalidatePath("/backoffice/caja/tasaciones");
   redirect(`/backoffice/caja/tasaciones/${appraisal.id}`);
-}
+});
 
 // Confirma que la inmobiliaria ya tiene en mano el cobro de la
 // tasación — evento aparte de haberla hecho/cargado.
-export async function confirmarCobroTasacion(appraisalId: number, formData: FormData) {
+export const confirmarCobroTasacion = conAviso(async function confirmarCobroTasacion(appraisalId: number, formData: FormData) {
   const profile = await requirePermission("caja.tasaciones.confirmar");
   await assertAppraisalInScope(appraisalId, profile);
 
@@ -492,11 +493,11 @@ export async function confirmarCobroTasacion(appraisalId: number, formData: Form
   revalidatePath("/backoffice/caja");
   revalidatePath("/backoffice/caja/tasaciones");
   revalidatePath(`/backoffice/caja/tasaciones/${appraisalId}`);
-}
+});
 
 // Un solo informe por tasación — volver a subir reemplaza la
 // referencia (no queda historial de versiones anteriores).
-export async function subirInformeTasacion(appraisalId: number, formData: FormData) {
+export const subirInformeTasacion = conAviso(async function subirInformeTasacion(appraisalId: number, formData: FormData) {
   const profile = await requirePermission("caja.tasaciones.crear");
   await assertAppraisalInScope(appraisalId, profile);
 
@@ -518,12 +519,12 @@ export async function subirInformeTasacion(appraisalId: number, formData: FormDa
   );
 
   revalidatePath(`/backoffice/caja/tasaciones/${appraisalId}`);
-}
+});
 
 // Invocada desde la ficha de Contrato (no tiene página propia de alta —
 // está atada 1:1 a un contrato existente). El @unique en
 // RentalCommission.contractId actúa como guarda contra doble alta.
-export async function crearComisionAlquiler(contractId: number, formData: FormData) {
+export const crearComisionAlquiler = conAviso(async function crearComisionAlquiler(contractId: number, formData: FormData) {
   const profile = await requirePermission("caja.comisiones.crear");
   await assertContractInScope(contractId, profile);
 
@@ -552,7 +553,7 @@ export async function crearComisionAlquiler(contractId: number, formData: FormDa
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/caja");
   revalidatePath("/backoffice/caja/comisiones");
-}
+});
 
 // Confirma que la inmobiliaria ya tiene en mano la comisión de alquiler
 // (colocación o renovación) por el camino directo, sin cronograma — hoy
@@ -561,7 +562,7 @@ export async function crearComisionAlquiler(contractId: number, formData: FormDa
 // propósito no incluye RENOVACION). Colocación (origin ALQUILER) usa
 // registrarCronogramaAlquiler en su lugar, aunque sea para una sola
 // cuota "de contado".
-export async function confirmarCobroComisionAlquiler(rentalCommissionId: number, formData: FormData) {
+export const confirmarCobroComisionAlquiler = conAviso(async function confirmarCobroComisionAlquiler(rentalCommissionId: number, formData: FormData) {
   const profile = await requirePermission("caja.comisiones.confirmar");
   await assertRentalCommissionInScope(rentalCommissionId, profile);
 
@@ -593,14 +594,14 @@ export async function confirmarCobroComisionAlquiler(rentalCommissionId: number,
 
   revalidatePath("/backoffice/caja");
   revalidatePath("/backoffice/caja/comisiones");
-}
+});
 
 // Define el cronograma de cobro (cuotas o "de contado") de una comisión
 // de alquiler YA cargada — mismo mecanismo que Ventas (ver
 // crearCronogramaCobroEnTx). El total NO se vuelve a pedir acá: ya
 // quedó fijo en RentalCommission.amount al cargar la comisión, así que
 // se lee de la base en vez de confiar en lo que venga del formulario.
-export async function registrarCronogramaAlquiler(rentalCommissionId: number, formData: FormData) {
+export const registrarCronogramaAlquiler = conAviso(async function registrarCronogramaAlquiler(rentalCommissionId: number, formData: FormData) {
   const profile = await requirePermission("caja.comisiones.confirmar");
   await assertRentalCommissionInScope(rentalCommissionId, profile);
 
@@ -670,7 +671,7 @@ export async function registrarCronogramaAlquiler(rentalCommissionId: number, fo
 
   revalidatePath("/backoffice/caja");
   revalidatePath("/backoffice/caja/comisiones");
-}
+});
 
 // "Editar" el esquema desde el admin siempre inserta una versión nueva
 // — nunca actualiza una existente — para que las operaciones ya
@@ -680,7 +681,7 @@ export async function registrarCronogramaAlquiler(rentalCommissionId: number, fo
 // haya pagado (Payment.status PAGADO), porque muchas veces difiere: el
 // inquilino puede transferir directo al propietario, y la comisión se
 // cobra en otro momento aparte. Recién acá se genera el CashMovement.
-export async function confirmarCobroComision(paymentId: number, formData: FormData) {
+export const confirmarCobroComision = conAviso(async function confirmarCobroComision(paymentId: number, formData: FormData) {
   // Esta es de administración, no de atribución por agente: la
   // liquidación pertenece a un contrato, y los contratos se reparten por
   // cartera. Antes no validaba nada.
@@ -742,13 +743,13 @@ export async function confirmarCobroComision(paymentId: number, formData: FormDa
 
   revalidatePath("/backoffice/caja");
   revalidatePath("/backoffice/caja/administracion");
-}
+});
 
 // Catálogo abierto: se crean categorías sobre la marcha (Alquiler
 // oficina, Sueldos, Luz...), sin tocar código. "Pagos a agentes" NO es
 // una categoría acá — ese gasto ya existe como dato (AgentDebtPayment)
 // y se suma aparte en los reportes de Caja.
-export async function crearCategoriaGasto(formData: FormData) {
+export const crearCategoriaGasto = conAviso(async function crearCategoriaGasto(formData: FormData) {
   await requirePermission("caja.gastos.crear");
 
   const name = requiredStr(formData.get("name"), "Nombre de la categoría");
@@ -758,9 +759,9 @@ export async function crearCategoriaGasto(formData: FormData) {
   await withRetry(() => prisma.expenseCategory.create({ data: { name, type } }));
 
   revalidatePath("/backoffice/caja/egresos");
-}
+});
 
-export async function registrarGasto(formData: FormData) {
+export const registrarGasto = conAviso(async function registrarGasto(formData: FormData) {
   const profile = await requirePermission("caja.gastos.crear");
 
   const categoryId = Number(requiredStr(formData.get("categoryId"), "Categoría"));
@@ -781,12 +782,12 @@ export async function registrarGasto(formData: FormData) {
 
   revalidatePath("/backoffice/caja/egresos");
   revalidatePath("/backoffice/caja/consolidado");
-}
+});
 
 // El % de corrección es un supuesto de mercado (cuánto suele indexar),
 // no una constante de código — editable acá mismo para no depender de
 // un cambio de código cada vez que cambie el contexto económico.
-export async function guardarProjectionSettings(formData: FormData) {
+export const guardarProjectionSettings = conAviso(async function guardarProjectionSettings(formData: FormData) {
   await requirePermission("caja.proyeccion.configurar");
 
   const min = requiredDecimal(formData.get("indexationCorrectionMinPercent"), "% mínimo");
@@ -801,4 +802,4 @@ export async function guardarProjectionSettings(formData: FormData) {
   });
 
   revalidatePath("/backoffice/caja/proyeccion");
-}
+});

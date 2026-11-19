@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getClientById, clientLabel } from "@/lib/alquileres";
@@ -41,7 +42,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
       <section className="mb-8 rounded-xl border border-border p-5">
         <h2 className="mb-3 text-sm font-medium text-foreground">Datos de contacto</h2>
-        <form action={actualizarCliente.bind(null, client.id)} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <ActionForm mensajeExito="Cliente actualizado" action={actualizarCliente.bind(null, client.id)} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <input name="firstName" defaultValue={client.firstName} placeholder="Nombre*" required disabled={!canEdit} className="field" />
           <input name="lastName" defaultValue={client.lastName} placeholder="Apellido*" required disabled={!canEdit} className="field" />
           <input name="docId" defaultValue={client.docId ?? ""} placeholder="DNI" disabled={!canEdit} className="field" />
@@ -66,7 +67,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
               Guardar
             </button>
           )}
-        </form>
+        </ActionForm>
       </section>
 
       <section className="mb-8">

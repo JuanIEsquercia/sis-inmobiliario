@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { RolePermissionsFields } from "@/components/backoffice/RolePermissionsFields";
 import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
 import { crearUsuario } from "../actions";
@@ -13,7 +14,7 @@ export default async function NuevoUsuarioPage() {
         <p className="text-xs text-muted mt-1">Crea un nuevo usuario de staff para otorgarle acceso al sistema de gestión.</p>
       </div>
 
-      <form action={crearUsuario} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <ActionForm mensajeExito="Usuario creado" action={crearUsuario} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <fieldset className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-surface p-5 sm:p-6 shadow-sm">
             <legend className="px-2 text-xs font-bold uppercase tracking-wider text-muted">Datos de Acceso</legend>
@@ -56,7 +57,7 @@ export default async function NuevoUsuarioPage() {
             </button>
           </fieldset>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
@@ -9,7 +10,7 @@ import { optionalInt, optionalStr, requiredStr } from "@/lib/form-utils";
 import { runSync } from "@/lib/sync";
 import type { ActionResult } from "@/app/backoffice/(app)/usuarios/actions";
 
-export async function crearMarca(formData: FormData) {
+export const crearMarca = conAviso(async function crearMarca(formData: FormData) {
   const profile = await requirePermission("sitio.gestionar");
 
   const name = requiredStr(formData.get("name"), "Nombre");
@@ -29,9 +30,9 @@ export async function crearMarca(formData: FormData) {
 
   revalidatePath("/backoffice/sitio");
   revalidatePath("/");
-}
+});
 
-export async function actualizarMarca(id: number, formData: FormData) {
+export const actualizarMarca = conAviso(async function actualizarMarca(id: number, formData: FormData) {
   await requirePermission("sitio.gestionar");
 
   const name = requiredStr(formData.get("name"), "Nombre");
@@ -48,9 +49,9 @@ export async function actualizarMarca(id: number, formData: FormData) {
 
   revalidatePath("/backoffice/sitio");
   revalidatePath("/");
-}
+});
 
-export async function eliminarMarca(id: number) {
+export const eliminarMarca = conAviso(async function eliminarMarca(id: number) {
   await requirePermission("sitio.gestionar");
 
   const marca = await withRetry(() => prisma.partnerLogo.delete({ where: { id } }));
@@ -58,7 +59,7 @@ export async function eliminarMarca(id: number) {
 
   revalidatePath("/backoffice/sitio");
   revalidatePath("/");
-}
+});
 
 // Dispara el sync del feed de Adinco a mano, desde el backoffice.
 //

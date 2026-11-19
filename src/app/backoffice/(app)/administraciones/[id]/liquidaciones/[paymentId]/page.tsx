@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import Link from "next/link";
 import { getPaymentById, paymentBreakdown, ownerSettlement, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
@@ -117,7 +118,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
           )}
 
           {/* Formulario invisible de Guardar Montos */}
-          <form id="guardar-montos-form" action={guardarLiquidacion.bind(null, payment.id)} />
+          <ActionForm id="guardar-montos-form" mensajeExito="Liquidación guardada" action={guardarLiquidacion.bind(null, payment.id)} />
 
           {/* Listado y Edición de Conceptos */}
           <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
@@ -170,11 +171,11 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                   
                   <div className="flex justify-end pl-2">
                     {canEdit && !isLocked && !item.concept.isSystem ? (
-                      <form action={quitarConceptoLiquidacion.bind(null, payment.id, item.id)}>
+                      <ActionForm mensajeExito="Concepto quitado" action={quitarConceptoLiquidacion.bind(null, payment.id, item.id)}>
                         <button type="submit" className="text-xs font-bold text-accent hover:text-accent-strong hover:underline p-1 cursor-pointer">
                           Quitar
                         </button>
-                      </form>
+                      </ActionForm>
                     ) : (
                       <span className="w-10 sm:block hidden" />
                     )}
@@ -200,7 +201,8 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
           {canEdit && !isLocked && (
             <div className="rounded-xl border border-border bg-surface/30 p-5 shadow-xs">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Agregar Concepto Extra</h3>
-              <form
+              <ActionForm
+                mensajeExito="Concepto agregado"
                 action={agregarConceptoLiquidacion.bind(null, payment.id)}
                 className="grid grid-cols-1 sm:grid-cols-[1.3fr_110px_100px_auto] items-end gap-3"
               >
@@ -228,7 +230,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                 <button type="submit" className="rounded-lg border border-border bg-surface px-4 py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface/10 hover:text-foreground cursor-pointer shadow-xs">
                   Agregar
                 </button>
-              </form>
+              </ActionForm>
               <p className="mt-2 text-[11px] text-muted leading-relaxed">
                 Un descuento resta del total a pagar — por ejemplo, si el inquilino se hizo cargo de un gasto del
                 propietario durante el mes.
@@ -319,24 +321,24 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
           {canEdit && !isPaid && (
             <div className="flex flex-col gap-2.5">
               {payment.status === "PENDIENTE" && (
-                <form action={marcarLiquidacionEnviada.bind(null, payment.id)} className="w-full">
+                <ActionForm mensajeExito="Liquidación marcada como enviada" action={marcarLiquidacionEnviada.bind(null, payment.id)} className="w-full">
                   <button
                     type="submit"
                     className="w-full rounded-lg bg-accent text-accent-foreground px-4 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-accent-strong transition-colors cursor-pointer shadow-xs text-center"
                   >
                     Marcar como enviada
                   </button>
-                </form>
+                </ActionForm>
               )}
               {isSent && (
-                <form action={reabrirLiquidacion.bind(null, payment.id)} className="w-full">
+                <ActionForm mensajeExito="Liquidación reabierta" action={reabrirLiquidacion.bind(null, payment.id)} className="w-full">
                   <button
                     type="submit"
                     className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-surface-soft hover:text-foreground transition-colors cursor-pointer shadow-xs text-center"
                   >
                     Reabrir para editar
                   </button>
-                </form>
+                </ActionForm>
               )}
             </div>
           )}
@@ -348,7 +350,8 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                 <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
                 Registrar Cobro
               </h4>
-              <form
+              <ActionForm
+                mensajeExito="Cobro registrado"
                 action={registrarCobro.bind(null, payment.id)}
                 className="flex flex-col gap-3"
               >
@@ -398,7 +401,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                 <p className="text-[10px] text-muted leading-relaxed">
                   Si registras un monto menor al saldo pendiente, la liquidación quedará en estado <strong>&quot;Parcial&quot;</strong> y podrás registrar más cobros luego.
                 </p>
-              </form>
+              </ActionForm>
             </div>
           )}
 
@@ -424,7 +427,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                   no hay neto que girarle.
                 </p>
               ) : canEdit ? (
-                <form action={registrarPagoPropietario.bind(null, payment.id)} className="flex flex-col gap-3">
+                <ActionForm mensajeExito="Pago al propietario registrado" action={registrarPagoPropietario.bind(null, payment.id)} className="flex flex-col gap-3">
                   <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     <span className="text-muted">
                       {settlement.recibidoPorPropietario > 0 ? "A girar (lo que entró acá)" : "Neto propietario"}
@@ -466,7 +469,7 @@ export default async function LiquidacionDetailPage({ params }: PageProps) {
                   >
                     Confirmar pago al propietario
                   </button>
-                </form>
+                </ActionForm>
               ) : (
                 <p className="text-xs text-muted">Todavía no se le pagó al propietario.</p>
               )}

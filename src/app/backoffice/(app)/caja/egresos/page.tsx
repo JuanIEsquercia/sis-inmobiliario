@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { requirePermission } from "@/lib/auth";
 import { getExpenseCategories, getExpenses } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
@@ -90,7 +91,7 @@ export default async function EgresosPage({ searchParams }: PageProps) {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section className="rounded-2xl border border-dashed border-border/70 bg-surface/40 p-4 sm:p-5">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">Nueva Categoría</h2>
-            <form action={crearCategoriaGasto} className="flex flex-col gap-3">
+            <ActionForm mensajeExito="Categoría creada" action={crearCategoriaGasto} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="categoryName" className="text-xs text-muted font-medium">
                   Nombre*
@@ -112,7 +113,7 @@ export default async function EgresosPage({ searchParams }: PageProps) {
               >
                 Crear categoría
               </button>
-            </form>
+            </ActionForm>
           </section>
 
           <section className="rounded-2xl border border-dashed border-border/70 bg-surface/40 p-4 sm:p-5">
@@ -120,7 +121,7 @@ export default async function EgresosPage({ searchParams }: PageProps) {
             {categories.length === 0 ? (
               <p className="text-xs text-muted">Creá primero una categoría.</p>
             ) : (
-              <form action={registrarGasto} className="flex flex-col gap-3">
+              <ActionForm mensajeExito="Gasto registrado" action={registrarGasto} className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="expenseCategory" className="text-xs text-muted font-medium">
                     Categoría*
@@ -180,7 +181,7 @@ export default async function EgresosPage({ searchParams }: PageProps) {
                 >
                   Registrar gasto
                 </button>
-              </form>
+              </ActionForm>
             )}
           </section>
         </div>

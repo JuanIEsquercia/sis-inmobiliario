@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { PROPERTY_TYPES } from "@/lib/property-types";
 import { createPedido } from "../actions";
 
@@ -11,7 +12,7 @@ export default async function NuevoPedidoPage() {
         <p className="text-xs text-muted mt-1">Registra un pedido o búsqueda específica de un cliente que busca propiedad.</p>
       </div>
 
-      <form action={createPedido} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <ActionForm mensajeExito="Pedido creado" action={createPedido} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <fieldset className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-surface p-5 sm:p-6 shadow-sm">
             <legend className="px-2 text-xs font-bold uppercase tracking-wider text-muted">Datos del Cliente</legend>
@@ -92,7 +93,7 @@ export default async function NuevoPedidoPage() {
             </button>
           </div>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

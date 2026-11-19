@@ -1,4 +1,5 @@
 import { requirePermission, cajaOwnerId } from "@/lib/auth";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getCashMovements } from "@/lib/caja";
 import { getPaymentsPendingFeeConfirmation, paymentBreakdown, clientLabel } from "@/lib/alquileres";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
@@ -82,7 +83,7 @@ export default async function AdministracionCajaPage() {
                         </div>
                       </div>
 
-                      <form action={confirmarCobroComision.bind(null, p.id)} className="flex items-center gap-2 pt-1 border-t border-border/40">
+                      <ActionForm mensajeExito="Cobro confirmado" action={confirmarCobroComision.bind(null, p.id)} className="flex items-center gap-2 pt-1 border-t border-border/40">
                         <select name="method" defaultValue="TRANSFERENCIA" className="field flex-1 py-1.5 text-xs" required>
                           <option value="EFECTIVO">Efectivo</option>
                           <option value="TRANSFERENCIA">Transferencia</option>
@@ -93,7 +94,7 @@ export default async function AdministracionCajaPage() {
                         >
                           Confirmar
                         </button>
-                      </form>
+                      </ActionForm>
                     </div>
                   );
                 })}
@@ -126,7 +127,7 @@ export default async function AdministracionCajaPage() {
                           {p.currency} {fmtMoney(managementFee)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <form action={confirmarCobroComision.bind(null, p.id)} className="inline-flex items-center gap-1.5">
+                          <ActionForm mensajeExito="Cobro confirmado" action={confirmarCobroComision.bind(null, p.id)} className="inline-flex items-center gap-1.5">
                             <select name="method" defaultValue="TRANSFERENCIA" className="field w-auto py-1 text-xs" required>
                               <option value="EFECTIVO">Efectivo</option>
                               <option value="TRANSFERENCIA">Transferencia</option>
@@ -137,7 +138,7 @@ export default async function AdministracionCajaPage() {
                             >
                               Confirmar
                             </button>
-                          </form>
+                          </ActionForm>
                         </td>
                       </tr>
                     );

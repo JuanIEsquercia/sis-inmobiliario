@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -91,7 +92,7 @@ async function getTargetOrThrow(actor: Profile, userId: string) {
   return target;
 }
 
-export async function crearUsuario(formData: FormData) {
+export const crearUsuario = conAviso(async function crearUsuario(formData: FormData) {
   const actor = await requirePermission("usuarios.gestionar");
 
   const email = requiredStr(formData.get("email"), "Email");
@@ -145,9 +146,9 @@ export async function crearUsuario(formData: FormData) {
   revalidatePath("/backoffice/usuarios");
   revalidatePath("/equipo");
   redirect("/backoffice/usuarios");
-}
+});
 
-export async function actualizarUsuario(userId: string, formData: FormData) {
+export const actualizarUsuario = conAviso(async function actualizarUsuario(userId: string, formData: FormData) {
   const actor = await requirePermission("usuarios.gestionar");
   const target = await getTargetOrThrow(actor, userId);
 
@@ -200,7 +201,7 @@ export async function actualizarUsuario(userId: string, formData: FormData) {
   revalidatePath("/backoffice/usuarios");
   revalidatePath("/equipo");
   redirect("/backoffice/usuarios");
-}
+});
 
 // Cambiar la contraseña de un usuario ya creado. Hasta ahora no existía:
 // la contraseña se fijaba UNA vez, al dar de alta la cuenta, y después no
@@ -253,14 +254,14 @@ export async function cambiarPasswordUsuario(
   }
 }
 
-export async function toggleUserActive(userId: string, isActive: boolean) {
+export const toggleUserActive = conAviso(async function toggleUserActive(userId: string, isActive: boolean) {
   const actor = await requirePermission("usuarios.gestionar");
   if (userId === actor.id) throw new Error("No podés desactivar tu propia cuenta.");
   await getTargetOrThrow(actor, userId);
   await withRetry(() => prisma.profile.update({ where: { id: userId }, data: { isActive } }));
   revalidatePath("/backoffice/usuarios");
   revalidatePath("/equipo");
-}
+});
 
 // Resultado que devuelven las acciones de Grupos para que el formulario
 // pueda mostrar en pantalla qué pasó (ver FormWithFeedback). Antes estas
@@ -333,7 +334,7 @@ export async function actualizarGrupoContratos(
 // administraciones.ver_todos, igual que un contrato recién cargado. Las
 // membresías sí se van solas (ON DELETE CASCADE). Por eso no hace falta
 // ninguna limpieza manual acá, a diferencia de eliminarContratoDefinitivo.
-export async function eliminarGrupoContratos(groupId: number) {
+export const eliminarGrupoContratos = conAviso(async function eliminarGrupoContratos(groupId: number) {
   const profile = await requirePermission("administraciones.grupos.gestionar");
 
   const group = await withRetry(() =>
@@ -351,7 +352,7 @@ export async function eliminarGrupoContratos(groupId: number) {
 
   revalidatePath("/backoffice/usuarios/grupos");
   revalidatePath("/backoffice/administraciones");
-}
+});
 
 // Reemplaza la lista completa de miembros del grupo por la tildada en
 // el formulario — más simple que diffear altas/bajas, y el checklist ya

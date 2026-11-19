@@ -58,6 +58,7 @@ export default async function GruposPage() {
                     "eliminar un grupo de contratos" suena a que se lleva
                     los contratos con él. */}
                 <ConfirmDeleteButton
+                  mensajeExito="Cartera eliminada"
                   action={eliminarGrupoContratos.bind(null, g.id)}
                   triggerLabel="Eliminar grupo"
                   triggerClassName="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"

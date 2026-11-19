@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef } from "react";
+import { ActionForm } from "./ActionForm";
+import type { ResultadoAccion } from "@/lib/accion";
 
 // Confirmación genérica antes de una acción destructiva — un botón que
 // dispara la acción de una sin este paso de por medio es fácil de tocar
@@ -14,13 +16,15 @@ export function ConfirmDeleteButton({
   title = "¿Eliminar este registro?",
   description = "Esta acción no se puede deshacer.",
   confirmLabel = "Sí, eliminar",
+  mensajeExito = "Eliminado",
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<ResultadoAccion>;
   triggerLabel?: string;
   triggerClassName?: string;
   title?: string;
   description?: string;
   confirmLabel?: string;
+  mensajeExito?: string;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -54,14 +58,14 @@ export function ConfirmDeleteButton({
             >
               Cancelar
             </button>
-            <form action={action}>
+            <ActionForm action={action} mensajeExito={mensajeExito} onExito={() => dialogRef.current?.close()}>
               <button
                 type="submit"
                 className="rounded-xl bg-accent px-4 py-2 text-xs font-bold text-accent-foreground shadow-sm hover:bg-accent-strong transition-all cursor-pointer"
               >
                 {confirmLabel}
               </button>
-            </form>
+            </ActionForm>
           </div>
         </div>
       </dialog>
