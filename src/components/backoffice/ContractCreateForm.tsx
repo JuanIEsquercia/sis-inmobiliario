@@ -41,7 +41,25 @@ export function ContractCreateForm({ children, submitLabel }: ContractCreateForm
     startTransition(async () => {
       // Si sale bien, createContract hace redirect() a la ficha y no
       // vuelve nada; si falla, devuelve { ok: false, error }.
-      const result = await createContract(formData);
+      let result: Awaited<ReturnType<typeof createContract>>;
+      try {
+        result = await createContract(formData);
+      } catch (err) {
+        // El redirect() a la ficha llega como excepción: es el éxito, se
+        // deja pasar para que Next navegue.
+        if (typeof err === "object" && err !== null && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) {
+          throw err;
+        }
+        // Lo demás es que el envío no llegó o se cortó (sin conexión, o
+        // un pedido que la plataforma rechaza por tamaño). Antes esto
+        // caía en la pantalla de error y se perdía toda la carga.
+        console.error(err);
+        result = {
+          ok: false,
+          error:
+            "no se pudo enviar el formulario. Revisá la conexión y, si adjuntaste PDF pesados, quitalos con \"✕ Quitar\" y subilos después desde la ficha.",
+        };
+      }
       if (result && !result.ok) {
         setError(result.error);
         // El botón está al final de un formulario largo: se asegura que el
