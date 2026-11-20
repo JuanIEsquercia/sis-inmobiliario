@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getBudgetById, itemsByRecipient } from "@/lib/presupuestos";
@@ -33,7 +34,7 @@ export default async function EditarPresupuestoPage({ params }: PageProps) {
         Editar presupuesto de {isVenta ? "Venta" : "Alquiler"}
       </h1>
 
-      <form action={actualizarPresupuesto.bind(null, budget.id)} className="flex flex-col gap-6">
+      <ActionForm mensajeExito="Presupuesto actualizado" action={actualizarPresupuesto.bind(null, budget.id)} className="flex flex-col gap-6">
         <input type="hidden" name="type" value={budget.type} />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -126,7 +127,7 @@ export default async function EditarPresupuestoPage({ params }: PageProps) {
             Guardar cambios
           </button>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

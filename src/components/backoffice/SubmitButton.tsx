@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { useEnvioPendiente } from "./ActionForm";
 
 interface SubmitButtonProps {
   children: React.ReactNode;
@@ -21,7 +22,11 @@ interface SubmitButtonProps {
 // Central de Deudores: 5 de las primeras 12 consultas guardadas eran
 // duplicados a 3-4 segundos una de otra.
 export function SubmitButton({ children, pendingLabel = "Procesando...", className }: SubmitButtonProps) {
-  const { pending } = useFormStatus();
+  // useFormStatus cubre los <form action={...}> (FormWithFeedback);
+  // useEnvioPendiente, los que van por <ActionForm>.
+  const { pending: pendienteNativo } = useFormStatus();
+  const pendienteActionForm = useEnvioPendiente();
+  const pending = pendienteNativo || pendienteActionForm;
 
   return (
     <button type="submit" disabled={pending} className={className} aria-busy={pending}>

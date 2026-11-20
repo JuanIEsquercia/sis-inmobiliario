@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
@@ -13,7 +14,7 @@ import type { AgentDebtRole, AgentDebtSource, CommissionSchemeType } from "@/gen
 // restante se puede seguir pagando después con otro registro igual a
 // este. Solo puede registrar pagos quien tenga el permiso — esto mueve
 // plata de verdad y hay que poder auditar quién lo cargó.
-export async function registrarPagoDeuda(
+export const registrarPagoDeuda = conAviso(async function registrarPagoDeuda(
   agentId: string,
   sourceType: AgentDebtSource,
   sourceId: number,
@@ -38,7 +39,7 @@ export async function registrarPagoDeuda(
 
   revalidatePath(`/backoffice/agentes/${agentId}`);
   revalidatePath("/backoffice/agentes");
-}
+});
 
 // Paga de una varias líneas de deuda a la vez, cada una por su saldo
 // completo — la única regla es que todas compartan moneda (un
@@ -46,7 +47,7 @@ export async function registrarPagoDeuda(
 // siempre de una sola moneda). Nunca confía en montos que pudieran venir
 // del formulario: vuelve a resolver cada línea desde getAgentDebtItems,
 // mismo criterio que resolveDebtSourceCurrency en registrarPagoDeuda.
-export async function registrarPagoLote(agentId: string, formData: FormData) {
+export const registrarPagoLote = conAviso(async function registrarPagoLote(agentId: string, formData: FormData) {
   const profile = await requirePermission("agentes.pagos.crear");
 
   const method = requiredMethod(formData.get("method"));
@@ -88,12 +89,12 @@ export async function registrarPagoLote(agentId: string, formData: FormData) {
 
   revalidatePath(`/backoffice/agentes/${agentId}`);
   revalidatePath("/backoffice/agentes");
-}
+});
 
 // Cada edición carga una versión NUEVA (ver comentario en el modelo
 // CommissionScheme) — las operaciones ya cerradas conservan el reparto
 // con el que se calcularon, aunque el esquema cambie después.
-export async function crearEsquemaComision(type: CommissionSchemeType, formData: FormData) {
+export const crearEsquemaComision = conAviso(async function crearEsquemaComision(type: CommissionSchemeType, formData: FormData) {
   const profile = await requirePermission("comisiones.gestionar");
 
   const reservaPercent = requiredDecimal(formData.get("reservaPercent"), "% fondo de reserva");
@@ -118,4 +119,4 @@ export async function crearEsquemaComision(type: CommissionSchemeType, formData:
   });
 
   revalidatePath("/backoffice/agentes/esquema");
-}
+});

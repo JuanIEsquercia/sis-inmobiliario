@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
@@ -62,7 +63,7 @@ async function buscarConsultaReciente(cuit: string, profileId: string) {
   );
 }
 
-export async function consultarCreditCheck(formData: FormData) {
+export const consultarCreditCheck = conAviso(async function consultarCreditCheck(formData: FormData) {
   const profile = await requirePermission(PERMISSION);
   const cuitRaw = requiredStr(formData.get("cuit"), "CUIT/CUIL");
   const cuit = normalizeCuit(cuitRaw);
@@ -125,16 +126,16 @@ export async function consultarCreditCheck(formData: FormData) {
   revalidatePath("/backoffice/central-deudores");
   revalidatePath(`/backoffice/central-deudores/${cuit}`);
   redirect(`/backoffice/central-deudores/${cuit}/${created.id}`);
-}
+});
 
 // Un CreditCheck no queda referenciado desde ningún otro registro (a
 // diferencia de un Contract) — borrar una consulta puntual es una
 // operación simple, sin resguardos especiales. Borra solo esa fila, no
 // el resto del historial de ese CUIT.
-export async function eliminarCreditCheck(cuit: string, id: number) {
+export const eliminarCreditCheck = conAviso(async function eliminarCreditCheck(cuit: string, id: number) {
   await requirePermission(PERMISSION_ELIMINAR);
   await withRetry(() => prisma.creditCheck.delete({ where: { id } }));
   revalidatePath("/backoffice/central-deudores");
   revalidatePath(`/backoffice/central-deudores/${cuit}`);
   redirect(`/backoffice/central-deudores/${cuit}`);
-}
+});

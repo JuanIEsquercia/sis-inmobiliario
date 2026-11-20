@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getPedidos, tomadoLabel, creadoPorLabel } from "@/lib/pedidos";
 import { PedidoEstadoBadge } from "@/components/backoffice/PedidoEstadoBadge";
 import { requirePermission } from "@/lib/auth";
@@ -150,23 +151,23 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                     {canTomar && (
                       <div>
                         {isMine ? (
-                          <form action={soltarPedido.bind(null, p.id)}>
+                          <ActionForm mensajeExito="Pedido liberado" action={soltarPedido.bind(null, p.id)}>
                             <button
                               type="submit"
                               className="h-9 px-4 rounded-xl border border-border bg-surface text-xs font-bold text-foreground hover:bg-background cursor-pointer shadow-xs"
                             >
                               Soltar
                             </button>
-                          </form>
+                          </ActionForm>
                         ) : !isTaken ? (
-                          <form action={tomarPedido.bind(null, p.id)}>
+                          <ActionForm mensajeExito="Pedido tomado" action={tomarPedido.bind(null, p.id)}>
                             <button
                               type="submit"
                               className="h-9 px-4 rounded-xl bg-accent text-xs font-bold text-accent-foreground hover:bg-accent-strong cursor-pointer shadow-xs"
                             >
                               Tomar Pedido
                             </button>
-                          </form>
+                          </ActionForm>
                         ) : null}
                       </div>
                     )}
@@ -226,23 +227,23 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                       )}
                       {canTomar &&
                         (p.tomadoPorId === profile.id ? (
-                          <form action={soltarPedido.bind(null, p.id)}>
+                          <ActionForm mensajeExito="Pedido liberado" action={soltarPedido.bind(null, p.id)}>
                             <button
                               type="submit"
                               className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-semibold hover:bg-surface cursor-pointer"
                             >
                               Soltar
                             </button>
-                          </form>
+                          </ActionForm>
                         ) : !p.tomadoPorId ? (
-                          <form action={tomarPedido.bind(null, p.id)}>
+                          <ActionForm mensajeExito="Pedido tomado" action={tomarPedido.bind(null, p.id)}>
                             <button
                               type="submit"
                               className="rounded-lg bg-accent px-2.5 py-1 text-[11px] font-bold text-accent-foreground hover:bg-accent-strong cursor-pointer"
                             >
                               Tomar
                             </button>
-                          </form>
+                          </ActionForm>
                         ) : null)}
                     </div>
                   </td>

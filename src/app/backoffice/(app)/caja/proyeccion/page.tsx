@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getProjection, getProjectionSettings } from "@/lib/caja";
 import { CajaTabs } from "@/components/backoffice/CajaTabs";
 import { ResponsiveDataGrid } from "@/components/backoffice/ResponsiveDataGrid";
@@ -46,7 +47,7 @@ export default async function ProyeccionPage() {
           Estimación adicional por aumentos de indexación pendientes sobre el monto pactado vigente hoy.
         </p>
         {canConfigure ? (
-          <form action={guardarProjectionSettings} className="flex flex-wrap items-end gap-3">
+          <ActionForm mensajeExito="Proyección guardada" action={guardarProjectionSettings} className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="min" className="text-xs font-medium text-muted">
                 % Mínimo
@@ -81,7 +82,7 @@ export default async function ProyeccionPage() {
             >
               Guardar Ajustes
             </button>
-          </form>
+          </ActionForm>
         ) : (
           <p className="text-sm font-bold text-foreground">
             {settings.indexationCorrectionMinPercent}% – {settings.indexationCorrectionMaxPercent}%

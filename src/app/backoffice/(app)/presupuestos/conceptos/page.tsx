@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getBudgetConcepts } from "@/lib/presupuestos";
 import { PresupuestosTabs } from "@/components/backoffice/PresupuestosTabs";
 import { SearchField } from "@/components/backoffice/SearchField";
@@ -26,7 +27,7 @@ export default async function ConceptosPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <form action={crearConcepto} className="mb-8 rounded-2xl border border-dashed border-border bg-surface/30 p-5 flex flex-col gap-3 shadow-xs">
+      <ActionForm mensajeExito="Concepto creado" action={crearConcepto} className="mb-8 rounded-2xl border border-dashed border-border bg-surface/30 p-5 flex flex-col gap-3 shadow-xs">
         <span className="text-xs font-bold uppercase tracking-wider text-muted">
           + Agregar nuevo concepto al catálogo
         </span>
@@ -50,7 +51,7 @@ export default async function ConceptosPage({ searchParams }: PageProps) {
             Guardar en catálogo
           </button>
         </div>
-      </form>
+      </ActionForm>
 
       <div className="mb-6 flex items-center justify-between gap-4">
         <form className="w-full max-w-md">
@@ -69,7 +70,7 @@ export default async function ConceptosPage({ searchParams }: PageProps) {
         <div className="flex flex-col gap-3">
           {concepts.map((c) => (
             <div key={c.id} className="rounded-2xl border border-border bg-surface/30 p-4 shadow-xs hover:border-border/80 transition-colors">
-              <form action={actualizarConcepto.bind(null, c.id)} className="flex flex-col md:flex-row md:items-center gap-3">
+              <ActionForm mensajeExito="Concepto actualizado" action={actualizarConcepto.bind(null, c.id)} className="flex flex-col md:flex-row md:items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <label htmlFor={`name-${c.id}`} className="sr-only">
                     Nombre del concepto
@@ -90,13 +91,14 @@ export default async function ConceptosPage({ searchParams }: PageProps) {
                     Guardar
                   </button>
                   <ConfirmDeleteButton
+                    mensajeExito="Concepto eliminado"
                     action={eliminarConcepto.bind(null, c.id)}
                     triggerClassName="rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-muted hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
                     title="¿Eliminar este concepto?"
                     description={`"${c.name}" va a dejar de sugerirse al cargar presupuestos. Los presupuestos que ya lo usaron no se ven afectados.`}
                   />
                 </div>
-              </form>
+              </ActionForm>
             </div>
           ))}
         </div>

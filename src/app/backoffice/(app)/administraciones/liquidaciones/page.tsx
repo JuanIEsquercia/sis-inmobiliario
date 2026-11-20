@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getPaymentsForPeriod, getConcepts, paymentBreakdown, ownerSettlement, clientLabel } from "@/lib/alquileres";
 import { requirePermission, getContractGroupScope } from "@/lib/auth";
 import { AdministracionesTabs } from "@/components/backoffice/AdministracionesTabs";
@@ -167,14 +168,14 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                                 notes: i.notes,
                               }))}
                             />
-                            <form action={marcarLiquidacionEnviada.bind(null, p.id)}>
+                            <ActionForm mensajeExito="Liquidación marcada como enviada" action={marcarLiquidacionEnviada.bind(null, p.id)}>
                               <button
                                 type="submit"
                                 className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface cursor-pointer"
                               >
                                 Marcar enviada
                               </button>
-                            </form>
+                            </ActionForm>
                           </>
                         )}
                         {/* Reabrir vive acá y no solo en la ficha: si el
@@ -184,7 +185,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                             ENVIADA — con un cobro encima ya no aplica
                             (ver reabrirLiquidacion). */}
                         {p.status === "ENVIADA" && (
-                          <form action={reabrirLiquidacion.bind(null, p.id)}>
+                          <ActionForm mensajeExito="Liquidación reabierta" action={reabrirLiquidacion.bind(null, p.id)}>
                             <button
                               type="submit"
                               title="Volver a Pendiente para corregir montos o agregar un concepto"
@@ -192,7 +193,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                             >
                               Reabrir
                             </button>
-                          </form>
+                          </ActionForm>
                         )}
                         {(p.status === "ENVIADA" || p.status === "PARCIAL") && (
                           <CobrarDialog
@@ -268,7 +269,8 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                                   ✓ Sin comisión
                                 </span>
                               ) : (
-                                <form
+                                <ActionForm
+                                  mensajeExito="Cobro confirmado"
                                   action={confirmarCobroComision.bind(null, p.id)}
                                   className="flex items-center gap-1.5"
                                 >
@@ -283,7 +285,7 @@ export default async function LiquidacionesPage({ searchParams }: PageProps) {
                                   >
                                     Cobré comisión
                                   </button>
-                                </form>
+                                </ActionForm>
                               ))}
                           </>
                         )}

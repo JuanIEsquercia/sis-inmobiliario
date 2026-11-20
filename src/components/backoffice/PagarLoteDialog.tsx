@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "./ActionForm";
 import { useRef } from "react";
 import { registrarPagoLote } from "@/app/backoffice/(app)/agentes/actions";
 import { DatePicker } from "./DatePicker";
@@ -39,9 +40,12 @@ export function PagarLoteDialog({
         ref={dialogRef}
         className="fixed inset-0 m-auto z-50 w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-border/60 bg-surface p-0 text-foreground shadow-premium backdrop:bg-black/50 backdrop:backdrop-blur-xs"
       >
-        <form
+        <ActionForm
           action={registrarPagoLote.bind(null, agentId)}
-          onSubmit={() => dialogRef.current?.close()}
+          mensajeExito="Pagos registrados"
+          // Se cierra recién cuando el pago quedó registrado: antes se
+          // cerraba al hacer clic y no había forma de saber si salió bien.
+          onExito={() => dialogRef.current?.close()}
           className="flex flex-col gap-4 p-6 sm:p-7"
         >
           <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
@@ -129,7 +133,7 @@ export function PagarLoteDialog({
               Confirmar Pago
             </button>
           </div>
-        </form>
+        </ActionForm>
       </dialog>
     </>
   );

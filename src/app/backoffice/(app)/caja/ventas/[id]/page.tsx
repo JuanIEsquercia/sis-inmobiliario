@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getSaleById, getAgents, agentLabel } from "@/lib/caja";
@@ -67,7 +68,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
           <p className="text-xs text-muted/90 mb-4">
             Podés confirmar o actualizar el comprador y la parte vendedora en cualquier momento.
           </p>
-          <form action={actualizarPartesVenta.bind(null, sale.id)} className="flex flex-col gap-4 sm:flex-row">
+          <ActionForm mensajeExito="Partes actualizadas" action={actualizarPartesVenta.bind(null, sale.id)} className="flex flex-col gap-4 sm:flex-row">
             <div className="flex-1">
               <ClientPicker namePrefix="seller" roleLabel="Parte vendedora" initialSelected={sale.seller} />
             </div>
@@ -80,7 +81,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
             >
               Guardar Partes
             </button>
-          </form>
+          </ActionForm>
         </div>
       ) : (
         (sale.seller || sale.buyer) && (
@@ -168,7 +169,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
           <p className="mt-2 mb-3 text-[11px] leading-relaxed text-muted">
             Define quién ve esta venta: además de vos, la ven el vendedor y el captador asignados.
           </p>
-          <form action={actualizarAgentesVenta.bind(null, sale.id)} className="flex flex-wrap items-end gap-3">
+          <ActionForm mensajeExito="Agentes actualizados" action={actualizarAgentesVenta.bind(null, sale.id)} className="flex flex-wrap items-end gap-3">
             <AgentSelect
               agents={agents}
               name="vendedorAgentId"
@@ -189,7 +190,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
             >
               Guardar atribución
             </button>
-          </form>
+          </ActionForm>
         </details>
       )}
 
@@ -245,7 +246,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
                   </div>
 
                   {canCollect && installment.status !== "PAGADA" && (
-                    <form action={marcarCuotaPagada.bind(null, installment.id)} className="flex items-center gap-2 pt-1 border-t border-border/40">
+                    <ActionForm mensajeExito="Cuota marcada como pagada" action={marcarCuotaPagada.bind(null, installment.id)} className="flex items-center gap-2 pt-1 border-t border-border/40">
                       <select name="method" defaultValue="TRANSFERENCIA" className="field flex-1 py-1.5 text-xs" required>
                         <option value="EFECTIVO">Efectivo</option>
                         <option value="TRANSFERENCIA">Transferencia</option>
@@ -256,7 +257,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
                       >
                         Marcar Cobrada
                       </button>
-                    </form>
+                    </ActionForm>
                   )}
                 </div>
               ))}
@@ -300,7 +301,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
                     {canCollect && (
                       <td className="px-4 py-2.5 text-right">
                         {installment.status !== "PAGADA" && (
-                          <form action={marcarCuotaPagada.bind(null, installment.id)} className="inline-flex items-center gap-1.5">
+                          <ActionForm mensajeExito="Cuota marcada como pagada" action={marcarCuotaPagada.bind(null, installment.id)} className="inline-flex items-center gap-1.5">
                             <select name="method" defaultValue="TRANSFERENCIA" className="field py-1 text-xs" required>
                               <option value="EFECTIVO">Efectivo</option>
                               <option value="TRANSFERENCIA">Transferencia</option>
@@ -311,7 +312,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
                             >
                               Marcar cobrada
                             </button>
-                          </form>
+                          </ActionForm>
                         )}
                       </td>
                     )}
@@ -367,6 +368,7 @@ export default async function VentaDetailPage({ params }: PageProps) {
             No se puede deshacer.
           </p>
           <ConfirmDeleteButton
+            mensajeExito="Venta eliminada"
             action={eliminarVenta.bind(null, sale.id)}
             triggerLabel="Eliminar venta definitivamente"
             triggerClassName="rounded-lg border border-rose-500/40 bg-rose-500/5 px-4 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"

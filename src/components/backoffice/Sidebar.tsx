@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { NAV_SECTIONS, type NavChild } from "@/lib/nav-links";
@@ -141,6 +141,7 @@ export function Sidebar({ permissions, className, onLinkClick }: SidebarProps) {
                 >
                   {icons[link.href]?.(`h-[16px] w-[16px] flex-none ${isActive ? "text-accent" : "text-muted/70"}`)}
                   <span>{link.label}</span>
+                  <IndicadorCarga />
                 </Link>
                 {hasChildren && (
                   <button
@@ -170,13 +171,14 @@ export function Sidebar({ permissions, className, onLinkClick }: SidebarProps) {
                       key={child.href}
                       href={child.href}
                       onClick={() => onLinkClick?.()}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                         child.href === activeChild
                           ? "text-accent"
                           : "text-muted hover:text-foreground"
                       }`}
                     >
                       {child.label}
+                      <IndicadorCarga />
                     </Link>
                   ))}
                 </div>
@@ -185,5 +187,20 @@ export function Sidebar({ permissions, className, onLinkClick }: SidebarProps) {
           );
         })}
     </nav>
+  );
+}
+
+// Spinner chiquito al lado del ítem del menú mientras la página nueva
+// todavía no llegó. loading.tsx ya pinta el esqueleto al instante cuando
+// la ruta está precargada; esto cubre el caso en que no lo está (recién
+// entrado, conexión lenta, celular) y el clic parecía no hacer nada.
+function IndicadorCarga() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return (
+    <span
+      aria-hidden
+      className="ml-auto inline-block h-3 w-3 flex-none animate-spin rounded-full border-2 border-current border-r-transparent"
+    />
   );
 }

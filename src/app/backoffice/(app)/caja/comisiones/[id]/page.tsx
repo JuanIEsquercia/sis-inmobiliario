@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getRentalCommissionById, getAgents, agentLabel } from "@/lib/caja";
@@ -145,7 +146,7 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
                   {canConfirmar && (
                     <td className="px-4 py-2.5">
                       {installment.status !== "PAGADA" && (
-                        <form action={marcarCuotaPagada.bind(null, installment.id)} className="flex items-center gap-1.5">
+                        <ActionForm mensajeExito="Cuota marcada como pagada" action={marcarCuotaPagada.bind(null, installment.id)} className="flex items-center gap-1.5">
                           <select name="method" defaultValue="TRANSFERENCIA" className="field py-1 text-xs" required>
                             <option value="EFECTIVO">Efectivo</option>
                             <option value="TRANSFERENCIA">Transferencia</option>
@@ -153,7 +154,7 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
                           <button type="submit" className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-surface">
                             Marcar cobrada
                           </button>
-                        </form>
+                        </ActionForm>
                       )}
                     </td>
                   )}
@@ -167,7 +168,7 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
       ) : isRenewal ? (
         // Renovación todavía no tiene esquema de cuotas propio (ver
         // CommissionInstallmentSource) — el monto entero se confirma de una.
-        <form action={confirmarCobroComisionAlquiler.bind(null, commission.id)} className="flex items-center gap-2 rounded-xl border border-border p-5">
+        <ActionForm mensajeExito="Cobro confirmado" action={confirmarCobroComisionAlquiler.bind(null, commission.id)} className="flex items-center gap-2 rounded-xl border border-border p-5">
           <select name="method" defaultValue="TRANSFERENCIA" required className="field text-sm">
             <option value="EFECTIVO">Efectivo</option>
             <option value="TRANSFERENCIA">Transferencia</option>
@@ -175,9 +176,9 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
           <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong">
             Confirmar cobro
           </button>
-        </form>
+        </ActionForm>
       ) : (
-        <form action={registrarCronogramaAlquiler.bind(null, commission.id)} className="rounded-xl border border-border p-5">
+        <ActionForm mensajeExito="Cronograma guardado" action={registrarCronogramaAlquiler.bind(null, commission.id)} className="rounded-xl border border-border p-5">
           <AlquilerCronogramaFields totalAmount={Number(commission.amount)} currency={commission.currency} />
           <button
             type="submit"
@@ -185,7 +186,7 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
           >
             Guardar cronograma
           </button>
-        </form>
+        </ActionForm>
       )}
 
       {!isRenewal && (
@@ -234,7 +235,8 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
           <p className="mt-2 mb-3 text-[11px] leading-relaxed text-muted">
             Define quién ve esta comisión: además de vos, la ven el vendedor y el captador asignados.
           </p>
-          <form
+          <ActionForm
+            mensajeExito="Agentes actualizados"
             action={actualizarAgentesComisionAlquiler.bind(null, commission.id)}
             className="flex flex-wrap items-end gap-3"
           >
@@ -258,7 +260,7 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
             >
               Guardar atribución
             </button>
-          </form>
+          </ActionForm>
         </details>
       )}
     </div>

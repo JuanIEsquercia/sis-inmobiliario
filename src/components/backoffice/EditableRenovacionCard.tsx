@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { ActionForm } from "./ActionForm";
+import type { ResultadoAccion } from "@/lib/accion";
 
 // Arranca abierto solo mientras sigue "a confirmar" (todavía es una
 // decisión pendiente) — apenas se contesta Sí/No, colapsa a solo
@@ -13,7 +15,7 @@ export function EditableRenovacionCard({
 }: {
   defaultValue: boolean | null;
   canEdit: boolean;
-  action: (formData: FormData) => void | Promise<void>;
+  action: (formData: FormData) => Promise<ResultadoAccion>;
 }) {
   const [editing, setEditing] = useState(defaultValue === null);
 
@@ -37,11 +39,12 @@ export function EditableRenovacionCard({
   }
 
   return (
-    <form
-      action={(formData) => {
-        setEditing(false);
-        return action(formData);
-      }}
+    <ActionForm
+      action={action}
+      mensajeExito="Renovación actualizada"
+      // Vuelve a solo lectura recién cuando se guardó; si falla, queda
+      // abierto con lo elegido para corregir y reintentar.
+      onExito={() => setEditing(false)}
       className="flex flex-col gap-3"
     >
       <select
@@ -63,6 +66,6 @@ export function EditableRenovacionCard({
         Solo &quot;Sí&quot; entra a la proyección financiera, estimado como un mes de alquiler al monto vigente, en
         el mes de vencimiento de este contrato.
       </p>
-    </form>
+    </ActionForm>
   );
 }

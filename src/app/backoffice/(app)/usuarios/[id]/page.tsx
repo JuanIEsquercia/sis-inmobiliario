@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -23,7 +24,7 @@ export default async function EditarUsuarioPage({ params }: PageProps) {
       <h1 className="mb-1 text-2xl font-bold tracking-tight text-foreground">@{profile.username}</h1>
       <p className="mb-6 text-xs text-muted font-medium">{profile.email}</p>
 
-      <form action={actualizarUsuario.bind(null, profile.id)} className="flex flex-col gap-5">
+      <ActionForm mensajeExito="Usuario actualizado" action={actualizarUsuario.bind(null, profile.id)} className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <input name="firstName" placeholder="Nombre" defaultValue={profile.firstName ?? ""} className="field" />
           <input name="lastName" placeholder="Apellido" defaultValue={profile.lastName ?? ""} className="field" />
@@ -77,7 +78,7 @@ export default async function EditarUsuarioPage({ params }: PageProps) {
         >
           Guardar cambios
         </button>
-      </form>
+      </ActionForm>
 
       {/* Formulario aparte, no dentro del de arriba: cambiar la
           contraseña es una operación propia (va por la Admin API de

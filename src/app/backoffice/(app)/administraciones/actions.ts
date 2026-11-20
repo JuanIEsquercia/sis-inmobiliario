@@ -1,5 +1,6 @@
 "use server";
 
+import { conAviso } from "@/lib/accion";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -449,7 +450,7 @@ async function subirDocumentosDelAlta(contractId: number, profileId: string, for
 // obligatorios al cargar el contrato (ver resolveClientOptional en
 // createContract): a veces se sabe el negocio antes de tener los datos
 // completos de las partes.
-export async function actualizarPartesContrato(contractId: number, formData: FormData) {
+export const actualizarPartesContrato = conAviso(async function actualizarPartesContrato(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.crear");
   await assertContractInScope(contractId, profile);
 
@@ -464,7 +465,7 @@ export async function actualizarPartesContrato(contractId: number, formData: For
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/administraciones");
-}
+});
 
 export async function crearConcepto(name: string) {
   await requirePermission("administraciones.crear");
@@ -490,7 +491,7 @@ export async function crearIndexType(code: string) {
   return indexType;
 }
 
-export async function subirDocumento(contractId: number, formData: FormData) {
+export const subirDocumento = conAviso(async function subirDocumento(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.crear");
   await assertContractInScope(contractId, profile);
 
@@ -507,9 +508,9 @@ export async function subirDocumento(contractId: number, formData: FormData) {
   );
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
-}
+});
 
-export async function guardarLiquidacion(paymentId: number, formData: FormData) {
+export const guardarLiquidacion = conAviso(async function guardarLiquidacion(paymentId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.pagos");
   await assertPaymentInScope(paymentId, profile);
 
@@ -548,7 +549,7 @@ export async function guardarLiquidacion(paymentId: number, formData: FormData) 
 
   const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
-}
+});
 
 // Resultado que devuelven las acciones que se usan desde un diálogo,
 // para poder mostrar en pantalla qué pasó en vez de tirar el error a la
@@ -707,7 +708,7 @@ export async function guardarConceptosLiquidacion(
 // contrato (Expensas, Agua...), que salen en todos los períodos, este
 // es caso por caso. Reutiliza el catálogo de Concept (upsert por
 // nombre) para no duplicar "Mora" como texto suelto cada vez.
-export async function agregarConceptoLiquidacion(paymentId: number, formData: FormData) {
+export const agregarConceptoLiquidacion = conAviso(async function agregarConceptoLiquidacion(paymentId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.pagos");
   await assertPaymentInScope(paymentId, profile);
 
@@ -744,11 +745,11 @@ export async function agregarConceptoLiquidacion(paymentId: number, formData: Fo
 
   const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
-}
+});
 
 // Saca un concepto puntual de esta liquidación (ej. si se agregó Mora
 // por error) — nunca el de Alquiler, que es obligatorio.
-export async function quitarConceptoLiquidacion(paymentId: number, itemId: number) {
+export const quitarConceptoLiquidacion = conAviso(async function quitarConceptoLiquidacion(paymentId: number, itemId: number) {
   const profile = await requirePermission("administraciones.pagos");
   await assertPaymentInScope(paymentId, profile);
 
@@ -770,12 +771,12 @@ export async function quitarConceptoLiquidacion(paymentId: number, itemId: numbe
 
   const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
-}
+});
 
 // Congela los montos cargados y deja la liquidación lista para mandarle
 // al inquilino (ver el PDF exportable) — el paso intermedio entre "la
 // estoy armando" y "ya la cobré" que antes no existía.
-export async function marcarLiquidacionEnviada(paymentId: number) {
+export const marcarLiquidacionEnviada = conAviso(async function marcarLiquidacionEnviada(paymentId: number) {
   const profile = await requirePermission("administraciones.pagos");
   await assertPaymentInScope(paymentId, profile);
 
@@ -789,12 +790,12 @@ export async function marcarLiquidacionEnviada(paymentId: number) {
   const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
   revalidatePath(`/backoffice/administraciones/${payment.contractId}`);
-}
+});
 
 // Vuelve una liquidación enviada a Pendiente para poder corregir un
 // monto antes de que se cobre — no aplica una vez que ya recibió algún
 // cobro (Parcial o Pagada), porque ahí ya hay plata real de por medio.
-export async function reabrirLiquidacion(paymentId: number) {
+export const reabrirLiquidacion = conAviso(async function reabrirLiquidacion(paymentId: number) {
   const profile = await requirePermission("administraciones.pagos");
   await assertPaymentInScope(paymentId, profile);
 
@@ -808,7 +809,7 @@ export async function reabrirLiquidacion(paymentId: number) {
   const payment = await withRetry(() => prisma.payment.findUniqueOrThrow({ where: { id: paymentId } }));
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
   revalidatePath(`/backoffice/administraciones/${payment.contractId}`);
-}
+});
 
 // Registra un cobro contra la liquidación — total o parcial, según si
 // el monto ingresado (sumado a lo ya cobrado antes) llega al total o
@@ -816,7 +817,7 @@ export async function reabrirLiquidacion(paymentId: number) {
 // cuando el acumulado llega al total: no se prorratea por cada cobro
 // parcial, para no inventar un criterio de a qué concepto (alquiler,
 // expensas...) corresponde cada pago parcial.
-export async function registrarCobro(paymentId: number, formData: FormData) {
+export const registrarCobro = conAviso(async function registrarCobro(paymentId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.pagos");
   await assertPaymentInScope(paymentId, profile);
 
@@ -873,14 +874,14 @@ export async function registrarCobro(paymentId: number, formData: FormData) {
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
   revalidatePath(`/backoffice/administraciones/${payment.contractId}`);
   revalidatePath("/backoffice/caja");
-}
+});
 
 // Registra que la inmobiliaria le entregó al propietario el neto de esta
 // liquidación — evento propio, posterior e independiente de que el
 // inquilino haya pagado (registrarCobro) y de que se haya confirmado el
 // cobro de la comisión (confirmarCobroComision): suelen pasar en
 // momentos distintos. No admite parcial, es un solo evento.
-export async function registrarPagoPropietario(paymentId: number, formData: FormData) {
+export const registrarPagoPropietario = conAviso(async function registrarPagoPropietario(paymentId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.pagos");
   await assertPaymentInScope(paymentId, profile);
 
@@ -931,7 +932,7 @@ export async function registrarPagoPropietario(paymentId: number, formData: Form
   revalidatePath(`/backoffice/administraciones/${payment.contractId}/liquidaciones/${paymentId}`);
   revalidatePath(`/backoffice/administraciones/${payment.contractId}`);
   revalidatePath("/backoffice/administraciones/liquidaciones");
-}
+});
 
 // La actualización se carga como % (no como un monto nuevo tipeado a
 // mano) — el sistema calcula el monto resultante y lo congela en
@@ -939,7 +940,7 @@ export async function registrarPagoPropietario(paymentId: number, formData: Form
 // para poder reimprimir después el comprobante ("Alquiler actual X,
 // actualización por índice Y%, valor actualizado Z" — ver
 // indexaciones/[indexationId]/imprimir).
-export async function aplicarIndexacion(contractId: number, formData: FormData) {
+export const aplicarIndexacion = conAviso(async function aplicarIndexacion(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.indexacion");
   await assertContractInScope(contractId, profile);
 
@@ -1012,9 +1013,9 @@ export async function aplicarIndexacion(contractId: number, formData: FormData) 
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/administraciones/actualizaciones");
-}
+});
 
-export async function finalizarContrato(contractId: number, formData: FormData) {
+export const finalizarContrato = conAviso(async function finalizarContrato(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.crear");
   await assertContractInScope(contractId, profile);
 
@@ -1047,14 +1048,14 @@ export async function finalizarContrato(contractId: number, formData: FormData) 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/administraciones");
   revalidatePath("/backoffice/administraciones/liquidaciones");
-}
+});
 
 // Cierra una colocación (isAdministered false) — el encargado de
 // coordinar el cierre con la escribana confirma que ya se firmó. A
 // partir de acá, partes y agentes quedan bloqueados (ver
 // assertColocacionEditable); el cobro de la comisión de colocación
 // sigue funcionando exactamente igual, nunca se bloquea.
-export async function marcarContratoFirmado(contractId: number) {
+export const marcarContratoFirmado = conAviso(async function marcarContratoFirmado(contractId: number) {
   const profile = await requirePermission("administraciones.firmar");
   await assertContractInScope(contractId, profile);
 
@@ -1075,7 +1076,7 @@ export async function marcarContratoFirmado(contractId: number) {
   );
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
-}
+});
 
 // Anula un contrato cargado por error — a diferencia de finalizarContrato
 // (el alquiler pasó de verdad y terminó), esto es "nunca debió existir".
@@ -1084,7 +1085,7 @@ export async function marcarContratoFirmado(contractId: number) {
 // que finalizarlo en vez de anularlo — borrar liquidaciones ya cobradas
 // rompería la caja. Las liquidaciones que quedaban pendientes se borran
 // porque, al anular, nunca van a llegar a cobrarse.
-export async function anularContrato(contractId: number, formData: FormData) {
+export const anularContrato = conAviso(async function anularContrato(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.crear");
   await assertContractInScope(contractId, profile);
 
@@ -1124,7 +1125,7 @@ export async function anularContrato(contractId: number, formData: FormData) {
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/administraciones");
-}
+});
 
 // Elimina un contrato POR COMPLETO, con todo lo que tenga cargado
 // encima: liquidaciones, cobros, indexaciones, comisión de alquiler y
@@ -1141,7 +1142,7 @@ export async function anularContrato(contractId: number, formData: FormData) {
 // pero ninguno de esos tiene onDelete Cascade), después lo que sí
 // cascadea solo una vez despejado ese bloqueo. AgentDebtPayment no tiene
 // FK real (sourceId es polimórfico) así que se limpia a mano aparte.
-export async function eliminarContratoDefinitivo(contractId: number, formData: FormData) {
+export const eliminarContratoDefinitivo = conAviso(async function eliminarContratoDefinitivo(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.eliminar");
   await assertContractInScope(contractId, profile);
   const reason = optionalStr(formData.get("reason"));
@@ -1233,12 +1234,12 @@ export async function eliminarContratoDefinitivo(contractId: number, formData: F
   revalidatePath("/backoffice/caja");
   revalidatePath(`/backoffice/historial/${contract.unitId}`);
   redirect("/backoffice/administraciones");
-}
+});
 
 // Corrige/completa el vendedor y captador de un contrato ya cargado —
 // necesario para contratos viejos, dados de alta antes de que estos
 // campos existieran, o para arreglar un error de carga.
-export async function actualizarAgentesContrato(contractId: number, formData: FormData) {
+export const actualizarAgentesContrato = conAviso(async function actualizarAgentesContrato(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.crear");
   await assertContractInScope(contractId, profile);
 
@@ -1256,13 +1257,13 @@ export async function actualizarAgentesContrato(contractId: number, formData: Fo
   );
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
-}
+});
 
 // Editable en cualquier momento del contrato, no solo cerca del
 // vencimiento — "a confirmar" (sin marcar) vuelve a null a propósito,
 // para poder deshacer una marca puesta de más. Solo "Sí" entra a la
 // proyección financiera (ver getProjection).
-export async function actualizarRenovacionEsperada(contractId: number, formData: FormData) {
+export const actualizarRenovacionEsperada = conAviso(async function actualizarRenovacionEsperada(contractId: number, formData: FormData) {
   const profile = await requirePermission("administraciones.crear");
   await assertContractInScope(contractId, profile);
 
@@ -1275,14 +1276,14 @@ export async function actualizarRenovacionEsperada(contractId: number, formData:
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/administraciones/actualizaciones");
-}
+});
 
 // Grupos de contratos (carteras): quién ve/gestiona qué. Se crean vacíos
 // y se les asignan contratos ya existentes después (asignarContratosAGrupo)
 // — no hace falta elegir el grupo al cargar el contrato.
 // Asignación masiva desde el listado de contratos (tildás varios,
 // elegís el grupo) — `groupId` vacío desasigna (vuelve a "sin grupo").
-export async function asignarContratosAGrupo(formData: FormData) {
+export const asignarContratosAGrupo = conAviso(async function asignarContratosAGrupo(formData: FormData) {
   await requirePermission("administraciones.grupos.gestionar");
 
   const groupId = optionalInt(formData.get("groupId"));
@@ -1298,11 +1299,11 @@ export async function asignarContratosAGrupo(formData: FormData) {
 
   revalidatePath("/backoffice/administraciones");
   revalidatePath("/backoffice/usuarios/grupos");
-}
+});
 
 // Reasignar el grupo de un contrato puntual desde su propia ficha —
 // alternativa a la asignación masiva del listado.
-export async function asignarGrupoContrato(contractId: number, formData: FormData) {
+export const asignarGrupoContrato = conAviso(async function asignarGrupoContrato(contractId: number, formData: FormData) {
   await requirePermission("administraciones.grupos.gestionar");
 
   const groupId = optionalInt(formData.get("groupId"));
@@ -1311,7 +1312,7 @@ export async function asignarGrupoContrato(contractId: number, formData: FormDat
 
   revalidatePath(`/backoffice/administraciones/${contractId}`);
   revalidatePath("/backoffice/administraciones");
-}
+});
 
 // Corrige el esquema de actualización de un contrato ya cargado: cada
 // cuántos meses se actualiza y con qué índice.

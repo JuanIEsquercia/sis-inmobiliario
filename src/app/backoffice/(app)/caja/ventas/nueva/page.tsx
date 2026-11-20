@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { getAgents, getActiveCommissionScheme, toRepartoSchemeInfo } from "@/lib/caja";
 import { UnitPicker } from "@/components/backoffice/UnitPicker";
 import { ClientPicker } from "@/components/backoffice/ClientPicker";
@@ -21,7 +22,7 @@ export default async function NuevaVentaPage() {
         </div>
       </div>
 
-      <form action={crearVenta} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <ActionForm mensajeExito="Venta creada" action={crearVenta} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Columna Principal (8 cols en LG) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           <fieldset className="flex flex-col gap-5 rounded-3xl border border-border/70 bg-surface p-6 sm:p-7 shadow-sm">
@@ -114,7 +115,7 @@ export default async function NuevaVentaPage() {
             </SubmitButton>
           </div>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

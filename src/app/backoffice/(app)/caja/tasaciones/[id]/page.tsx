@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/backoffice/ActionForm";
 import { notFound } from "next/navigation";
 import { requirePermission, cajaOwnerId } from "@/lib/auth";
 import { getAppraisalById, getAgents } from "@/lib/caja";
@@ -84,7 +85,7 @@ export default async function TasacionDetailPage({ params }: PageProps) {
               ` — ${appraisal.cashMovement.method === "EFECTIVO" ? "Efectivo" : "Transferencia"}`}
           </p>
         ) : canConfirmar ? (
-          <form action={confirmarCobroTasacion.bind(null, appraisal.id)} className="flex items-center gap-2">
+          <ActionForm mensajeExito="Cobro confirmado" action={confirmarCobroTasacion.bind(null, appraisal.id)} className="flex items-center gap-2">
             <select name="method" defaultValue="TRANSFERENCIA" required className="field text-sm">
               <option value="EFECTIVO">Efectivo</option>
               <option value="TRANSFERENCIA">Transferencia</option>
@@ -95,7 +96,7 @@ export default async function TasacionDetailPage({ params }: PageProps) {
             >
               Confirmar cobro
             </button>
-          </form>
+          </ActionForm>
         ) : (
           <p className="text-sm text-muted">Pendiente de cobro.</p>
         )}
@@ -121,7 +122,7 @@ export default async function TasacionDetailPage({ params }: PageProps) {
         )}
 
         {canUpload && (
-          <form action={subirInformeTasacion.bind(null, appraisal.id)} className="flex flex-col gap-3 border-t border-border/60 pt-4">
+          <ActionForm mensajeExito="Informe subido" action={subirInformeTasacion.bind(null, appraisal.id)} className="flex flex-col gap-3 border-t border-border/60 pt-4">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="file" className="text-xs text-muted">
                 {appraisal.reportStoragePath ? "Reemplazar informe (PDF, máx. 10MB)" : "Archivo (PDF, máx. 10MB)"}
@@ -134,7 +135,7 @@ export default async function TasacionDetailPage({ params }: PageProps) {
             >
               {appraisal.reportStoragePath ? "Reemplazar informe" : "Subir informe"}
             </button>
-          </form>
+          </ActionForm>
         )}
       </div>
 
@@ -147,7 +148,7 @@ export default async function TasacionDetailPage({ params }: PageProps) {
           <p className="mt-2 mb-3 text-[11px] leading-relaxed text-muted">
             Define quién ve esta tasación: además de vos, la ve el agente asignado.
           </p>
-          <form action={actualizarAgenteTasacion.bind(null, appraisal.id)} className="flex flex-wrap items-end gap-3">
+          <ActionForm mensajeExito="Agente actualizado" action={actualizarAgenteTasacion.bind(null, appraisal.id)} className="flex flex-wrap items-end gap-3">
             <AgentSelect
               agents={agents}
               name="vendedorAgentId"
@@ -161,7 +162,7 @@ export default async function TasacionDetailPage({ params }: PageProps) {
             >
               Guardar atribución
             </button>
-          </form>
+          </ActionForm>
         </details>
       )}
     </div>
