@@ -34,12 +34,17 @@ export default async function VentaDetailPage({ params }: PageProps) {
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
 
-  const sale = await getSaleById(numericId, cajaOwnerId(profile));
-  if (!sale) notFound();
   // Reasignar la atribución define quién ve esta venta, así que va con
   // caja.ver_todos y no con el permiso de cargar ventas.
   const canReasignar = profile.permissions.includes("caja.ver_todos");
-  const agents = canReasignar ? await getAgents() : [];
+  // La venta y la lista de agentes no dependen una de otra: se piden
+  // juntas en vez de esperar a tener la venta para recién pedir los
+  // agentes (un viaje a la base menos en fila).
+  const [sale, agents] = await Promise.all([
+    getSaleById(numericId, cajaOwnerId(profile)),
+    canReasignar ? getAgents() : Promise.resolve([]),
+  ]);
+  if (!sale) notFound();
 
   const canCollect = profile.permissions.includes("caja.ventas.crear");
   const totalCobrado = sale.installments

@@ -22,10 +22,15 @@ export default async function TasacionDetailPage({ params }: PageProps) {
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
 
-  const appraisal = await getAppraisalById(numericId, cajaOwnerId(profile));
-  if (!appraisal) notFound();
   const canReasignar = profile.permissions.includes("caja.ver_todos");
-  const agents = canReasignar ? await getAgents() : [];
+  // La tasación y la lista de agentes no dependen una de otra: se piden
+  // juntas en vez de esperar a tener la tasación para recién pedir los
+  // agentes (un viaje a la base menos en fila).
+  const [appraisal, agents] = await Promise.all([
+    getAppraisalById(numericId, cajaOwnerId(profile)),
+    canReasignar ? getAgents() : Promise.resolve([]),
+  ]);
+  if (!appraisal) notFound();
 
   const reportUrl = appraisal.reportStoragePath ? await getSignedDocumentUrl(appraisal.reportStoragePath) : null;
 

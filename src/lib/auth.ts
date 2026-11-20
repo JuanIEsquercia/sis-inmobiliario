@@ -17,15 +17,47 @@ import type { Prisma, Profile } from "@/generated/prisma/client";
 // llamada real aunque se invoque varias veces layout adentro.
 export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims en vez de getUser: verifica el token localmente (sin ir a
+  // Supabase Auth) cuando el proyecto usa claves de firma asimétricas;
+  // si no, consulta igual que getUser. Ver el comentario en proxy.ts.
+  //
+  // Que un usuario desactivado no entre no depende de esto: lo corta
+  // requireProfile con profile.isActive, que se lee de la base en cada
+  // pedido.
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub;
 
-  if (!user) return null;
+  if (!userId) return null;
 
-  const profile = await withRetry(() => prisma.profile.findUnique({ where: { id: user.id } }));
-  if (!profile) return null;
+  // Las carteras del usuario vienen en la MISMA consulta que el perfil:
+  // antes eran un viaje aparte (getContractGroupScope) que casi toda
+  // página de Administraciones y la campanita hacían después de tener el
+  // perfil — una espera más en fila antes de poder pedir los datos.
+  const fila = await withRetry(() =>
+    prisma.profile.findUnique({
+      where: { id: userId },
+      include: { contractGroupMemberships: { select: { groupId: true } } },
+    })
+  );
+  if (!fila) return null;
+  // Se saca del objeto: el perfil viaja tal cual al navegador (shell del
+  // backoffice) y las carteras no tienen por qué ir.
+  const { contractGroupMemberships, ...profileSinGrupos } = fila;
+  const profile = conPermisosEfectivos(profileSinGrupos);
+  gruposPorPerfil.set(
+    profile,
+    contractGroupMemberships.map((m) => m.groupId)
+  );
+  return profile;
+});
 
+// Carteras ya leídas junto con el perfil, por objeto de perfil (que
+// dentro de un request es siempre el mismo, memoizado con cache()). Un
+// WeakMap y no un campo extra para no cambiar el tipo Profile que usa
+// todo el sistema, ni mandar las carteras al navegador.
+const gruposPorPerfil = new WeakMap<Profile, number[]>();
+
+function conPermisosEfectivos(profile: Profile): Profile {
   // ADMIN siempre tiene el catálogo completo de permisos, calculado acá
   // (no se persiste) — así un ADMIN nunca queda con permisos viejos
   // cuando el catálogo en permissions.ts crece; el array guardado en la
@@ -35,7 +67,7 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   return profile.role === "ADMIN"
     ? { ...profile, permissions: ALL_PERMISSION_KEYS }
     : { ...profile, permissions: expandPermissions(profile.permissions) };
-});
+}
 
 export async function requireProfile(): Promise<Profile> {
   const profile = await getCurrentProfile();
@@ -105,6 +137,8 @@ export type ContractGroupScope = "all" | { groupIds: number[]; profileId: string
 // siempre la MISMA referencia — así que el cache pega.
 export const getContractGroupScope = cache(async (profile: Profile): Promise<ContractGroupScope> => {
   if (profile.permissions.includes("administraciones.ver_todos")) return "all";
+  const yaLeidos = gruposPorPerfil.get(profile);
+  if (yaLeidos) return { groupIds: yaLeidos, profileId: profile.id };
   const memberships = await withRetry(() =>
     prisma.profileContractGroup.findMany({ where: { profileId: profile.id }, select: { groupId: true } })
   );
