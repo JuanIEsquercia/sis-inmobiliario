@@ -34,10 +34,15 @@ export default async function ComisionAlquilerDetailPage({ params }: PageProps) 
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) notFound();
 
-  const commission = await getRentalCommissionById(numericId, cajaOwnerId(profile));
-  if (!commission) notFound();
   const canReasignar = profile.permissions.includes("caja.ver_todos");
-  const agents = canReasignar ? await getAgents() : [];
+  // La comisión y la lista de agentes no dependen una de otra: se piden
+  // juntas en vez de esperar a tener la comisión para recién pedir los
+  // agentes (un viaje a la base menos en fila).
+  const [commission, agents] = await Promise.all([
+    getRentalCommissionById(numericId, cajaOwnerId(profile)),
+    canReasignar ? getAgents() : Promise.resolve([]),
+  ]);
+  if (!commission) notFound();
 
   const isRenewal = commission.origin === "RENOVACION";
   const totalCobrado = commission.installments

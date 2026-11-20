@@ -48,9 +48,15 @@ export default async function AgenteDetailPage({ params, searchParams }: PagePro
   const viewerProfile = await requireProfile();
   const canRegistrarPago = viewerProfile.permissions.includes("agentes.pagos.crear");
 
-  const agent = await withRetry(() =>
-    prisma.profile.findUnique({ where: { id }, select: { id: true, firstName: true, lastName: true, username: true } })
-  );
+  // El agente y su cuenta corriente se piden juntos: los movimientos no
+  // dependen de haber leído antes el nombre del agente.
+  const [agent, debtItems, payments] = await Promise.all([
+    withRetry(() =>
+      prisma.profile.findUnique({ where: { id }, select: { id: true, firstName: true, lastName: true, username: true } })
+    ),
+    getAgentDebtItems(id),
+    getAgentDebtPayments(id),
+  ]);
   if (!agent) notFound();
 
   const sp = await searchParams;
@@ -59,7 +65,6 @@ export default async function AgenteDetailPage({ params, searchParams }: PagePro
   const year = Number(sp.anio) || now.getUTCFullYear();
   const monthFilter = { month, year };
 
-  const [debtItems, payments] = await Promise.all([getAgentDebtItems(id), getAgentDebtPayments(id)]);
   const balances = summarizeAgentBalance(debtItems, payments);
   const pagadoEnMes = sumPaymentsByCurrency(payments, monthFilter);
   const paymentsEnMes = filterPaymentsByMonth(payments, monthFilter);

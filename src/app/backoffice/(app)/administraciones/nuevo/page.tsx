@@ -28,16 +28,19 @@ export default async function NuevoContratoPage({ searchParams }: PageProps) {
     sourceContractId && Number.isFinite(sourceContractId) ? getContractById(sourceContractId, scope) : null,
   ]);
   const extraConcepts = concepts.filter((c) => !c.isSystem);
-  // Una renovación hereda la cartera del contrato que renueva — no se
-  // pregunta (ver resolverCarteraDelAlta en ../actions).
-  const carteras = sourceContract ? [] : await getCarterasParaAlta(scope);
   const sinRestriccion = scope === "all";
 
   // Colocar un inquilino nuevo y renovarle el contrato a uno que ya
   // estaba son unidades de negocio distintas para la comisión — cada
   // una con su propio esquema de reparto (ver Caja > Esquema).
   const isRenewal = !!sourceContract;
-  const commissionScheme = await getActiveCommissionScheme(isRenewal ? "RENOVACION" : "ALQUILER");
+  // Carteras y esquema dependen solo de si es renovación: se piden juntos.
+  const [carteras, commissionScheme] = await Promise.all([
+    // Una renovación hereda la cartera del contrato que renueva — no se
+    // pregunta (ver resolverCarteraDelAlta en ../actions).
+    sourceContract ? Promise.resolve([]) : getCarterasParaAlta(scope),
+    getActiveCommissionScheme(isRenewal ? "RENOVACION" : "ALQUILER"),
+  ]);
 
   return (
     <div className="max-w-6xl w-full mx-auto">
