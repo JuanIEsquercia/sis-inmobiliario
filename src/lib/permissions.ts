@@ -120,7 +120,10 @@ export const PERMISSION_TREE: PermissionGroup[] = [
   {
     key: "historial",
     label: "Historial",
-    children: [{ key: "historial.ver", label: "Ver historial de propiedades (incluye montos de ventas y tasaciones)" }],
+    children: [
+      { key: "historial.ver", label: "Ver historial de propiedades (incluye montos de ventas y tasaciones)" },
+      { key: "historial.editar", label: "Corregir datos de una propiedad y eliminar las que quedaron sin operaciones" },
+    ],
   },
   {
     key: "presupuestos",
@@ -167,6 +170,7 @@ export const PERMISSION_IMPLIES: Record<string, string[]> = {
   "pedidos.crear": ["pedidos.ver"],
   "pedidos.estado": ["pedidos.ver"],
   "pedidos.eliminar": ["pedidos.ver"],
+  "historial.editar": ["historial.ver"],
   "administraciones.ver_todos": ["administraciones.ver"],
   "administraciones.crear": ["administraciones.ver"],
   "administraciones.pagos": ["administraciones.ver"],

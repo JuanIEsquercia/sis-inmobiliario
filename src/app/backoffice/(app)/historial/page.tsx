@@ -49,6 +49,11 @@ export default async function HistorialPage({ searchParams }: PageProps) {
                       {u.address}
                     </Link>
                     {u.city && <span className="ml-1.5 text-muted">· {u.city}</span>}
+                    {u._count.contracts + u._count.sales + u._count.appraisals === 0 && (
+                      <span className="ml-2 rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+                        Sin operaciones
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted">{u._count.contracts}</td>
                   <td className="px-4 py-3 text-muted">{u._count.sales}</td>
