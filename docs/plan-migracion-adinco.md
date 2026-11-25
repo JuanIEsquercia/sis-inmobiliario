@@ -83,7 +83,7 @@ Cada propiedad indica dónde está su llave, y el vendedor la pide desde el sist
 
 ### Pedido de llave para visita
 
-Cada visita dura siempre 30 minutos. El vendedor elige la fecha y un turno de una lista fija (10:00, 10:30, 11:00, 11:30 y así, dentro del horario de visitas que se defina); el fin se calcula solo, no se eligen inicio y fin libres. Cada visita queda asociada al interesado (cliente o pedido de búsqueda), y así se registra qué leads avanzaron hasta la visita.
+Cada visita dura siempre 30 minutos. El vendedor elige la fecha y un turno de la lista fija: de 07:00 a 21:30, cada media hora (07:00, 07:30 … 21:30), así la última visita termina a las 22:00. Todos los días, sábados y domingos incluidos: cada vendedor coordina libremente sus visitas. El fin se calcula solo; no se eligen inicio y fin libres. Cada visita queda asociada al interesado (cliente o pedido de búsqueda), y así se registra qué leads avanzaron hasta la visita.
 
 Si la llave está en la inmobiliaria:
 
@@ -100,6 +100,15 @@ Si la llave la tiene un contacto:
 
 En cualquier paso el pedido se puede cancelar.
 
+### Tarjeta de visita
+
+Cada pedido de llave abre una tarjeta de visita: la ficha donde queda toda la trazabilidad de esa visita, desde el pedido hasta el cierre.
+
+- **Cabecera:** propiedad (con su código), interesado, vendedor, fecha y turno, dónde está la llave.
+- **Línea de tiempo:** cada paso con fecha, hora y quién lo hizo (pedida, retirada o coordinada, visita hecha, llave devuelta, cancelada).
+- **Carga del vendedor:** notas de la visita y resultado (por ejemplo: le interesó, pide segunda visita, hace oferta, descartada).
+- **Listado de tarjetas:** las del día y las abiertas, filtrables por vendedor, propiedad y estado. Desde la ficha del interesado y la de la propiedad se ven sus tarjetas.
+
 ### Controles
 
 - Dos visitas a la misma propiedad en el mismo turno: el sistema no lo permite.
@@ -110,7 +119,8 @@ En cualquier paso el pedido se puede cancelar.
 ### Qué requiere en la base (pendiente BD)
 
 - Llave por propiedad: ubicación (inmobiliaria o contacto), contacto y notas.
-- Pedidos de visita: propiedad, vendedor, fecha, turno (hora de inicio; dura 30 minutos), estado, fechas de retiro y devolución, interesado (obligatorio).
+- Pedidos de visita (la tarjeta): propiedad, vendedor, fecha, turno (hora de inicio; dura 30 minutos), estado, fechas de retiro y devolución, interesado (obligatorio), resultado y notas.
+- Línea de tiempo de cada tarjeta: paso, fecha y hora, quién lo hizo.
 - Se aplica desde Antigravity, como el resto de los cambios de esquema.
 
 ### Cuándo
