@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { parseFeed, type NormalizedAgency } from "@/lib/feed";
 import { normalizeForSearch } from "@/lib/search-text";
 import { withRetry } from "@/lib/db-retry";
+import { ESTADOS_NO_PUBLICABLES } from "@/lib/propiedades";
 import type { Prisma } from "@/generated/prisma/client";
 
 export interface SyncResult {
@@ -84,7 +85,7 @@ export async function runSync(
   const existingListings = await withRetry(() =>
     prisma.listing.findMany({
       where: { externalId: { in: seenExternalIds } },
-      select: { externalId: true, sourceUpdatedAt: true, origin: true },
+      select: { externalId: true, sourceUpdatedAt: true, origin: true, status: true },
     })
   );
   const existingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
@@ -147,6 +148,11 @@ export async function runSync(
       addressSearch: rest.address ? normalizeForSearch(rest.address) : null,
     };
 
+    // El estado comercial es nuestro: una ficha que marcamos vendida,
+    // alquilada o suspendida no vuelve al sitio aunque Adinco la siga
+    // mandando como vigente.
+    const isActive = !(existing && ESTADOS_NO_PUBLICABLES.includes(existing.status));
+
     if (existing) updated++;
     else created++;
 
@@ -156,7 +162,7 @@ export async function runSync(
           const listingRow = await tx.listing.upsert({
             where: { externalId: listing.externalId },
             create: { ...data, agencyId, isActive: true },
-            update: { ...data, agencyId, isActive: true },
+            update: { ...data, agencyId, isActive },
           });
 
           // Las fotos se borran y se vuelven a crear con el orden nuevo del

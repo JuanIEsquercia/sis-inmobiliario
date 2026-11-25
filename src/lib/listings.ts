@@ -94,6 +94,7 @@ const listingCardSelect = {
   bathrooms: true,
   plotArea: true,
   floorArea: true,
+  status: true,
   images: {
     where: { isFeatured: true },
     take: 1,
@@ -229,6 +230,9 @@ const listingDetailSelect = {
   id: true,
   externalId: true,
   code: true,
+  // Estado comercial: solo para la etiqueta "Reservada" (las vendidas,
+  // alquiladas y suspendidas ya no están publicadas).
+  status: true,
   // Hace falta en el select porque las búsquedas de arriba ya no
   // filtran por estado: es lo que deja distinguir una propiedad dada de
   // baja de una que no existe.

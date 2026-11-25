@@ -239,6 +239,11 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
               <span className="rounded-lg bg-accent/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-accent border border-accent/20">
                 {operationLabel(listing.operationType)}
               </span>
+              {listing.status === "RESERVADA" && (
+                <span className="rounded-lg bg-amber-500 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
+                  Reservada
+                </span>
+              )}
               <span className="rounded-lg bg-surface px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-foreground border border-border/60">
                 {listing.propertyType}
               </span>

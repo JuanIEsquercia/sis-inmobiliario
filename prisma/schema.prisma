@@ -117,6 +117,27 @@ model Listing {
   // nuestro sistema — el sync nunca la toca. Es un dato técnico, no
   // comercial (el captador es otra cosa).
   origin ListingOrigin @default(ADINCO)
+
+  // --- Datos internos de la ficha (no vienen de Adinco; el sync nunca
+  // los toca, sea cual sea el origen) ---
+
+  // Estado comercial. VENDIDA/ALQUILADA/SUSPENDIDA despublican la ficha
+  // (isActive = false) y el sync no la vuelve a publicar aunque Adinco la
+  // siga mandando; RESERVADA sigue publicada con una etiqueta.
+  status          ListingStatus @default(DISPONIBLE)
+  statusChangedAt DateTime?
+
+  // Quién captó la propiedad. Null = la inmobiliaria, misma regla que
+  // Sale/RentalCommission y calcularReparto: al cargar una venta o un
+  // contrato desde la ficha, viene precargado.
+  captadorAgentId String?  @db.Uuid
+  captadorAgent   Profile? @relation("ListingCaptador", fields: [captadorAgentId], references: [id], onDelete: SetNull)
+
+  internalNotes String? @db.Text
+
+  // Solo fichas PROPIA: quién la dio de alta en el backoffice.
+  createdById String?  @db.Uuid
+  createdBy   Profile? @relation("ListingCreadoPor", fields: [createdById], references: [id], onDelete: SetNull)
   rawData         Json // <ad> completo tal cual vino, sin perder campos
 
   agencyId Int?
@@ -144,6 +165,8 @@ model Listing {
   // Sigue sirviendo para consultas que solo filtran por isActive, al
   // ser la primera columna.
   @@index([isActive, sourceUpdatedAt])
+  @@index([status])
+  @@index([captadorAgentId])
 }
 
 model ListingImage {
@@ -167,6 +190,14 @@ model ListingImage {
 enum ListingOrigin {
   ADINCO
   PROPIA
+}
+
+enum ListingStatus {
+  DISPONIBLE
+  RESERVADA
+  VENDIDA
+  ALQUILADA
+  SUSPENDIDA
 }
 
 model ListingVideo {
@@ -252,6 +283,8 @@ model Profile {
   budgetsCreados              Budget[]               @relation("BudgetCreadoPor")
   budgetConceptsCreados       BudgetConcept[]        @relation("BudgetConceptCreadoPor")
   creditChecksConsultados     CreditCheck[]          @relation("CreditCheckConsultadoPor")
+  listingsCaptados            Listing[]              @relation("ListingCaptador")
+  listingsCreados             Listing[]              @relation("ListingCreadoPor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

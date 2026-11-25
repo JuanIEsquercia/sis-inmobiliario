@@ -25,6 +25,8 @@ export interface PropertyCardListing {
   plotArea: unknown;
   floorArea: unknown;
   images: PropertyImageRef[];
+  // Estado comercial; solo se usa para la etiqueta "Reservada".
+  status?: string;
 }
 
 export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
@@ -65,6 +67,11 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
         <span className="absolute left-4 top-4 rounded-lg bg-background/90 backdrop-blur-sm px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-foreground shadow-sm">
           {operationLabel(listing.operationType)}
         </span>
+        {listing.status === "RESERVADA" && (
+          <span className="absolute right-4 top-4 rounded-lg bg-amber-500 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
+            Reservada
+          </span>
+        )}
       </div>
       
       <div className="flex flex-1 flex-col p-5">

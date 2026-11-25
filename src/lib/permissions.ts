@@ -36,6 +36,17 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     ],
   },
   {
+    key: "propiedades",
+    label: "Propiedades",
+    children: [
+      { key: "propiedades.ver", label: "Ver fichas de propiedades" },
+      // Alta de fichas propias y edición: en las que vienen de Adinco,
+      // solo los datos internos (estado, captador, notas) hasta el corte.
+      { key: "propiedades.editar", label: "Dar de alta y editar fichas (estado, captador, datos y fotos)" },
+      { key: "propiedades.publicar", label: "Publicar o despublicar fichas en el sitio web" },
+    ],
+  },
+  {
     key: "administraciones",
     label: "Administraciones",
     children: [
@@ -171,6 +182,8 @@ export const PERMISSION_IMPLIES: Record<string, string[]> = {
   "pedidos.estado": ["pedidos.ver"],
   "pedidos.eliminar": ["pedidos.ver"],
   "historial.editar": ["historial.ver"],
+  "propiedades.editar": ["propiedades.ver"],
+  "propiedades.publicar": ["propiedades.ver"],
   "administraciones.ver_todos": ["administraciones.ver"],
   "administraciones.crear": ["administraciones.ver"],
   "administraciones.pagos": ["administraciones.ver"],
@@ -228,6 +241,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     "pedidos.ver",
     "pedidos.crear",
     "pedidos.estado",
+    "propiedades.ver",
     "administraciones.ver",
     "administraciones.crear",
     "administraciones.pagos",

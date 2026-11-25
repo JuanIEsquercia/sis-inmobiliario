@@ -168,6 +168,18 @@ Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorn
 - El sitio muestra la copia propia cuando existe (`src/lib/property-images.ts`) y si no, la de Adinco.
 - Prueba completa: 155 propiedades, 1.100 fotos copiadas en 4,5 minutos, 0 errores, 124 MB.
 
+### L2 hecho en local: sección Propiedades
+- Migración `20261125190000_listing_ficha_estado_captador`: estado comercial (`DISPONIBLE`, `RESERVADA`, `VENDIDA`, `ALQUILADA`, `SUSPENDIDA`), captador, notas internas, quién creó la ficha, contador de códigos (`listing_code_seq`) y permisos nuevos (los administradores reciben los tres; el resto, `propiedades.ver`).
+- Permisos: `propiedades.ver`, `propiedades.editar` (alta, edición, fotos, estado, captador) y `propiedades.publicar`.
+- `/backoffice/propiedades`: listado con búsqueda por código (también "GARC1-123"), dirección o título, y filtros por estado, operación, publicación y origen.
+- Ficha: en las de Adinco se editan solo los datos internos y se ve lo publicado; en las propias se edita todo, con fotos (hasta 8, se achican en el navegador, se recortan y se pasan a WebP al subir; ordenar, principal, eliminar) y publicar o despublicar.
+- Vendida, alquilada o suspendida despublica al guardar, y el sync no la vuelve a publicar aunque Adinco la siga mandando. Reservada sigue publicada con etiqueta "Reservada" en el sitio.
+- Captador: un agente o "Inmobiliaria". Si el vendedor que Adinco tiene asignado coincide por email con un usuario, se sugiere.
+- Alta propia: código automático = máximo entre fichas e Historial (normalizado) + 1, con bloqueo para que dos altas simultáneas no repitan número. Nace sin publicar.
+- "Pasar a ficha propia" (para el corte): exige al menos una foto copiada y quita las fotos que siguen apuntando a Adinco.
+- La ficha muestra las operaciones del Historial con el mismo código normalizado (vista previa de la normalización).
+- Prueba de punta a punta en el navegador (14 comprobaciones, todas bien): estado y captador en una ficha de Adinco, etiqueta Reservada en el sitio, vendida se despublica y el sync la respeta, alta propia con código correlativo, subir, ordenar y eliminar fotos, editar, publicar, y el sync no la toca.
+
 ### Pendiente antes de producción
 - La imagen para compartir en redes (`opengraph-image.tsx`) sigue usando la foto de Adinco: hay que darle una versión JPEG propia antes del corte.
 - El sync de producción tiene que copiar las fotos nuevas solo (hoy la copia es un script aparte).

@@ -18,6 +18,7 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
   { href: "/backoffice", label: "Panel", permission: "panel.ver" },
   { href: "/backoffice/pedidos", label: "Pedidos", permission: "pedidos.ver" },
+  { href: "/backoffice/propiedades", label: "Propiedades", permission: "propiedades.ver" },
   {
     href: "/backoffice/administraciones",
     label: "Administraciones",
