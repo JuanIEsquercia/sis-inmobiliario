@@ -48,6 +48,16 @@ Regla vigente: desde esta sesión no se toca la base. Todo cambio de esquema se 
 - Backoffice: sección "Propiedades" para crear y editar, con todos los campos que hoy trae el XML, carga de fotos (generando los tamaños al subir), orden y foto destacada, y publicar o despublicar. Reutiliza `ActionForm` / `conAviso` y el patrón de PDFs de `DocumentosContratoFields`.
 - Conversión: un botón o script que pasa todas las propiedades importadas a origen `PROPIA` el día del corte.
 
+#### Numeración de códigos de propiedad
+
+Las propiedades propias siguen la numeración correlativa que ya usa la inmobiliaria: hoy va cerca del código 380, y las nuevas toman 381, 382 y así sucesivamente, sin saltos ni reinicios.
+
+- El sistema asigna el código al crear la propiedad: el último número usado + 1. El agente no lo tipea.
+- Punto de partida: el número más alto entre los códigos de las propiedades importadas (`Listing.code`) y de las unidades (`Unit.propertyCode`), ignorando los códigos de relleno ("0", "1") y los que no son números.
+- Dos altas al mismo tiempo no pueden recibir el mismo número. Pendiente BD: un contador en la base inicializado en ese máximo, y código único entre las propiedades propias.
+- Mientras Adinco siga activo, Adinco también asigna códigos y podría repetir uno nuestro. Por eso el sistema numera recién desde el corte (Fase 4); hasta entonces las altas se siguen haciendo en Adinco.
+- Un código no se reutiliza aunque la propiedad se venda o se elimine.
+
 ### Fase 3 — Portales (decisión antes de dar de baja Adinco)
 Opciones a evaluar, con costos de cada portal:
 - Integración directa con cada portal: MercadoLibre tiene API pública; Zonaprop y Argenprop trabajan con integradores o feeds XML en su formato, que habría que consultar con cada uno.
@@ -59,6 +69,55 @@ Opciones a evaluar, con costos de cada portal:
 2. Volver los estados reales en Adinco; nuestro sistema marca vendidas y no vigentes.
 3. Último sync, conversión a `PROPIA`, apagar el cron de `vercel.json` y el sync.
 4. Verificar el sitio y los portales; recién ahí dar de baja Adinco.
+
+## Llaves y visitas (después de la Fase 2)
+
+Cada propiedad indica dónde está su llave, y el vendedor la pide desde el sistema para una visita con fecha y franja horaria. Al terminar marca la visita como hecha y, si la llave era de la inmobiliaria, la devuelve.
+
+### Dónde está la llave (en la ficha de la propiedad)
+
+- **En la inmobiliaria ("Retirar de inmo"):** con el número de llavero o su lugar en el tablero.
+- **Con un contacto:** el propietario o un encargado, con nombre, teléfono y relación con la propiedad. Si el contacto ya está en Clientes, se reutiliza.
+- **Notas:** cantidad de juegos e indicaciones de acceso (portero, alarma).
+- Una propiedad sin llave indicada no se puede pedir, y el sistema lo avisa.
+
+### Pedido de llave para visita
+
+El vendedor elige la propiedad, la fecha y la franja en horas enteras: inicio y fin entre 10, 11, 12, 13 y así (por ejemplo, de 11 a 13). Opcional: el interesado o el pedido de búsqueda al que corresponde la visita.
+
+Si la llave está en la inmobiliaria:
+
+1. **Pedida:** aparece en la lista de llaves del día de quien las entrega.
+2. **Retirada:** queda registrado quién la tiene y desde cuándo.
+3. **Visita hecha:** la marca el vendedor.
+4. **Llave devuelta:** la marca el vendedor y la confirma quien la recibe en la inmobiliaria.
+
+Si la llave la tiene un contacto:
+
+1. **Pedida:** el sistema arma el WhatsApp al contacto con la propiedad, la fecha y la franja (reutiliza `src/lib/whatsapp.ts`).
+2. **Coordinada:** el vendedor marca que el contacto confirmó.
+3. **Visita hecha:** la marca el vendedor. No hay devolución de llave.
+
+En cualquier paso el pedido se puede cancelar.
+
+### Controles
+
+- Dos visitas a la misma propiedad en franjas superpuestas: el sistema avisa antes de confirmar.
+- Una llave de la inmobiliaria que no volvió el día de la visita aparece en la campanita de alertas, con quién la tiene.
+- Permisos nuevos en `src/lib/permissions.ts`: pedir llaves (vendedores) y gestionar llaves (quien las entrega en la inmobiliaria).
+- Historial por propiedad: quién visitó, cuándo y cuándo volvió la llave.
+
+### Qué requiere en la base (pendiente BD)
+
+- Llave por propiedad: ubicación (inmobiliaria o contacto), contacto y notas.
+- Pedidos de visita: propiedad, vendedor, fecha, hora de inicio y de fin, estado, fechas de retiro y devolución, interesado opcional.
+- Se aplica desde Antigravity, como el resto de los cambios de esquema.
+
+### Cuándo
+
+Después de la Fase 2, porque la llave se carga en la ficha propia de la propiedad. Podría arrancar antes sobre las propiedades importadas, pero habría que cargar los datos de llaves dos veces.
+
+Pregunta abierta: ¿la franja es siempre de una hora (por ejemplo, de 11 a 12) o el vendedor elige inicio y fin libres?
 
 ## Verificación
 - Fase 0: el script deja un XML con la misma cantidad de `<ad>` que el feed, y la cantidad de fotos descargadas coincide con la de `<picture>`. Prueba de `parseFeed` sobre el respaldo.
