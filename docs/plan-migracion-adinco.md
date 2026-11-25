@@ -1,0 +1,138 @@
+# Migrar las propiedades de Adinco a nuestra base y dejar Adinco
+
+_Plan armado el 2026-11-25 en una sesión de Claude Code en la nube. Estado: propuesta, nada implementado todavía._
+
+## Contexto
+
+Hoy Adinco es la fuente de las propiedades: se cargan allá, Adinco las publica en portales (Zonaprop, Argenprop, MercadoLibre, etc.) y genera un XML que nuestro sistema lee todos los días (`/api/sync`, cron 21:00 UTC → `src/lib/sync.ts` + `src/lib/feed.ts`). La idea es quedarse con todos los datos en nuestra base y dejar de pagar Adinco.
+
+## Respuestas a las preguntas
+
+**¿Tengo el link del XML?** No. Vive en la variable de entorno `ADINCO_FEED_URL` (Vercel → Settings → Environment Variables, y en tu `.env` de la PC principal). El repo solo tiene el formato: `https://feeds.adinco.net/[agency-id]/[token]/ar_adinco.xml`. No lo necesito para planificar.
+
+**¿Qué datos se recuperan?** Casi todo ya está en nuestra base hoy. El sync guarda cada aviso en `Listing` con unos 50 campos (título, descripción, operación, tipo, precio y moneda, expensas, dirección completa, ciudad, barrio, coordenadas, superficies, dormitorios, baños, antigüedad, cocheras, apto crédito, servicios, datos de campo, vendedor, fecha) y además **`rawData`, el `<ad>` completo tal cual vino**, así que ningún campo del XML se pierde aunque no tenga columna propia. Fotos y videos quedan en `ListingImage` / `ListingVideo`.
+
+**¿Las imágenes se pueden guardar?** Sí, pero **hoy no las tenemos**: guardamos solo el link al CDN de Adinco (`static1.adinco.net`). Si se da de baja Adinco, es muy probable que esos links dejen de funcionar y el sitio quede sin fotos. El XML trae la URL de cada foto, y Adinco sirve 5 tamaños de cada una (ver `src/lib/adinco-images.ts`). Se pueden descargar y guardar en nuestro Supabase Storage. Estimado: unas 1.664 fotos; guardando 3 tamaños (grande, mediano, chico) son unos 120 MB, y con los 5, unos 260 MB.
+
+**¿Qué se pierde?**
+1. **Publicación en portales** (confirmaste que la usan). Es lo más importante: sin Adinco, las propiedades dejan de aparecer automáticamente en Zonaprop/Argenprop/MercadoLibre.
+2. **Las fotos**, si no se copian antes de la baja (punto anterior).
+3. **La herramienta para cargar y editar propiedades.** Hoy nuestro sistema solo lee el XML; no tiene una pantalla para dar de alta una propiedad nueva.
+4. Lo que Adinco no pone en el XML: consultas de interesados, estadísticas de visitas, historial de cambios, notas internas. Hay que pedirle a Adinco una exportación de eso si interesa.
+5. El link `sourceUrl` a la ficha en Adinco (sin importancia).
+
+**¿Es posible?** Sí. La base ya está bien estructurada para esto. Lo que falta es: copiar las fotos, que nuestro sistema pueda crear y editar propiedades propias, y resolver los portales.
+
+## Sobre poner todo "Vigente" para capturar
+
+Funciona para que el XML traiga todo, pero con dos cuidados:
+- **Mientras estén vigentes, Adinco las publica en los portales** y nuestro sync las muestra en inmogp.com. Hacerlo en una ventana corta y, si Adinco lo permite, pausando la difusión a portales.
+- **No dejar que corra el sync normal** en esa ventana (cron 18:00 hora Argentina). La captura se hace con un script aparte que guarda una copia del XML y no toca lo publicado.
+
+## Plan (por fases)
+
+Regla vigente: desde esta sesión no se toca la base. Todo cambio de esquema se escribe en `docs/pendientes-bd.md` para aplicarlo desde Antigravity en `main`, y el código que dependa de él no se mergea antes.
+
+### Fase 0 — Seguro inmediato (sin cambios de base)
+- Script `scripts/respaldo-feed.ts`: descarga el XML (usa `ADINCO_FEED_URL`) y lo guarda tal cual, con fecha, como archivo de respaldo. Se corre desde la PC principal (ahí están las variables), antes y durante la ventana "todo Vigente".
+- El mismo script puede descargar todas las fotos del XML (los 5 tamaños, o 3) a una carpeta local como respaldo. Reutiliza `parseFeed` de `src/lib/feed.ts` y `adincoImage` de `src/lib/adinco-images.ts`.
+
+### Fase 1 — Fotos en nuestro Storage (requiere cambio de base)
+- Pendiente BD: columna `storagePath` (o similar) en `ListingImage` y bucket público `propiedades` en Supabase Storage.
+- Script de copia: por cada foto, descarga los tamaños elegidos y los sube al bucket; guarda la ruta. Reutilizar el patrón de subida de `src/lib/supabase/storage.ts`.
+- El sitio (`PropertyCard`, `Gallery`, ficha) usa nuestra copia cuando existe y el link de Adinco si no. Sin el optimizador de Vercel (su cupo ya se agotó una vez; ver comentario en `adinco-images.ts`).
+- El sync sigue funcionando mientras exista Adinco y copia las fotos nuevas.
+
+### Fase 2 — Propiedades propias (requiere cambio de base)
+- Pendiente BD: campo de origen en `Listing` (`ADINCO` / `PROPIA`) y código propio de propiedad. Importante: hoy el sync **desactiva todo lo que no está en el XML** (`sync.ts`, `updateMany ... notIn`); tiene que pasar a desactivar solo lo de origen `ADINCO`.
+- Backoffice: sección "Propiedades" para crear y editar, con todos los campos que hoy trae el XML, carga de fotos (generando los tamaños al subir), orden y foto destacada, y publicar o despublicar. Reutiliza `ActionForm` / `conAviso` y el patrón de PDFs de `DocumentosContratoFields`.
+- Conversión: un botón o script que pasa todas las propiedades importadas a origen `PROPIA` el día del corte.
+
+#### Numeración de códigos de propiedad
+
+Las propiedades propias siguen la numeración correlativa que ya usa la inmobiliaria: hoy va cerca del código 380, y las nuevas toman 381, 382 y así sucesivamente, sin saltos ni reinicios.
+
+- El sistema asigna el código al crear la propiedad: el último número usado + 1. El agente no lo tipea.
+- Punto de partida: el número más alto entre los códigos de las propiedades importadas (`Listing.code`) y de las unidades (`Unit.propertyCode`), ignorando los códigos de relleno ("0", "1") y los que no son números.
+- Dos altas al mismo tiempo no pueden recibir el mismo número. Pendiente BD: un contador en la base inicializado en ese máximo, y código único entre las propiedades propias.
+- Mientras Adinco siga activo, Adinco también asigna códigos y podría repetir uno nuestro. Por eso el sistema numera recién desde el corte (Fase 4); hasta entonces las altas se siguen haciendo en Adinco.
+- Un código no se reutiliza aunque la propiedad se venda o se elimine.
+
+### Fase 3 — Portales (decisión antes de dar de baja Adinco)
+Opciones a evaluar, con costos de cada portal:
+- Integración directa con cada portal: MercadoLibre tiene API pública; Zonaprop y Argenprop trabajan con integradores o feeds XML en su formato, que habría que consultar con cada uno.
+- Un integrador o CRM más barato solo para difundir.
+- Carga manual en cada portal (viable solo si son pocas propiedades).
+
+### Fase 4 — Corte
+1. Ventana "todo Vigente" con el respaldo de la Fase 0 y la importación completa.
+2. Volver los estados reales en Adinco; nuestro sistema marca vendidas y no vigentes.
+3. Último sync, conversión a `PROPIA`, apagar el cron de `vercel.json` y el sync.
+4. Verificar el sitio y los portales; recién ahí dar de baja Adinco.
+
+## Llaves y visitas (después de la Fase 2)
+
+Cada propiedad indica dónde está su llave, y el vendedor la pide desde el sistema para una visita con fecha y turno de 30 minutos. Al terminar marca la visita como hecha y, si la llave era de la inmobiliaria, la devuelve.
+
+### Dónde está la llave (en la ficha de la propiedad)
+
+- **En la inmobiliaria ("Retirar de inmo"):** con el número de llavero o su lugar en el tablero.
+- **Con un contacto:** el propietario o un encargado, con nombre, teléfono y relación con la propiedad. Si el contacto ya está en Clientes, se reutiliza.
+- **Notas:** cantidad de juegos e indicaciones de acceso (portero, alarma).
+- Una propiedad sin llave indicada no se puede pedir, y el sistema lo avisa.
+
+### Pedido de llave para visita
+
+Cada visita dura siempre 30 minutos. El vendedor elige la fecha y un turno de la lista fija: de 07:00 a 21:30, cada media hora (07:00, 07:30 … 21:30), así la última visita termina a las 22:00. Todos los días, sábados y domingos incluidos: cada vendedor coordina libremente sus visitas. El fin se calcula solo; no se eligen inicio y fin libres. Cada visita queda asociada al interesado (cliente o pedido de búsqueda), y así se registra qué leads avanzaron hasta la visita.
+
+Si la llave está en la inmobiliaria:
+
+1. **Pedida:** aparece en la lista de llaves del día de quien las entrega.
+2. **Retirada:** queda registrado quién la tiene y desde cuándo.
+3. **Visita hecha:** la marca el vendedor.
+4. **Llave devuelta:** la marca el vendedor y la confirma quien la recibe en la inmobiliaria.
+
+Si la llave la tiene un contacto:
+
+1. **Pedida:** el sistema arma el WhatsApp al contacto con la propiedad, la fecha y el horario (reutiliza `src/lib/whatsapp.ts`).
+2. **Coordinada:** el vendedor marca que el contacto confirmó.
+3. **Visita hecha:** la marca el vendedor. No hay devolución de llave.
+
+En cualquier paso el pedido se puede cancelar.
+
+### Tarjeta de visita
+
+Cada pedido de llave abre una tarjeta de visita: la ficha donde queda toda la trazabilidad de esa visita, desde el pedido hasta el cierre.
+
+- **Cabecera:** la propiedad con su código y el vendedor se completan solos (la propiedad desde la que se pidió la llave y el usuario que la pidió); el vendedor elige el interesado, la fecha y el turno, y se muestra dónde está la llave.
+- **Línea de tiempo:** cada paso con fecha, hora y quién lo hizo (pedida, retirada o coordinada, visita hecha, llave devuelta, cancelada).
+- **Carga del vendedor:** el resultado se elige de una lista precargada de categorías para perfilar el lead (por ejemplo: le interesó, pide segunda visita, hace oferta, no le gustó la zona, fuera de presupuesto, descartado), sin texto libre. La lista la administra quien gestiona el sistema, como los conceptos de Presupuestos.
+- **Listado de tarjetas:** las del día y las abiertas, filtrables por vendedor, propiedad y estado. Desde la ficha del interesado y la de la propiedad se ven sus tarjetas.
+
+### Controles
+
+- Dos visitas a la misma propiedad en el mismo turno: el sistema no lo permite.
+- Una llave de la inmobiliaria que no volvió el día de la visita aparece en la campanita de alertas, con quién la tiene.
+- Permisos nuevos en `src/lib/permissions.ts`: pedir llaves (vendedores) y gestionar llaves (quien las entrega en la inmobiliaria).
+- Historial por propiedad y por interesado: quién visitó, cuándo y cuándo volvió la llave. Desde cada interesado se ve si su lead llegó a visita.
+
+### Qué requiere en la base (pendiente BD)
+
+- Llave por propiedad: ubicación (inmobiliaria o contacto), contacto y notas.
+- Pedidos de visita (la tarjeta): propiedad, vendedor, fecha, turno (hora de inicio; dura 30 minutos), estado, fechas de retiro y devolución, interesado (obligatorio), categoría de resultado.
+- Lista de categorías de resultado administrable.
+- Línea de tiempo de cada tarjeta: paso, fecha y hora, quién lo hizo.
+- Se aplica desde Antigravity, como el resto de los cambios de esquema.
+
+### Cuándo
+
+Después de la Fase 2, porque la llave se carga en la ficha propia de la propiedad. Podría arrancar antes sobre las propiedades importadas, pero habría que cargar los datos de llaves dos veces.
+
+## Verificación
+- Fase 0: el script deja un XML con la misma cantidad de `<ad>` que el feed, y la cantidad de fotos descargadas coincide con la de `<picture>`. Prueba de `parseFeed` sobre el respaldo.
+- Fase 1: en la preview, todas las fichas muestran fotos desde nuestro bucket; un listado de fotos sin copia da 0.
+- Fase 2: crear, editar y despublicar una propiedad de prueba en la preview; correr el sync y comprobar que no la desactiva.
+- Fase 4: comparar la cantidad de propiedades activas antes y después del corte.
+
+## Archivos clave
+- `src/lib/feed.ts` (parser, campos del XML), `src/lib/sync.ts` (sync y desactivación), `src/lib/adinco-images.ts` (tamaños de fotos), `src/lib/supabase/storage.ts` (subidas), `src/app/api/sync/route.ts`, `vercel.json` (cron), `prisma/schema.prisma` (`Listing`, `ListingImage`, `ListingVideo`, `Agency`; solo lectura desde esta sesión).
