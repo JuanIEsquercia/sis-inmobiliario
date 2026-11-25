@@ -105,7 +105,7 @@ export default async function PropiedadPage({ params }: PageProps) {
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <section className="lg:col-span-2">
-          <h2 className="mb-3 text-base font-semibold text-foreground">Fotos</h2>
+          <h2 className="mb-3 text-base font-semibold text-foreground">Imágenes</h2>
           <PropiedadFotos listingId={p.id} fotos={fotos} editable={esPropia && canEditar} maximo={MAX_FOTOS_POR_PROPIEDAD} />
         </section>
 

@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { eliminarFoto, moverFoto, subirFoto } from "@/app/backoffice/(app)/propiedades/actions";
+import { achicarFoto } from "@/lib/achicar-foto";
 import { useAvisos } from "./Avisos";
 
 export interface FotoFicha {
@@ -10,24 +11,6 @@ export interface FotoFicha {
   propia: boolean; // true = copia en nuestro Storage
 }
 
-// Antes de subir, la foto se achica en el navegador: las de celular pesan
-// 4-8 MB y el envío a una server action tiene tope de 4 MB (ver
-// next.config.ts). 2400 px de lado mayor sobra para la versión más
-// grande que se guarda (1600) y deja margen para el recorte de bordes.
-const LADO_MAXIMO_SUBIDA = 2400;
-
-async function achicar(file: File): Promise<Blob> {
-  const imagen = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const escala = Math.min(1, LADO_MAXIMO_SUBIDA / Math.max(imagen.width, imagen.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(imagen.width * escala);
-  canvas.height = Math.round(imagen.height * escala);
-  canvas.getContext("2d")!.drawImage(imagen, 0, 0, canvas.width, canvas.height);
-  imagen.close();
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("No se pudo procesar la foto"))), "image/jpeg", 0.9)
-  );
-}
 
 export function PropiedadFotos({
   listingId,
@@ -64,7 +47,7 @@ export function PropiedadFotos({
         setProgreso(`Subiendo ${i + 1} de ${elegidas.length}...`);
         try {
           const fd = new FormData();
-          fd.append("foto", new File([await achicar(file)], "foto.jpg", { type: "image/jpeg" }));
+          fd.append("foto", await achicarFoto(file));
           const r = await subirFoto(listingId, fd);
           if (!r.ok) {
             avisos.error(r.error);

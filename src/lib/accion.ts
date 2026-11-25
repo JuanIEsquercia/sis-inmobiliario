@@ -28,6 +28,25 @@ const ERROR_GENERICO = "No se pudo completar la operación. Intentá de nuevo en
 //
 // redirect() y notFound() también funcionan tirando una excepción:
 // unstable_rethrow las deja pasar para que Next haga la navegación.
+export type ResultadoConDato<T> = { ok: true; dato: T } | { ok: false; error: string };
+
+// Igual que conAviso, pero la acción devuelve un dato al navegador (por
+// ejemplo el id de lo que creó, para seguir trabajando sobre eso).
+export function conAvisoDato<A extends unknown[], T>(
+  accion: (...args: A) => Promise<T>
+): (...args: A) => Promise<ResultadoConDato<T>> {
+  return async (...args: A) => {
+    try {
+      return { ok: true, dato: await accion(...args) };
+    } catch (err) {
+      unstable_rethrow(err);
+      console.error(err);
+      const esMensajePropio = err instanceof Error && err.constructor === Error && err.message;
+      return { ok: false, error: esMensajePropio ? err.message : ERROR_GENERICO };
+    }
+  };
+}
+
 export function conAviso<A extends unknown[]>(
   accion: (...args: A) => Promise<unknown>
 ): (...args: A) => Promise<ResultadoAccion> {

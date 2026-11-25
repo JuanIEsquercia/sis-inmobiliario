@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
-import { conAviso } from "@/lib/accion";
+import { conAviso, conAvisoDato } from "@/lib/accion";
 import { optionalDecimal, optionalInt, optionalStr, requiredStr } from "@/lib/form-utils";
 import { normalizeForSearch } from "@/lib/search-text";
 import { PROPERTY_TYPES } from "@/lib/property-types";
@@ -211,7 +210,9 @@ function videosDe(formData: FormData): string[] {
     .map((u) => urlOpcional(u, "video")!);
 }
 
-export const crearPropiedad = conAviso(async function crearPropiedad(formData: FormData) {
+// Devuelve el id de la ficha nueva: el formulario de alta sube las fotos
+// elegidas una por una contra esa ficha y después navega a ella.
+export const crearPropiedad = conAvisoDato(async function crearPropiedad(formData: FormData): Promise<number> {
   const profile = await requirePermission("propiedades.editar");
   const datos = datosPublicados(formData);
   const videos = videosDe(formData);
@@ -247,7 +248,7 @@ export const crearPropiedad = conAviso(async function crearPropiedad(formData: F
     )
   );
   revalidatePath("/backoffice/propiedades");
-  redirect(`/backoffice/propiedades/${creada.id}`);
+  return creada.id;
 });
 
 export const actualizarPublicacion = conAviso(async function actualizarPublicacion(id: number, formData: FormData) {

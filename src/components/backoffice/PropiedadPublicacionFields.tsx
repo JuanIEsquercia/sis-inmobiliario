@@ -214,7 +214,7 @@ export function PropiedadPublicacionFields({ d = {} }: { d?: PublicacionDefaults
         </Campo>
       </Seccion>
 
-      <Seccion titulo="Multimedia" nota="Las fotos se cargan en la ficha, después de guardar.">
+      <Seccion titulo="Multimedia" nota="Las fotos se cargan en la sección Imágenes.">
         <Campo label="Videos (un link de YouTube por línea)" ancho={2}>
           <textarea name="videoUrls" rows={3} defaultValue={(d.videos ?? []).map((v) => v.url).join("\n")} className="field" placeholder="https://www.youtube.com/watch?v=..." />
         </Campo>
