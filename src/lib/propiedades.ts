@@ -95,6 +95,7 @@ export async function getPropiedades(filtros: FiltrosPropiedades) {
           priceAmount: true,
           priceCurrency: true,
           priceRaw: true,
+          hidePrice: true,
           status: true,
           origin: true,
           isActive: true,
@@ -117,6 +118,7 @@ export async function getPropiedadById(id: number) {
       where: { id },
       include: {
         images: { orderBy: [{ sortOrder: "asc" }] },
+        videos: { select: { url: true } },
         captadorAgent: { select: { id: true, username: true, firstName: true, lastName: true } },
         createdBy: { select: { username: true } },
       },

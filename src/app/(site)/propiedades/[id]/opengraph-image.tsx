@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveListingParam } from "@/lib/listings";
-import { formatPrice, operationLabel } from "@/lib/format";
+import { formatPrice, operationLabel, publicAddress } from "@/lib/format";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 // Imagen de previsualización de UNA propiedad, la que se ve cuando un
@@ -96,7 +96,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const foto = listing.images[0]?.url ?? null;
   const precio = formatPrice(listing);
   const operacion = operationLabel(listing.operationType);
-  const ubicacion = [listing.address, listing.city].filter(Boolean).join(" · ");
+  const ubicacion = [publicAddress(listing), listing.city].filter(Boolean).join(" · ");
 
   return new ImageResponse(
     (

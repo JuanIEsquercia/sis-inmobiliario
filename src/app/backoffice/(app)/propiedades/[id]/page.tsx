@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { getAgents } from "@/lib/caja";
 import { ESTADOS, ESTADOS_NO_PUBLICABLES, ORIGEN_LABEL, getPropiedadById } from "@/lib/propiedades";
-import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
+import { formatDate, operationLabel } from "@/lib/format";
+import { PropiedadResumen } from "@/components/backoffice/PropiedadResumen";
 import { MAX_FOTOS_POR_PROPIEDAD, propertyImageSrc } from "@/lib/property-images";
 import { ActionForm } from "@/components/backoffice/ActionForm";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
@@ -164,20 +165,7 @@ export default async function PropiedadPage({ params }: PageProps) {
             </div>
           </ActionForm>
         ) : (
-          <div className="rounded-xl border border-border p-4">
-            <p className="mb-3 font-medium text-foreground">{titulo}</p>
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Dato label="Precio" value={formatPrice(p)} />
-              <Dato label="Expensas" value={p.expenses ? `ARS ${Number(p.expenses).toLocaleString("es-AR")}` : null} />
-              <Dato label="Localidad" value={[p.neighborhood, p.city, p.region].filter(Boolean).join(", ")} />
-              <Dato label="Sup. cubierta" value={formatArea(p.floorArea)} />
-              <Dato label="Sup. terreno" value={formatArea(p.plotArea)} />
-              <Dato label="Dormitorios" value={p.rooms} />
-              <Dato label="Baños" value={p.bathrooms} />
-              <Dato label="Cocheras" value={p.coveredGarages} />
-            </dl>
-            {p.description && <p className="mt-4 whitespace-pre-line text-sm text-muted">{p.description}</p>}
-          </div>
+          <PropiedadResumen p={p} />
         )}
       </section>
 

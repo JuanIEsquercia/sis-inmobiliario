@@ -10,6 +10,14 @@ import { optionalDecimal, optionalInt, optionalStr, requiredStr } from "@/lib/fo
 import { normalizeForSearch } from "@/lib/search-text";
 import { PROPERTY_TYPES } from "@/lib/property-types";
 import { ESTADOS, ESTADOS_NO_PUBLICABLES, MONEDAS, OPERACIONES, siguienteCodigoPropio } from "@/lib/propiedades";
+import {
+  AGUA_A_CARGO_DE,
+  AMENITIES_EDIFICIO,
+  A_CARGO_DE,
+  INSTALACIONES_PROPIEDAD,
+  SERVICIOS_EDIFICIO,
+  SERVICIOS_PROPIEDAD,
+} from "@/lib/property-features";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarFoto } from "@/lib/property-image-processing";
 import { asegurarBucketPropiedades } from "@/lib/property-image-copy";
@@ -90,31 +98,76 @@ function datosPublicados(formData: FormData) {
   if (!(PROPERTY_TYPES as readonly string[]).includes(propertyType)) throw new Error("Elegí un tipo de propiedad de la lista.");
 
   const titulo = requiredStr(formData.get("contentTitle"), "Título");
-  const consultar = formData.get("consultarPrecio") === "on";
-  const priceAmount = consultar ? null : optionalDecimal(formData.get("priceAmount"));
-  const priceCurrency = consultar ? null : optionalStr(formData.get("priceCurrency"));
-  if (!consultar && (!priceAmount || !priceCurrency)) {
-    throw new Error('Cargá precio y moneda, o marcá "Consultar precio".');
-  }
+  // Como en Adinco: el monto se guarda siempre y "No publicar precio" solo
+  // lo oculta en el sitio. Sin monto, el sitio muestra "Consultar precio".
+  const hidePrice = marcado(formData, "hidePrice");
+  const priceAmount = optionalDecimal(formData.get("priceAmount"));
+  const priceCurrency = priceAmount ? optionalStr(formData.get("priceCurrency")) : null;
+  if (priceAmount && !priceCurrency) throw new Error("Elegí la moneda del monto.");
   if (priceCurrency && !MONEDAS.includes(priceCurrency)) throw new Error("Moneda inválida.");
 
   const addressName = optionalStr(formData.get("addressName"));
   const addressNumber = optionalStr(formData.get("addressNumber"));
   const address = [addressName, addressNumber].filter(Boolean).join(" ") || null;
   const aptoCredito = optionalStr(formData.get("aptoCredito"));
+  const esAlquiler = operationType === "For Rent";
+  const deLista = (campo: string, opciones: readonly string[]) => {
+    const v = optionalStr(formData.get(campo));
+    return v && opciones.includes(v) ? v : null;
+  };
+  const casillas = (campo: string, opciones: readonly string[]) =>
+    formData.getAll(campo).map(String).filter((v) => opciones.includes(v));
 
   return {
     // `title` es el título armado que usa Adinco; en las propias es el
     // mismo título que se escribe a mano.
     title: titulo,
     contentTitle: titulo,
-    description: optionalStr(formData.get("description")),
+    description: requiredStr(formData.get("description"), "Descripción"),
     operationType,
     propertyType,
     priceAmount,
     priceCurrency,
-    priceRaw: consultar ? "Consultar precio" : null,
+    priceRaw: priceAmount ? null : "Consultar precio",
+    hidePrice,
     expenses: optionalDecimal(formData.get("expenses")),
+    expensesApproximate: marcado(formData, "expensesApproximate"),
+    aptoProfesional: marcado(formData, "aptoProfesional"),
+    aceptaMascotas: marcado(formData, "aceptaMascotas"),
+    ocupada: marcado(formData, "ocupada"),
+    propertySubtype: optionalStr(formData.get("propertySubtype")),
+    depositMonths: esAlquiler ? optionalInt(formData.get("depositMonths")) : null,
+    taxesPaidBy: esAlquiler ? deLista("taxesPaidBy", A_CARGO_DE.map((o) => o.value)) : null,
+    waterPaidBy: esAlquiler ? deLista("waterPaidBy", AGUA_A_CARGO_DE.map((o) => o.value)) : null,
+    gatedCommunity: marcado(formData, "gatedCommunity"),
+    showExactAddress: marcado(formData, "showExactAddress"),
+    betweenStreet1: optionalStr(formData.get("betweenStreet1")),
+    betweenStreet2: optionalStr(formData.get("betweenStreet2")),
+    nearStreet: optionalStr(formData.get("nearStreet")),
+    uncoveredArea: optionalDecimal(formData.get("uncoveredArea")),
+    backyardArea: optionalDecimal(formData.get("backyardArea")),
+    condition: optionalStr(formData.get("condition")),
+    ageYears: optionalInt(formData.get("ageYears")),
+    isNew: marcado(formData, "isNew"),
+    floorsCount: optionalInt(formData.get("floorsCount")),
+    orientation: optionalStr(formData.get("orientation")),
+    hotWater: optionalStr(formData.get("hotWater")),
+    disposition: optionalStr(formData.get("disposition")),
+    heating: optionalStr(formData.get("heating")),
+    buildingType: optionalStr(formData.get("buildingType")),
+    buildingCategory: optionalStr(formData.get("buildingCategory")),
+    buildingFloors: optionalInt(formData.get("buildingFloors")),
+    buildingApartmentsPerFloor: optionalInt(formData.get("buildingApartmentsPerFloor")),
+    buildingMainElevators: optionalInt(formData.get("buildingMainElevators")),
+    buildingServiceElevators: optionalInt(formData.get("buildingServiceElevators")),
+    garageOptional: marcado(formData, "garageOptional"),
+    openGarages: optionalInt(formData.get("openGarages")),
+    semiCoveredGarages: optionalInt(formData.get("semiCoveredGarages")),
+    services: casillas("services", SERVICIOS_PROPIEDAD),
+    installations: casillas("installations", INSTALACIONES_PROPIEDAD),
+    buildingServices: casillas("buildingServices", SERVICIOS_EDIFICIO),
+    buildingAmenities: casillas("buildingAmenities", AMENITIES_EDIFICIO),
+    virtualTourUrl: urlOpcional(formData.get("virtualTourUrl"), "tour virtual"),
     address,
     addressSearch: address ? normalizeForSearch(address) : null,
     addressName,
@@ -133,13 +186,35 @@ function datosPublicados(formData: FormData) {
     bathrooms: optionalInt(formData.get("bathrooms")),
     coveredGarages: optionalInt(formData.get("coveredGarages")),
     year: optionalInt(formData.get("year")),
-    aptoCredito: aptoCredito === "si" ? true : aptoCredito === "no" ? false : null,
+    aptoCredito: aptoCredito === "true" ? true : aptoCredito === "false" ? false : null,
   };
+}
+
+function marcado(formData: FormData, campo: string): boolean {
+  return formData.get(campo) === "on";
+}
+
+function urlOpcional(v: FormDataEntryValue | null, que: string): string | null {
+  const s = optionalStr(v);
+  if (!s) return null;
+  if (!/^https?:\/\/\S+$/.test(s)) throw new Error(`El link de ${que} tiene que empezar con http:// o https://`);
+  return s;
+}
+
+// Videos: un link por línea en el formulario; se guardan en ListingVideo
+// (la misma tabla que llena el sync con los videos de Adinco).
+function videosDe(formData: FormData): string[] {
+  return String(formData.get("videoUrls") ?? "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((u) => urlOpcional(u, "video")!);
 }
 
 export const crearPropiedad = conAviso(async function crearPropiedad(formData: FormData) {
   const profile = await requirePermission("propiedades.editar");
   const datos = datosPublicados(formData);
+  const videos = videosDe(formData);
   const captadorAgentId = optionalStr(formData.get("captadorAgentId"));
 
   const creada = await withRetry(() =>
@@ -163,6 +238,7 @@ export const crearPropiedad = conAviso(async function crearPropiedad(formData: F
             createdById: profile.id,
             sourceUpdatedAt: new Date(),
             rawData: {},
+            videos: { create: videos.map((url) => ({ url })) },
           },
           select: { id: true },
         });
@@ -178,7 +254,17 @@ export const actualizarPublicacion = conAviso(async function actualizarPublicaci
   await requirePermission("propiedades.editar");
   await fichaPropia(id);
   const datos = datosPublicados(formData);
-  await withRetry(() => prisma.listing.update({ where: { id }, data: { ...datos, sourceUpdatedAt: new Date() } }));
+  const videos = videosDe(formData);
+  await withRetry(() =>
+    prisma.listing.update({
+      where: { id },
+      data: {
+        ...datos,
+        sourceUpdatedAt: new Date(),
+        videos: { deleteMany: {}, create: videos.map((url) => ({ url })) },
+      },
+    })
+  );
   revalidarFicha(id);
 });
 

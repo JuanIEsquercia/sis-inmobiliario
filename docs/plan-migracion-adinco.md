@@ -180,6 +180,13 @@ Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorn
 - La ficha muestra las operaciones del Historial con el mismo código normalizado (vista previa de la normalización).
 - Prueba de punta a punta en el navegador (14 comprobaciones, todas bien): estado y captador en una ficha de Adinco, etiqueta Reservada en el sitio, vendida se despublica y el sync la respeta, alta propia con código correlativo, subir, ordenar y eliminar fotos, editar, publicar, y el sync no la toca.
 
+### Ficha con los campos del formulario de Adinco
+- Migración `20261125200000_listing_campos_adinco`: los campos del formulario de carga de Adinco que no se guardaban aparte (edificación, no publicar precio, expensas aproximadas, apto profesional, mascotas, ocupada, datos de alquiler, barrio cerrado, dirección aproximada, entre calles, cerca de, superficies descubierta y fondo libre, antigüedad, plantas, agua caliente, disposición, calefacción, edificio, cocheras, tour virtual) y las listas de instalaciones, servicios del edificio y amenities.
+- Mismas secciones, opciones y listas que Adinco (`src/lib/property-features.ts`). Descartados, por ser de los portales o no usarse: garantías de Argenprop, compartir comisión, luminosidad, tipo de piso, vista, balcón, vigilancia y costa, y los textos automáticos.
+- El parser del XML lee los campos nuevos y reparte servicios, instalaciones y amenities en sus listas. Lo que no corresponde a ninguna opción queda como "Otros datos de Adinco" (19 de las 155 propiedades tienen alguno).
+- Sitio: "No publicar precio" muestra "Consultar precio" (también al compartir y en los datos para buscadores); "dirección aproximada" muestra la calle sin número y el mapa no usa las coordenadas exactas. La ficha pública muestra los grupos de características y el tour virtual.
+- **Al pasar a producción:** después de aplicar la migración, correr una vez `npm run sync -- --force` para completar estos campos en las fichas que ya están cargadas.
+
 ### Pendiente antes de producción
 - La imagen para compartir en redes (`opengraph-image.tsx`) sigue usando la foto de Adinco: hay que darle una versión JPEG propia antes del corte.
 - El sync de producción tiene que copiar las fotos nuevas solo (hoy la copia es un script aparte).

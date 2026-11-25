@@ -2,7 +2,10 @@ export function formatPrice(listing: {
   priceAmount: unknown;
   priceCurrency: string | null;
   priceRaw: string | null;
+  // "No publicar precio" de la ficha: el monto existe pero no se muestra.
+  hidePrice?: boolean;
 }): string {
+  if (listing.hidePrice) return "Consultar precio";
   if (listing.priceAmount === null || listing.priceAmount === undefined) {
     return listing.priceRaw ?? "Consultar precio";
   }
@@ -19,6 +22,18 @@ export function formatArea(value: unknown, unit = "m²"): string | null {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return null;
   return `${new Intl.NumberFormat("es-AR").format(n)} ${unit}`;
+}
+
+// Dirección para mostrar en el sitio. Si la ficha pide no mostrar la
+// dirección exacta ("dirección aproximada"), va solo la calle, sin número
+// ni piso.
+export function publicAddress(listing: {
+  address: string | null;
+  addressName?: string | null;
+  showExactAddress?: boolean;
+}): string | null {
+  if (listing.showExactAddress === false) return listing.addressName ?? null;
+  return listing.address;
 }
 
 export function operationLabel(operationType: string): string {

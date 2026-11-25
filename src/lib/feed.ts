@@ -1,5 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { z } from "zod";
+import { clasificarCaracteristicas } from "@/lib/property-features";
 
 // --- parsing helpers -------------------------------------------------------
 // The Adinco feed wraps every value in CDATA and leaves lots of fields as
@@ -138,7 +139,24 @@ export interface NormalizedListing {
   distancePavement: string | null;
   countryType: string | null;
   services: string[];
+  installations: string[];
+  buildingAmenities: string[];
   otherData: string[];
+  propertySubtype: string | null;
+  aptoProfesional: boolean | null;
+  betweenStreet1: string | null;
+  betweenStreet2: string | null;
+  nearStreet: string | null;
+  ageYears: number | null;
+  floorsCount: number | null;
+  hotWater: string | null;
+  disposition: string | null;
+  heating: string | null;
+  buildingApartmentsPerFloor: number | null;
+  buildingServiceElevators: number | null;
+  openGarages: number | null;
+  semiCoveredGarages: number | null;
+  virtualTourUrl: string | null;
   sellerName: string | null;
   sellerEmail: string | null;
   sourceUpdatedAt: Date | null;
@@ -181,8 +199,16 @@ function normalizeAd(raw: RawAd): NormalizedListing {
     .map((v: RawAd): NormalizedVideo => ({ url: str(v?.video_url) ?? "" }))
     .filter((v) => v.url.length > 0);
 
-  const services = toArray(raw.services?.service).map(str).filter((v): v is string => !!v);
-  const otherData = toArray(raw.other_data?.other).map(str).filter((v): v is string => !!v);
+  // Servicios, instalaciones y amenities repartidos en las listas del
+  // formulario (el XML manda las dos últimas mezcladas en other_data).
+  const caracteristicas = clasificarCaracteristicas(
+    toArray(raw.services?.service).map(str).filter((v): v is string => !!v),
+    toArray(raw.other_data?.other).map(str).filter((v): v is string => !!v)
+  );
+
+  // Adinco antepone su CDN a la URL del tour ("https://static1.adinco.net/https://...").
+  const tour = str(raw.virtual_tours?.virtual_tour?.virtual_tour_url);
+  const virtualTourUrl = tour ? tour.replace(/^https?:\/\/static\d*\.adinco\.net\/(?=https?:\/\/)/, "") : null;
 
   const realEstateId = str(raw.real_estate_info?.real_estate_id);
   const agency: NormalizedAgency | null = realEstateId
@@ -232,7 +258,8 @@ function normalizeAd(raw: RawAd): NormalizedListing {
     landArea: decimalStr(raw.land_area),
     rooms: intOrNull(raw.rooms),
     bathrooms: intOrNull(raw.bathrooms),
-    condition: str(raw.condition),
+    // Adinco manda "-" cuando no se cargó el estado.
+    condition: str(raw.condition) === "-" ? null : str(raw.condition),
     year: intOrNull(raw.year),
     isNew: boolOrNull(raw.is_new),
     buildingFloors: intOrNull(raw.building_floors),
@@ -246,8 +273,22 @@ function normalizeAd(raw: RawAd): NormalizedListing {
     accessDetail: str(raw.access_detail),
     distancePavement: decimalStr(raw.distance_pavement),
     countryType: str(raw.country_type),
-    services,
-    otherData,
+    ...caracteristicas,
+    propertySubtype: str(raw.edification),
+    aptoProfesional: str(raw.apto_professional)?.toLowerCase() === "si" ? true : null,
+    betweenStreet1: str(raw.between_street_1),
+    betweenStreet2: str(raw.between_street_2),
+    nearStreet: str(raw.near_street),
+    ageYears: intOrNull(raw.old),
+    floorsCount: intOrNull(raw.flats),
+    hotWater: str(raw.hot_water),
+    disposition: str(raw.disposition),
+    heating: str(raw.heating),
+    buildingApartmentsPerFloor: intOrNull(raw.building_apartment_by_floor),
+    buildingServiceElevators: intOrNull(raw.building_service_elevator),
+    openGarages: intOrNull(raw.open_garages),
+    semiCoveredGarages: intOrNull(raw.semi_covered_garages),
+    virtualTourUrl,
     sellerName: str(raw.seller_info?.full_name),
     sellerEmail: str(raw.seller_info?.email),
     sourceUpdatedAt: dateOrNull(raw.date),

@@ -4,7 +4,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Gallery } from "@/components/Gallery";
 import { ShareButton } from "@/components/ShareButton";
 import { resolveListingParam, type ListingDetail } from "@/lib/listings";
-import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
+import { formatArea, formatDate, formatPrice, operationLabel, publicAddress } from "@/lib/format";
 import { propertyImageSrc, visiblePropertyImages } from "@/lib/property-images";
 import { AGENCY_PHONE, toWhatsAppLink } from "@/lib/whatsapp";
 import { SITE_NAME, SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
@@ -115,36 +115,70 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
 
   const fotos = visiblePropertyImages(listing.images);
   const displayTitle = listing.contentTitle ?? listing.title;
-  const locationText = [listing.address, listing.city, listing.region].filter(Boolean).join(", ");
-  const expensesFormatted = listing.expenses ? String(listing.expenses) : null;
+  // Con "dirección aproximada" va la calle sin número (ver publicAddress).
+  const direccion = publicAddress(listing);
+  const locationText = [direccion, listing.city, listing.region].filter(Boolean).join(", ");
+  const expensesFormatted = listing.expenses
+    ? `${String(listing.expenses)}${listing.expensesApproximate ? " aprox." : ""}`
+    : null;
+
+  const n = (v: number | null) => (v === null || v === undefined ? null : String(v));
+  const si = (v: boolean | null) => (v ? "Sí" : null);
 
   const surfaces = [
     ["Superficie cubierta", formatArea(listing.floorArea)],
-    ["Superficie de lote", formatArea(listing.plotArea)],
+    ["Superficie total", formatArea(listing.plotArea)],
+    ["Superficie descubierta", formatArea(listing.uncoveredArea)],
     ["Superficie de terreno", formatArea(listing.landArea)],
     ["Frente / fondo", listing.fieldLength && listing.fieldWidth ? `${listing.fieldLength} m / ${listing.fieldWidth} m` : null],
   ].filter((row): row is [string, string] => row[1] !== null);
 
   const buildingDetails = [
+    ["Tipo", listing.propertySubtype],
     ["Estado", listing.condition],
-    ["Año de construcción", listing.year ? String(listing.year) : null],
-    ["Pisos del edificio", listing.buildingFloors ? String(listing.buildingFloors) : null],
-    ["Ascensores", listing.buildingMainElevators ? String(listing.buildingMainElevators) : null],
+    ["Antigüedad", listing.isNew ? "A estrenar" : listing.ageYears ? `${listing.ageYears} años` : null],
+    ["Año de construcción", n(listing.year)],
+    ["Plantas", n(listing.floorsCount)],
+    ["Orientación", listing.orientation],
+    ["Disposición", listing.disposition],
+    ["Agua caliente", listing.hotWater],
+    ["Calefacción", listing.heating],
+    ["Cocheras descubiertas", n(listing.openGarages)],
+    ["Cocheras semicubiertas", n(listing.semiCoveredGarages)],
+    ["Pisos del edificio", n(listing.buildingFloors)],
+    ["Ascensores", n(listing.buildingMainElevators)],
     ["Categoría del edificio", listing.buildingCategory],
     ["Uso del campo", listing.countryType],
-  ].filter((row): row is [string, string] => row[1] !== null);
+    ["Apto profesional", si(listing.aptoProfesional)],
+    ["Acepta mascotas", si(listing.aceptaMascotas)],
+  ].filter((row): row is [string, string] => row[1] !== null && row[1] !== undefined);
 
   const financialDetails = [
     ["Expensas", expensesFormatted ? `$ ${expensesFormatted}` : null],
-    ["Precio por hectárea", listing.pricePerHectare ? `USD ${String(listing.pricePerHectare)}` : null],
+    ["Depósito", listing.operationType === "For Rent" && listing.depositMonths ? `${listing.depositMonths} mes(es)` : null],
+    ["Precio por hectárea", listing.pricePerHectare && !listing.hidePrice ? `USD ${String(listing.pricePerHectare)}` : null],
     ["Apto crédito", listing.aptoCredito === null ? null : listing.aptoCredito ? "Sí" : "No"],
   ].filter((row): row is [string, string] => row[1] !== null);
 
+  // Grupos de características, en el orden del formulario. "Otros" es lo
+  // que vino de Adinco sin corresponder a ninguna opción de las listas.
+  const grupos: [string, string[]][] = (
+    [
+      ["Servicios", listing.services],
+      ["Instalaciones", listing.installations],
+      ["Servicios del edificio", listing.buildingServices],
+      ["Amenities", listing.buildingAmenities],
+      ["Otros", listing.otherData],
+    ] as [string, string[]][]
+  ).filter(([, items]) => items.length > 0);
+
+  // Con dirección aproximada no se manda la ubicación exacta al mapa: se
+  // busca por calle, barrio y localidad.
   const mapsUrl =
-    listing.latitude && listing.longitude
+    listing.showExactAddress && listing.latitude && listing.longitude
       ? `https://www.google.com/maps/search/?api=1&query=${listing.latitude},${listing.longitude}`
-      : listing.address
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationText)}`
+      : direccion
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([direccion, listing.neighborhood, listing.city, listing.region].filter(Boolean).join(", "))}`
       : null;
 
   // Mensaje preconfigurado para consulta — toWhatsAppLink hace su propio
@@ -165,7 +199,7 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
   // reciba siempre el código con el que después va a preguntar.
   const shareMessage = [
     `${listing.propertyType} en ${operationLabel(listing.operationType).toLowerCase()}`,
-    [listing.address, listing.city].filter(Boolean).join(", "),
+    [direccion, listing.city].filter(Boolean).join(", "),
     formatPrice(listing),
     listing.code ? `Código ${listing.code}` : null,
     `${SITE_NAME}`,
@@ -189,14 +223,14 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
     address: locationText
       ? {
           "@type": "PostalAddress",
-          streetAddress: listing.address ?? undefined,
+          streetAddress: direccion ?? undefined,
           addressLocality: listing.city ?? undefined,
           addressRegion: listing.region ?? undefined,
           addressCountry: "AR",
         }
       : undefined,
     offers:
-      listing.priceAmount !== null
+      listing.priceAmount !== null && !listing.hidePrice
         ? {
             "@type": "Offer",
             price: String(listing.priceAmount),
@@ -395,44 +429,36 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
           )}
 
           {/* Servicios y Extras */}
-          {(listing.services.length > 0 || listing.otherData.length > 0) && (
+          {(grupos.length > 0 || listing.virtualTourUrl) && (
             <div className="rounded-3xl border border-border/60 bg-surface p-6 sm:p-8 shadow-sm space-y-6">
-              {listing.services.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted">Servicios incluidos</h3>
+              {grupos.map(([titulo, items], i) => (
+                <div key={titulo} className={`space-y-3 ${i > 0 ? "pt-2" : ""}`}>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted">{titulo}</h3>
                   <div className="flex flex-wrap gap-2">
-                    {listing.services.map((service) => (
-                      <span
-                        key={service}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2 text-xs font-semibold text-foreground shadow-2xs"
-                      >
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                        </svg>
-                        {service}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {listing.otherData.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted">Extras y Comodidades</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {listing.otherData.map((item) => (
+                    {items.map((item) => (
                       <span
                         key={item}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2 text-xs font-semibold text-foreground shadow-2xs"
                       >
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                         </svg>
                         {item}
                       </span>
                     ))}
                   </div>
                 </div>
+              ))}
+
+              {listing.virtualTourUrl && (
+                <a
+                  href={listing.virtualTourUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent/15"
+                >
+                  Recorrido virtual 360° ↗
+                </a>
               )}
             </div>
           )}

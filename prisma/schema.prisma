@@ -103,8 +103,45 @@ model Listing {
   distancePavement Decimal? @db.Decimal(10, 2)
   countryType      String?
 
-  services  String[]
-  otherData String[]
+  // Listas para marcar, con las mismas opciones que el formulario de
+  // Adinco (src/lib/property-features.ts). El XML manda instalaciones y
+  // amenities mezclados: se reparten al importar y lo que no corresponde
+  // a ninguna opción queda en otherData.
+  services          String[] // servicios de la propiedad
+  installations     String[] // instalaciones de la propiedad
+  buildingServices  String[] // servicios del edificio
+  buildingAmenities String[] // amenities del edificio
+  otherData         String[]
+
+  // --- Campos del formulario de Adinco que antes no se guardaban aparte ---
+  propertySubtype            String? // "Edificación" en Adinco: Chalet, Duplex, Piso...
+  hidePrice                  Boolean  @default(false) // "No publicar precio": el monto se guarda pero no se muestra
+  expensesApproximate        Boolean  @default(false)
+  aptoProfesional            Boolean?
+  aceptaMascotas             Boolean?
+  ocupada                    Boolean?
+  depositMonths              Int? // alquiler: depósito en meses
+  taxesPaidBy                String? // alquiler: INQUILINO | PROPIETARIO
+  waterPaidBy                String? // alquiler: INQUILINO | PROPIETARIO | EXPENSAS
+  gatedCommunity             Boolean? // country / barrio cerrado
+  // false = el sitio muestra la calle sin número (dirección aproximada).
+  showExactAddress           Boolean  @default(true)
+  betweenStreet1             String?
+  betweenStreet2             String?
+  nearStreet                 String?
+  uncoveredArea              Decimal? @db.Decimal(10, 2) // superficie descubierta
+  backyardArea               Decimal? @db.Decimal(10, 2) // fondo libre
+  ageYears                   Int? // antigüedad en años
+  floorsCount                Int? // plantas
+  hotWater                   String?
+  disposition                String?
+  heating                    String?
+  buildingApartmentsPerFloor Int?
+  buildingServiceElevators   Int?
+  garageOptional             Boolean? // cochera optativa
+  openGarages                Int?
+  semiCoveredGarages         Int?
+  virtualTourUrl             String?
 
   sellerName  String?
   sellerEmail String?
@@ -138,7 +175,7 @@ model Listing {
   // Solo fichas PROPIA: quién la dio de alta en el backoffice.
   createdById String?  @db.Uuid
   createdBy   Profile? @relation("ListingCreadoPor", fields: [createdById], references: [id], onDelete: SetNull)
-  rawData         Json // <ad> completo tal cual vino, sin perder campos
+  rawData     Json // <ad> completo tal cual vino, sin perder campos
 
   agencyId Int?
   agency   Agency? @relation(fields: [agencyId], references: [id])
@@ -752,12 +789,12 @@ model PaymentPartialPayment {
   paymentId Int
   payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
-  amount Decimal        @db.Decimal(14, 2)
-  paidAt DateTime       @default(now())
+  amount     Decimal           @db.Decimal(14, 2)
+  paidAt     DateTime          @default(now())
   // Cómo pagó el inquilino esta parte: efectivo o transferencia. Solo el
   // medio — a quién se lo pagó es `receivedBy`, que antes no existía y
   // se intentaba meter acá adentro.
-  method PaymentMethod?
+  method     PaymentMethod?
   // A quién le entró esta parte (ver PaymentRecipient). Va por cobro y
   // no por liquidación a propósito: un mes puede pagarse parte en
   // efectivo en la inmobiliaria y parte directo al propietario, y así el
@@ -765,7 +802,7 @@ model PaymentPartialPayment {
   // Nullable porque los cobros cargados antes de que este campo
   // existiera no tienen forma de saberlo: null = "no registrado".
   receivedBy PaymentRecipient?
-  notes  String?
+  notes      String?
 
   createdAt DateTime @default(now())
 
@@ -1394,8 +1431,8 @@ model Budget {
 
   items BudgetItem[]
 
-  createdById String  @db.Uuid
-  createdBy   Profile @relation("BudgetCreadoPor", fields: [createdById], references: [id])
+  createdById String   @db.Uuid
+  createdBy   Profile  @relation("BudgetCreadoPor", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
 
   @@index([type])
@@ -1409,7 +1446,7 @@ model BudgetItem {
 
   recipient   BudgetRecipient
   description String
-  amount      Decimal @db.Decimal(14, 2)
+  amount      Decimal         @db.Decimal(14, 2)
   // Cada concepto lleva su propia moneda — muchas operaciones en USD
   // tienen costos mezclados (ej. la comisión en USD, el sellado y los
   // honorarios en ARS), así que el presupuesto es bimonetario: se suma
@@ -1435,8 +1472,8 @@ model BudgetConcept {
   id   Int    @id @default(autoincrement())
   name String @unique
 
-  createdById String  @db.Uuid
-  createdBy   Profile @relation("BudgetConceptCreadoPor", fields: [createdById], references: [id])
+  createdById String   @db.Uuid
+  createdBy   Profile  @relation("BudgetConceptCreadoPor", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

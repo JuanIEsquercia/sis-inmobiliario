@@ -110,7 +110,10 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
                     </Link>
                   </td>
                   <td className="px-3 py-2 text-muted">{operationLabel(p.operationType)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted">{formatPrice(p)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-muted">
+                    {formatPrice({ ...p, hidePrice: false })}
+                    {p.hidePrice && <span className="ml-1 text-[10px] uppercase">(oculto)</span>}
+                  </td>
                   <td className="px-3 py-2"><EstadoPropiedadBadge estado={p.status} /></td>
                   <td className="px-3 py-2 text-muted">{p.captadorAgent ? `@${p.captadorAgent.username}` : "Inmobiliaria"}</td>
                   <td className="px-3 py-2 text-xs">{p.isActive ? <span className="text-emerald-600">Publicada</span> : <span className="text-muted">No</span>}</td>
