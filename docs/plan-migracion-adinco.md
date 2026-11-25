@@ -72,7 +72,7 @@ Opciones a evaluar, con costos de cada portal:
 
 ## Llaves y visitas (después de la Fase 2)
 
-Cada propiedad indica dónde está su llave, y el vendedor la pide desde el sistema para una visita con fecha y franja horaria. Al terminar marca la visita como hecha y, si la llave era de la inmobiliaria, la devuelve.
+Cada propiedad indica dónde está su llave, y el vendedor la pide desde el sistema para una visita con fecha y turno de 30 minutos. Al terminar marca la visita como hecha y, si la llave era de la inmobiliaria, la devuelve.
 
 ### Dónde está la llave (en la ficha de la propiedad)
 
@@ -83,7 +83,7 @@ Cada propiedad indica dónde está su llave, y el vendedor la pide desde el sist
 
 ### Pedido de llave para visita
 
-El vendedor elige la propiedad, la fecha y la franja en horas enteras: inicio y fin entre 10, 11, 12, 13 y así (por ejemplo, de 11 a 13). Opcional: el interesado o el pedido de búsqueda al que corresponde la visita.
+Cada visita dura siempre 30 minutos. El vendedor elige la fecha y un turno de una lista fija (10:00, 10:30, 11:00, 11:30 y así, dentro del horario de visitas que se defina); el fin se calcula solo, no se eligen inicio y fin libres. Cada visita queda asociada al interesado (cliente o pedido de búsqueda), y así se registra qué leads avanzaron hasta la visita.
 
 Si la llave está en la inmobiliaria:
 
@@ -94,7 +94,7 @@ Si la llave está en la inmobiliaria:
 
 Si la llave la tiene un contacto:
 
-1. **Pedida:** el sistema arma el WhatsApp al contacto con la propiedad, la fecha y la franja (reutiliza `src/lib/whatsapp.ts`).
+1. **Pedida:** el sistema arma el WhatsApp al contacto con la propiedad, la fecha y el horario (reutiliza `src/lib/whatsapp.ts`).
 2. **Coordinada:** el vendedor marca que el contacto confirmó.
 3. **Visita hecha:** la marca el vendedor. No hay devolución de llave.
 
@@ -102,22 +102,20 @@ En cualquier paso el pedido se puede cancelar.
 
 ### Controles
 
-- Dos visitas a la misma propiedad en franjas superpuestas: el sistema avisa antes de confirmar.
+- Dos visitas a la misma propiedad en el mismo turno: el sistema no lo permite.
 - Una llave de la inmobiliaria que no volvió el día de la visita aparece en la campanita de alertas, con quién la tiene.
 - Permisos nuevos en `src/lib/permissions.ts`: pedir llaves (vendedores) y gestionar llaves (quien las entrega en la inmobiliaria).
-- Historial por propiedad: quién visitó, cuándo y cuándo volvió la llave.
+- Historial por propiedad y por interesado: quién visitó, cuándo y cuándo volvió la llave. Desde cada interesado se ve si su lead llegó a visita.
 
 ### Qué requiere en la base (pendiente BD)
 
 - Llave por propiedad: ubicación (inmobiliaria o contacto), contacto y notas.
-- Pedidos de visita: propiedad, vendedor, fecha, hora de inicio y de fin, estado, fechas de retiro y devolución, interesado opcional.
+- Pedidos de visita: propiedad, vendedor, fecha, turno (hora de inicio; dura 30 minutos), estado, fechas de retiro y devolución, interesado (obligatorio).
 - Se aplica desde Antigravity, como el resto de los cambios de esquema.
 
 ### Cuándo
 
 Después de la Fase 2, porque la llave se carga en la ficha propia de la propiedad. Podría arrancar antes sobre las propiedades importadas, pero habría que cargar los datos de llaves dos veces.
-
-Pregunta abierta: ¿la franja es siempre de una hora (por ejemplo, de 11 a 12) o el vendedor elige inicio y fin libres?
 
 ## Verificación
 - Fase 0: el script deja un XML con la misma cantidad de `<ad>` que el feed, y la cantidad de fotos descargadas coincide con la de `<picture>`. Prueba de `parseFeed` sobre el respaldo.
