@@ -10,7 +10,17 @@
     "postinstall": "prisma generate",
     "sync": "tsx scripts/sync-feed.ts",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "local:start": "supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
+    "local:stop": "supabase stop",
+    "local:env": "node scripts/local/write-env.mjs",
+    "local:migrate": "node scripts/local/run.mjs prisma migrate deploy",
+    "local:studio": "node scripts/local/run.mjs prisma studio",
+    "local:seed-admin": "node scripts/local/run.mjs tsx scripts/local/seed-admin.ts",
+    "local:dev": "node scripts/local/run.mjs next dev",
+    "local:importar": "node scripts/local/run.mjs tsx scripts/local/importar-feed.ts",
+    "local:copiar-fotos": "node scripts/local/run.mjs tsx scripts/local/copiar-fotos.ts",
+    "respaldo": "tsx scripts/respaldo-feed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
@@ -20,6 +30,7 @@
     "next": "16.3.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sharp": "^0.35.3",
     "tsx": "^4.23.12",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
@@ -34,6 +45,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "prisma": "^6.12.0",
+    "supabase": "^3.4.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

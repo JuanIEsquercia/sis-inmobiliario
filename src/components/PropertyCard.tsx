@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { adincoImage } from "@/lib/adinco-images";
 import { formatArea, formatPrice, operationLabel } from "@/lib/format";
+import { propertyImageSrc, type PropertyImageRef } from "@/lib/property-images";
 
 export interface PropertyCardListing {
   id: number;
@@ -24,11 +24,11 @@ export interface PropertyCardListing {
   bathrooms: number | null;
   plotArea: unknown;
   floorArea: unknown;
-  images: { url: string }[];
+  images: PropertyImageRef[];
 }
 
 export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
-  const image = listing.images[0]?.url;
+  const image = listing.images[0];
   const area = formatArea(listing.plotArea) ?? formatArea(listing.floorArea);
   const location = [listing.city, listing.region].filter(Boolean).join(", ");
   const displayTitle = listing.contentTitle ?? listing.title;
@@ -43,15 +43,16 @@ export function PropertyCard({ listing }: { listing: PropertyCardListing }) {
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-background">
         {image ? (
           <Image
-            // La variante de 640 px de Adinco (20 KB) en vez de la de
-            // 1920 (84 KB): la tarjeta se ve a ~420 px en escritorio y a
-            // lo ancho de la pantalla en celular, así que 640 alcanza y
-            // la grilla de 12 tarjetas pesa 240 KB en vez de 1 MB.
-            src={adincoImage(image, "medium")}
+            // Versión de 640 px (nuestra copia o la "medium" de Adinco):
+            // la tarjeta se ve a ~420 px en escritorio y a lo ancho de la
+            // pantalla en celular, así que 640 alcanza y la grilla de 12
+            // tarjetas no carga fotos de 1920.
+            src={propertyImageSrc(image, "tarjeta")}
             alt={displayTitle}
             fill
-            // unoptimized: la foto ya viene en el tamaño correcto desde
-            // el CDN de Adinco, no hace falta que Vercel la reprocese
+            // unoptimized: la foto ya viene en el tamaño correcto (de
+            // nuestro Storage o del CDN de Adinco), no hace falta que
+            // Vercel la reprocese
             // (ver adinco-images.ts: el cupo de optimización se agotó y
             // dejaba el sitio entero sin imágenes).
             unoptimized

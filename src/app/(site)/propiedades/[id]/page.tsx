@@ -5,6 +5,7 @@ import { Gallery } from "@/components/Gallery";
 import { ShareButton } from "@/components/ShareButton";
 import { resolveListingParam, type ListingDetail } from "@/lib/listings";
 import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
+import { propertyImageSrc, visiblePropertyImages } from "@/lib/property-images";
 import { AGENCY_PHONE, toWhatsAppLink } from "@/lib/whatsapp";
 import { SITE_NAME, SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
 
@@ -112,6 +113,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
 function PropertyDetail({ listing }: { listing: ListingDetail }) {
 
+  const fotos = visiblePropertyImages(listing.images);
   const displayTitle = listing.contentTitle ?? listing.title;
   const locationText = [listing.address, listing.city, listing.region].filter(Boolean).join(", ");
   const expensesFormatted = listing.expenses ? String(listing.expenses) : null;
@@ -182,7 +184,7 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
     name: displayTitle,
     description: listing.description ?? undefined,
     url: absoluteUrl(`/propiedades/${listing.id}`),
-    image: listing.images.map((img) => img.url),
+    image: fotos.map((img) => propertyImageSrc(img, "principal")),
     datePosted: listing.sourceUpdatedAt ?? undefined,
     address: locationText
       ? {
@@ -277,7 +279,7 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
       </div>
 
       {/* Galería Mosaico Compacta (Max-height ~420px) */}
-      <Gallery images={listing.images} title={displayTitle} />
+      <Gallery images={fotos} title={displayTitle} />
 
       {/* Barra de Especificaciones Rápidas (Quick Specs Strip) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">

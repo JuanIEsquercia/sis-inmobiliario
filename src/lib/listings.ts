@@ -97,7 +97,7 @@ const listingCardSelect = {
   images: {
     where: { isFeatured: true },
     take: 1,
-    select: { url: true },
+    select: { url: true, storagePath: true },
   },
 } satisfies Prisma.ListingSelect;
 

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { adincoImage } from "@/lib/adinco-images";
+import { propertyImageSrc, type PropertyImageRef } from "@/lib/property-images";
 
-export function Gallery({ images, title }: { images: { url: string }[]; title: string }) {
+export function Gallery({ images, title }: { images: PropertyImageRef[]; title: string }) {
   const [active, setActive] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
@@ -49,7 +49,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
             className="relative aspect-[16/9] max-h-[420px] w-full cursor-pointer overflow-hidden group"
           >
             <Image
-              src={adincoImage(images[0].url, "extra_large")}
+              src={propertyImageSrc(images[0], "principal")}
               alt={title}
               fill
               unoptimized
@@ -68,7 +68,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
                 className="relative h-full w-full cursor-pointer overflow-hidden rounded-2xl group"
               >
                 <Image
-                  src={adincoImage(img.url, "large")}
+                  src={propertyImageSrc(img, "secundaria")}
                   alt={`${title} - foto ${i + 1}`}
                   fill
                   unoptimized
@@ -88,7 +88,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
               className="relative md:col-span-8 h-full w-full cursor-pointer overflow-hidden rounded-2xl group"
             >
               <Image
-                src={adincoImage(images[0].url, "extra_large")}
+                src={propertyImageSrc(images[0], "principal")}
                 alt={`${title} - principal`}
                 fill
                 unoptimized
@@ -107,7 +107,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
                   className="relative h-full w-full cursor-pointer overflow-hidden rounded-2xl group"
                 >
                   <Image
-                    src={adincoImage(img.url, "large")}
+                    src={propertyImageSrc(img, "secundaria")}
                     alt={`${title} - foto ${i + 2}`}
                     fill
                     unoptimized
@@ -150,7 +150,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
               }`}
               aria-label={`Ver foto ${i + 1}`}
             >
-              <Image src={adincoImage(img.url, "small")} alt="" fill unoptimized sizes="80px" className="object-cover" />
+              <Image src={propertyImageSrc(img, "miniatura")} alt="" fill unoptimized sizes="80px" className="object-cover" />
             </button>
           ))}
         </div>
@@ -195,7 +195,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
             {/* Foto Activa */}
             <div className="relative h-full w-full max-h-[75vh]">
               <Image
-                src={adincoImage(images[active].url, "extra_large")}
+                src={propertyImageSrc(images[active], "principal")}
                 alt={`${title} - vista completa`}
                 fill
                 unoptimized
@@ -232,7 +232,7 @@ export function Gallery({ images, title }: { images: { url: string }[]; title: s
                     i === active ? "ring-2 ring-accent scale-105 opacity-100" : "opacity-40 hover:opacity-100"
                   }`}
                 >
-                  <Image src={adincoImage(img.url, "small")} alt="" fill unoptimized sizes="80px" className="object-cover" />
+                  <Image src={propertyImageSrc(img, "miniatura")} alt="" fill unoptimized sizes="80px" className="object-cover" />
                 </button>
               ))}
             </div>

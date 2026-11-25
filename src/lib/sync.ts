@@ -24,40 +24,53 @@ export interface SyncResult {
 const CONCURRENCY = 10;
 
 export async function runSync(
-  options: { force?: boolean; onProgress?: (done: number, total: number) => void } = {}
+  options: {
+    force?: boolean;
+    onProgress?: (done: number, total: number) => void;
+    // XML ya descargado (un respaldo de scripts/respaldo-feed.ts) en vez
+    // de bajarlo de ADINCO_FEED_URL. Se usa para importar la captura
+    // "todo Vigente": no consulta Last-Modified/ETag ni los guarda.
+    xml?: string;
+  } = {}
 ): Promise<SyncResult> {
   const start = Date.now();
-  const feedUrl = process.env.ADINCO_FEED_URL;
-  if (!feedUrl) throw new Error("Falta la variable de entorno ADINCO_FEED_URL");
+  let xml = options.xml;
+  let lastModified: string | null = null;
+  let etag: string | null = null;
 
-  const head = await fetch(feedUrl, { method: "HEAD" });
-  if (!head.ok) throw new Error(`No se pudo consultar el feed (HTTP ${head.status})`);
-  const lastModified = head.headers.get("last-modified");
-  const etag = head.headers.get("etag");
+  if (xml === undefined) {
+    const feedUrl = process.env.ADINCO_FEED_URL;
+    if (!feedUrl) throw new Error("Falta la variable de entorno ADINCO_FEED_URL");
 
-  const state = await withRetry(() => prisma.syncState.findUnique({ where: { id: 1 } }));
-  const feedUnchanged =
-    !options.force &&
-    !!state &&
-    lastModified !== null &&
-    state.lastModified === lastModified &&
-    state.etag === etag;
+    const head = await fetch(feedUrl, { method: "HEAD" });
+    if (!head.ok) throw new Error(`No se pudo consultar el feed (HTTP ${head.status})`);
+    lastModified = head.headers.get("last-modified");
+    etag = head.headers.get("etag");
 
-  if (feedUnchanged) {
-    return {
-      skippedUnchanged: true,
-      created: 0,
-      updated: 0,
-      unchanged: 0,
-      delisted: 0,
-      parseErrors: [],
-      durationMs: Date.now() - start,
-    };
+    const state = await withRetry(() => prisma.syncState.findUnique({ where: { id: 1 } }));
+    const feedUnchanged =
+      !options.force &&
+      !!state &&
+      lastModified !== null &&
+      state.lastModified === lastModified &&
+      state.etag === etag;
+
+    if (feedUnchanged) {
+      return {
+        skippedUnchanged: true,
+        created: 0,
+        updated: 0,
+        unchanged: 0,
+        delisted: 0,
+        parseErrors: [],
+        durationMs: Date.now() - start,
+      };
+    }
+
+    const res = await fetch(feedUrl);
+    if (!res.ok) throw new Error(`No se pudo descargar el feed (HTTP ${res.status})`);
+    xml = await res.text();
   }
-
-  const res = await fetch(feedUrl);
-  if (!res.ok) throw new Error(`No se pudo descargar el feed (HTTP ${res.status})`);
-  const xml = await res.text();
 
   const { listings, skipped } = parseFeed(xml);
   const total = listings.length;
@@ -71,7 +84,7 @@ export async function runSync(
   const existingListings = await withRetry(() =>
     prisma.listing.findMany({
       where: { externalId: { in: seenExternalIds } },
-      select: { externalId: true, sourceUpdatedAt: true },
+      select: { externalId: true, sourceUpdatedAt: true, origin: true },
     })
   );
   const existingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
@@ -111,7 +124,10 @@ export async function runSync(
   async function processListing(listing: (typeof listings)[number]) {
     const existing = existingByExternalId.get(listing.externalId);
 
-    if (!options.force && existing && existing.sourceUpdatedAt?.getTime() === listing.sourceUpdatedAt?.getTime()) {
+    // Una ficha que pasó a origen PROPIA la mantiene nuestro sistema: lo
+    // que diga Adinco de ella ya no se aplica, ni con `force`.
+    const esPropia = existing?.origin === "PROPIA";
+    if (esPropia || (!options.force && existing && existing.sourceUpdatedAt?.getTime() === listing.sourceUpdatedAt?.getTime())) {
       unchanged++;
       done++;
       options.onProgress?.(done, total);
@@ -143,10 +159,24 @@ export async function runSync(
             update: { ...data, agencyId, isActive: true },
           });
 
+          // Las fotos se borran y se vuelven a crear con el orden nuevo del
+          // feed, pero la copia propia (storagePath) se conserva para cada
+          // foto que siga viniendo — se reconoce por su URL de Adinco. Sin
+          // esto, cada edición del aviso en Adinco dejaría la propiedad
+          // sin sus fotos copiadas.
+          const copiadas = await tx.listingImage.findMany({
+            where: { listingId: listingRow.id, storagePath: { not: null } },
+            select: { url: true, storagePath: true },
+          });
+          const storagePathPorUrl = new Map(copiadas.map((c) => [c.url, c.storagePath]));
           await tx.listingImage.deleteMany({ where: { listingId: listingRow.id } });
           if (images.length > 0) {
             await tx.listingImage.createMany({
-              data: images.map((img) => ({ ...img, listingId: listingRow.id })),
+              data: images.map((img) => ({
+                ...img,
+                listingId: listingRow.id,
+                storagePath: storagePathPorUrl.get(img.url) ?? null,
+              })),
             });
           }
 
@@ -174,18 +204,22 @@ export async function runSync(
 
   const { count: delisted } = await withRetry(() =>
     prisma.listing.updateMany({
-      where: { isActive: true, externalId: { notIn: seenExternalIds } },
+      // Solo las de Adinco: una ficha propia nunca viene en el XML y no
+      // por eso deja de estar publicada.
+      where: { isActive: true, origin: "ADINCO", externalId: { notIn: seenExternalIds } },
       data: { isActive: false },
     })
   );
 
-  await withRetry(() =>
-    prisma.syncState.upsert({
-      where: { id: 1 },
-      create: { id: 1, lastModified, etag, lastSyncedAt: new Date() },
-      update: { lastModified, etag, lastSyncedAt: new Date() },
-    })
-  );
+  if (options.xml === undefined) {
+    await withRetry(() =>
+      prisma.syncState.upsert({
+        where: { id: 1 },
+        create: { id: 1, lastModified, etag, lastSyncedAt: new Date() },
+        update: { lastModified, etag, lastSyncedAt: new Date() },
+      })
+    );
+  }
 
   return {
     skippedUnchanged: false,

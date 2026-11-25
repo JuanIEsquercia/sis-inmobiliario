@@ -134,5 +134,44 @@ Después de la Fase 2, porque la llave se carga en la ficha propia de la propied
 - Fase 2: crear, editar y despublicar una propiedad de prueba en la preview; correr el sync y comprobar que no la desactiva.
 - Fase 4: comparar la cantidad de propiedades activas antes y después del corte.
 
+## Avance y decisiones (2026-11-25, PC principal, rama `migracion-adinco`)
+
+Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorno-local.md`) para confirmar que todo es viable antes de pasar al plan pago de Supabase. Nada de esta rama llega a `main` ni a producción hasta probarlo y aprobarlo.
+
+### Estado de la base real (conteo de solo lectura)
+- 186 propiedades guardadas: 154 activas y 32 inactivas (las que salieron del feed desde el 24/08/2026). Las ~200 que faltan para llegar a 388 salieron antes de esa fecha y nunca entraron: se recuperan con la ventana "todo Vigente".
+- Código: se usa `<code>` del XML (no `<id>`, que es interno de Adinco). El feed ya trae al menos hasta el código 388 y el Historial hasta el 392.
+- Historial (`Unit`): 48 propiedades, ninguna vinculada a una ficha. Solo 9 coinciden hoy porque las demás no están en nuestra base (no por el formato del código).
+
+### Decisiones
+- **Ficha única sobre `Listing`.** Se le agregan origen, estado comercial, captador y llave. Las `Unit` (contratos, ventas, tasaciones) se vinculan a la ficha en una etapa de normalización, una vez importado todo.
+- **Normalización de códigos:** se toma solo el número final, sin ceros a la izquierda ("GARC1-359" → "359").
+- **Estados reales:** se exportan desde el panel de Adinco (Excel/CSV con código y estado) **antes** de poner todo en "Vigente", y se cruzan por código.
+- **Origen** (`ADINCO` / `PROPIA`) es técnico: el sync solo actualiza y da de baja fichas de origen Adinco.
+- **Captador** (L2): en la ficha, un agente o vacío = la inmobiliaria, con la misma regla que ya usan `Sale`/`RentalCommission` y `calcularReparto`. Al cargar una venta o contrato desde la ficha viene precargado y editable. El "vendedor" que trae Adinco por aviso puede ofrecerse como sugerencia inicial.
+- **Numeración propia:** después del código más alto entre Adinco y el Historial (hoy ≥ 392).
+
+### Fotos (medido)
+- Adinco entrega todo en 1920×1080 y casi todas son placas verticales 4:5 con bandas blancas a los costados.
+- Se guardan en Supabase **las primeras 8 fotos** de cada propiedad (destacada primero), **con bordes blancos recortados** (79 de 80 en la muestra) y en **WebP** en 3 tamaños de lado mayor: 1600 (principal y pantalla completa), 640 (tarjetas y mosaico) y 320 (miniaturas). Resultado real: **115 KB por foto** con sus 3 versiones.
+- El **respaldo completo** (todas las fotos originales, sin tope) va a `respaldos/` en la PC: hoy 1.611 fotos, 190 MB.
+- Almacenamiento estimado para 388 propiedades × 8 fotos: **~350 MB**.
+- **Visita típica** (inicio + listado + 2 fichas + 4 fotos en pantalla completa), medida en el sitio local: **904 KB** de fotos con nuestra copia contra 1.206 KB con las mismas fotos desde Adinco, y con más resolución útil (sin bandas blancas). Las fotos se cachean un año en el navegador: quien vuelve no las descarga de nuevo.
+- Transferencia: el plan gratis (5 GB/mes) da ~5.800 visitas por mes; el Pro (250 GB/mes) ~290.000. Confirmar los valores vigentes en la página de precios de Supabase.
+
+### L1 hecho en local
+- Migración `20261125180000_listing_origin_image_storage`: `Listing.origin` y `ListingImage.storagePath`.
+- `npm run respaldo -- --fotos`: XML con fecha + fotos originales (no toca ninguna base).
+- `npm run local:importar -- <xml>`: importa un respaldo con el mismo `runSync` de producción.
+- `npm run local:copiar-fotos`: copia, recorta y convierte las fotos al Storage local; informa peso y tiempo.
+- El sync conserva la copia de cada foto al actualizar un aviso y nunca toca ni da de baja fichas propias (probado).
+- El sitio muestra la copia propia cuando existe (`src/lib/property-images.ts`) y si no, la de Adinco.
+- Prueba completa: 155 propiedades, 1.100 fotos copiadas en 4,5 minutos, 0 errores, 124 MB.
+
+### Pendiente antes de producción
+- La imagen para compartir en redes (`opengraph-image.tsx`) sigue usando la foto de Adinco: hay que darle una versión JPEG propia antes del corte.
+- El sync de producción tiene que copiar las fotos nuevas solo (hoy la copia es un script aparte).
+- Borrar del Storage las fotos que Adinco quite de un aviso.
+
 ## Archivos clave
 - `src/lib/feed.ts` (parser, campos del XML), `src/lib/sync.ts` (sync y desactivación), `src/lib/adinco-images.ts` (tamaños de fotos), `src/lib/supabase/storage.ts` (subidas), `src/app/api/sync/route.ts`, `vercel.json` (cron), `prisma/schema.prisma` (`Listing`, `ListingImage`, `ListingVideo`, `Agency`; solo lectura desde esta sesión).

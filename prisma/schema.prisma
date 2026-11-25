@@ -111,6 +111,12 @@ model Listing {
 
   sourceUpdatedAt DateTime? // <date> del aviso en el feed
   isActive        Boolean   @default(true) // false = desapareció del feed (delisted)
+
+  // Quién mantiene la ficha. ADINCO: vino del XML y el sync la actualiza
+  // (y la da de baja si deja de venir). PROPIA: alta o edición desde
+  // nuestro sistema — el sync nunca la toca. Es un dato técnico, no
+  // comercial (el captador es otra cosa).
+  origin ListingOrigin @default(ADINCO)
   rawData         Json // <ad> completo tal cual vino, sin perder campos
 
   agencyId Int?
@@ -148,7 +154,19 @@ model ListingImage {
   isFeatured Boolean @default(false)
   sortOrder  Int     @default(0)
 
+  // Copia propia en Supabase Storage (bucket público "propiedades"). Es
+  // la ruta base sin tamaño ni extensión: cada foto se guarda en WebP en
+  // los anchos de PROPERTY_IMAGE_WIDTHS (src/lib/property-images.ts), como
+  // `${storagePath}-${ancho}.webp`. Null = todavía no se copió (o quedó
+  // fuera del máximo de fotos por propiedad) y el sitio usa `url`.
+  storagePath String?
+
   @@index([listingId])
+}
+
+enum ListingOrigin {
+  ADINCO
+  PROPIA
 }
 
 model ListingVideo {
