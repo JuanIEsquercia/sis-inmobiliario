@@ -104,9 +104,9 @@ En cualquier paso el pedido se puede cancelar.
 
 Cada pedido de llave abre una tarjeta de visita: la ficha donde queda toda la trazabilidad de esa visita, desde el pedido hasta el cierre.
 
-- **Cabecera:** propiedad (con su código), interesado, vendedor, fecha y turno, dónde está la llave.
+- **Cabecera:** la propiedad con su código y el vendedor se completan solos (la propiedad desde la que se pidió la llave y el usuario que la pidió); el vendedor elige el interesado, la fecha y el turno, y se muestra dónde está la llave.
 - **Línea de tiempo:** cada paso con fecha, hora y quién lo hizo (pedida, retirada o coordinada, visita hecha, llave devuelta, cancelada).
-- **Carga del vendedor:** notas de la visita y resultado (por ejemplo: le interesó, pide segunda visita, hace oferta, descartada).
+- **Carga del vendedor:** el resultado se elige de una lista precargada de categorías para perfilar el lead (por ejemplo: le interesó, pide segunda visita, hace oferta, no le gustó la zona, fuera de presupuesto, descartado), sin texto libre. La lista la administra quien gestiona el sistema, como los conceptos de Presupuestos.
 - **Listado de tarjetas:** las del día y las abiertas, filtrables por vendedor, propiedad y estado. Desde la ficha del interesado y la de la propiedad se ven sus tarjetas.
 
 ### Controles
@@ -119,7 +119,8 @@ Cada pedido de llave abre una tarjeta de visita: la ficha donde queda toda la tr
 ### Qué requiere en la base (pendiente BD)
 
 - Llave por propiedad: ubicación (inmobiliaria o contacto), contacto y notas.
-- Pedidos de visita (la tarjeta): propiedad, vendedor, fecha, turno (hora de inicio; dura 30 minutos), estado, fechas de retiro y devolución, interesado (obligatorio), resultado y notas.
+- Pedidos de visita (la tarjeta): propiedad, vendedor, fecha, turno (hora de inicio; dura 30 minutos), estado, fechas de retiro y devolución, interesado (obligatorio), categoría de resultado.
+- Lista de categorías de resultado administrable.
 - Línea de tiempo de cada tarjeta: paso, fecha y hora, quién lo hizo.
 - Se aplica desde Antigravity, como el resto de los cambios de esquema.
 
