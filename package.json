@@ -23,6 +23,8 @@
     "copiar-fotos": "tsx scripts/copiar-fotos.ts",
     "local:importar-planilla": "node scripts/local/run.mjs tsx scripts/importar-planilla.ts",
     "importar-planilla": "tsx scripts/importar-planilla.ts",
+    "vincular-historial": "tsx scripts/vincular-historial.ts",
+    "local:vincular-historial": "node scripts/local/run.mjs tsx scripts/vincular-historial.ts",
     "verificar:migracion": "tsx scripts/verificar-migracion.ts",
     "local:verificar:migracion": "node scripts/local/run.mjs tsx scripts/verificar-migracion.ts",
     "respaldo": "tsx scripts/respaldo-feed.ts",

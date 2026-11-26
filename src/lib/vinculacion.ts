@@ -26,15 +26,17 @@ export type Coincidencia = "coincide" | "parecida" | "distinta";
 
 // "coincide": misma calle y mismo número ("Gdor Gallino 285" y
 //             "Gobernador Gallino 285 2°").
-// "parecida": comparten la calle pero el número falta o difiere
+// "parecida": comparten la calle y a una de las dos le falta el número
 //             ("lavalle 1202" y "Mendoza Esquina Lavalle").
-// "distinta": no comparten ninguna palabra de la calle: revisar a mano.
+// "distinta": no comparten ninguna palabra de la calle, o las dos tienen
+//             número y no es el mismo ("LAVALLE 1170" y "Lavalle 1100"):
+//             puede ser otra propiedad, se revisa a mano.
 export function compararDirecciones(a: string | null, b: string | null): Coincidencia {
   if (!a || !b) return "distinta";
   const pa = partes(a);
   const pb = partes(b);
   const comunes = [...pa.palabras].filter((p) => pb.palabras.has(p)).length;
   if (comunes === 0) return "distinta";
-  if (pa.numero && pb.numero && pa.numero === pb.numero) return "coincide";
+  if (pa.numero && pb.numero) return pa.numero === pb.numero ? "coincide" : "distinta";
   return "parecida";
 }

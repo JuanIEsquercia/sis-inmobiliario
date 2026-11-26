@@ -105,7 +105,8 @@ t("vinculación: comparar direcciones del Historial con la ficha", () => {
   assert.equal(compararDirecciones("Junin 342 primer piso", "Junin 342 1°"), "coincide");
   assert.equal(compararDirecciones("Cordoba 1050 EDIFICIO ALMERIA", "Cordoba 1050"), "coincide");
   assert.equal(compararDirecciones("328 VIVIENDAS MANZANA K CASA 134", "328 Viviendas"), "coincide");
-  assert.equal(compararDirecciones("Junin 1336", "Junin 2062"), "parecida");
+  assert.equal(compararDirecciones("Junin 1336", "Junin 2062"), "distinta");
+  assert.equal(compararDirecciones("LAVALLE 1170", "Lavalle 1100 1°"), "distinta");
   assert.equal(compararDirecciones("lavalle 1202", "Mendoza Esquina Lavalle"), "parecida");
   assert.equal(compararDirecciones("Bonaire - amoblado", "Belgrano 1468"), "distinta");
   assert.equal(compararDirecciones(null, "Belgrano 1468"), "distinta");
