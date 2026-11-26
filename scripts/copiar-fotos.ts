@@ -1,19 +1,26 @@
-// Copia las fotos de todas las propiedades de la base LOCAL al Storage
-// local (bucket "propiedades"), con el tope por propiedad, recorte de
-// bordes y WebP. Al final informa cuánto ocupa y cuánto tardó, para
-// dimensionar el plan de Supabase. Solo corre contra el entorno local.
+// Copia las fotos de las propiedades desde Adinco a nuestro Storage
+// (bucket "propiedades"), con el tope por propiedad, recorte de bordes y
+// WebP. Idempotente: las fotos ya copiadas se saltean, así que se puede
+// cortar y volver a correr. Al final informa cuánto subió y cuánto tardó.
 //
-// Uso: npm run local:copiar-fotos
-import { assertLocalEnvironment } from "./guard";
+// Base y Storage salen del mismo archivo de variables. Contra la base
+// local corre directo; contra producción pide --confirmar=<host> (ver
+// scripts/destino.ts).
+//
+// Uso:
+//   local:       npm run local:copiar-fotos
+//   producción:  npm run copiar-fotos -- --confirmar=<host>
+import "dotenv/config";
+import { confirmarDestino } from "./destino";
 
-assertLocalEnvironment();
+confirmarDestino();
 
 const CONCURRENCIA = 4; // propiedades en paralelo
 
 async function main() {
-  const { prisma } = await import("../../src/lib/prisma");
-  const { createAdminClient } = await import("../../src/lib/supabase/admin");
-  const { asegurarBucketPropiedades, copiarFotosDeListing } = await import("../../src/lib/property-image-copy");
+  const { prisma } = await import("../src/lib/prisma");
+  const { createAdminClient } = await import("../src/lib/supabase/admin");
+  const { asegurarBucketPropiedades, copiarFotosDeListing } = await import("../src/lib/property-image-copy");
   type Resultado = Awaited<ReturnType<typeof copiarFotosDeListing>>;
 
   const admin = createAdminClient();

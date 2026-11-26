@@ -5,8 +5,10 @@ Objetivo: que producción tenga todas las propiedades con su ficha (las vigentes
 ## Qué cambia y qué no
 
 - **Cambia:** aparecen en el backoffice las secciones Propiedades y Visitas y llaves, las 367 fichas, los propietarios cargados y el Historial vinculado con las fichas.
-- **No cambia:** el sitio público muestra las mismas propiedades (las vigentes de Adinco), con las fotos de Adinco. Nada se publica ni se despublica por esta ventana.
-- **No se copian fotos** a nuestro Storage: eso queda para cerca del corte. Por eso no hace falta todavía el plan pago de Supabase.
+- **No cambia:** el sitio público muestra las mismas propiedades (las vigentes de Adinco). Nada se publica ni se despublica por esta ventana.
+- **Fotos de las vigentes:** se copian a nuestro Storage (hasta 8 por propiedad, recortadas y en WebP, unos 125 MB) y el sitio pasa a servirlas desde Supabase. Desde ahí cada visita usa transferencia de Supabase: el plan gratis (5 GB/mes) alcanza para unas 5.800 visitas por mes. Como el sitio no tiene Web Analytics activado, no hay datos de tráfico: revisar el consumo en Supabase → Usage los primeros días y pasar a Pro si se acerca al límite.
+
+Fechas acordadas: hoy (26/11) esta ventana; el sábado, la ventana "todo Vigente" en Adinco para traer descripción, fotos y amenities de todas y hacer el corte del XML (ver "El sábado" al final).
 
 ## Antes del día
 
@@ -42,6 +44,13 @@ Las 5 migraciones (`20261125180000` a `20261126100000`) solo agregan columnas, t
 npm run sync -- --force
 ```
 Completa en las fichas vigentes los campos nuevos (amenities, entre calles, antigüedad, etc.). Tiene que terminar sin errores de lectura.
+
+### 4b. Copiar las fotos de las vigentes
+```
+npm run copiar-fotos
+npm run copiar-fotos -- --confirmar=<host que mostró>
+```
+Crea el bucket público "propiedades" si no existe y copia hasta 8 fotos por propiedad (unas 1.100). Tarda unos 5 minutos. Si se corta, se vuelve a correr: saltea las ya copiadas. Al terminar, "propiedades con fotos pero sin ninguna copia" tiene que dar 0. Comprobar en el sitio que una ficha muestra las fotos (la dirección de la imagen empieza con la de Supabase).
 
 ### 5. Importar la planilla de Adinco
 1. Bajar la planilla actualizada del día y guardarla como `respaldos/planilla/UNIFICADO-<fecha>.json` (se puede pedir a Claude que la baje con el conector de Google Sheets).
@@ -82,8 +91,19 @@ Y a mano:
 "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --clean --if-exists --no-owner --no-privileges --schema=public --dbname="<DIRECT_URL de .env>" respaldos/base/<archivo>.dump
 ```
 
-## Después de la ventana (hasta el corte)
+## Después de la ventana (hasta el sábado)
 
 - Adinco sigue siendo quien publica. Las altas nuevas se siguen haciendo en Adinco hasta el corte, para que no se crucen los códigos.
 - En el backoffice ya se pueden cargar llaves, visitas, propietarios, captadores y estados internos de todas las propiedades.
-- Pendiente para el corte: ventana "todo Vigente" (descripción, fotos y amenities de las no vigentes), copia de fotos a Storage (ahí sí plan pago), portales (L4) y los ajustes listados en `docs/plan-migracion-adinco.md`.
+- Si Adinco publica una propiedad nueva antes del sábado, el sitio la muestra con las fotos de Adinco hasta que se vuelva a correr `copiar-fotos`.
+
+## El sábado: "todo Vigente" y corte del XML (a preparar antes)
+
+1. Apagar el sync automático antes de poner todo vigente en Adinco: con todo vigente, el sync normal volvería a publicar en el sitio las alquiladas y vendidas.
+2. Exportar la planilla de estados del día (es el registro de los estados reales).
+3. Poner todo vigente en Adinco y bajar el XML con `npm run respaldo -- --fotos`.
+4. Importar ese XML en modo captura: completa descripción, fotos y amenities **sin cambiar el estado ni la publicación** de ninguna ficha. (Este modo hay que construirlo antes del sábado.)
+5. Copiar las fotos de todas (`copiar-fotos`).
+6. Volver los estados reales en Adinco.
+7. Corte: pasar todas las fichas a origen propio, quitar el cron de `vercel.json` y el sync. Desde ahí, las altas y ediciones se hacen en nuestro sistema.
+8. Pendiente aparte: la difusión a portales (Zonaprop, Argenprop, MercadoLibre) sigue dependiendo de Adinco hasta resolver L4.
