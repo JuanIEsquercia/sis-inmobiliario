@@ -85,7 +85,7 @@ export async function runSync(
   const existingListings = await withRetry(() =>
     prisma.listing.findMany({
       where: { externalId: { in: seenExternalIds } },
-      select: { externalId: true, sourceUpdatedAt: true, origin: true, status: true, statusChangedAt: true },
+      select: { externalId: true, sourceUpdatedAt: true, origin: true, status: true, statusChangedAt: true, showExactAddress: true },
     })
   );
   const existingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
@@ -136,8 +136,16 @@ export async function runSync(
     }
 
     const agencyId = listing.agency ? agencyIdByExternalId.get(listing.agency.externalId) : undefined;
-    const { images, videos, agency: _agency, rawData, ...rest } = listing;
+    const { images, videos, agency: _agency, rawData, ...todo } = listing;
     void _agency;
+    // Ficha con dirección aproximada: el XML público trae la altura
+    // redondeada ("Lavalle 1100"), y la exacta ya está guardada (vino de la
+    // planilla del panel de Adinco). No se pisa.
+    const aproximada = existing?.showExactAddress === false;
+    const { address: _a, addressNumber: _n, ...sinDireccion } = todo;
+    void _a;
+    void _n;
+    const rest = aproximada ? { ...sinDireccion, address: undefined, addressNumber: undefined } : todo;
     const data = {
       ...rest,
       rawData: rawData as Prisma.InputJsonValue,
@@ -145,7 +153,8 @@ export async function runSync(
       // normalizeForSearch). Se calcula acá, al guardar, y no al
       // consultar: así el buscador por calle del sitio es un `contains`
       // común y no depende de extensiones de Postgres.
-      addressSearch: rest.address ? normalizeForSearch(rest.address) : null,
+      // En una ficha aproximada no se toca (queda la de la dirección exacta).
+      ...(aproximada ? {} : { addressSearch: todo.address ? normalizeForSearch(todo.address) : null }),
     };
 
     // Estado comercial de una ficha que viene en el XML (o sea, vigente en

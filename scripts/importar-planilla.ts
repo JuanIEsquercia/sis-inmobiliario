@@ -23,7 +23,7 @@ confirmarDestino();
 
 async function main() {
   const { prisma } = await import("../src/lib/prisma");
-  const { leerFila } = await import("../src/lib/planilla-adinco");
+  const { leerFila, alturaDeDireccion } = await import("../src/lib/planilla-adinco");
   const { normalizeForSearch } = await import("../src/lib/search-text");
   type Propietario = NonNullable<Extract<ReturnType<typeof leerFila>, { externalId: string }>["propietario"]>;
 
@@ -55,7 +55,7 @@ async function main() {
     return { id, nuevo: !existente };
   }
 
-  const r = { creadas: 0, actualizadas: 0, estadoRespetado: 0, propietarios: 0, clientesNuevos: 0, deducidas: 0, errores: [] as string[] };
+  const r = { creadas: 0, actualizadas: 0, estadoRespetado: 0, propietarios: 0, clientesNuevos: 0, deducidas: 0, direcciones: 0, aproximadas: 0, codigos: 0, errores: [] as string[] };
   const porEstado: Record<string, number> = {};
 
   for (const celdas of filas) {
@@ -75,19 +75,37 @@ async function main() {
 
     const existente = await prisma.listing.findUnique({
       where: { externalId: f.externalId },
-      select: { id: true, statusChangedAt: true, ownerClientId: true },
+      select: { id: true, code: true, address: true, addressNumber: true, statusChangedAt: true, ownerClientId: true },
     });
 
     if (existente) {
       // El estado que alguien cambió en el backoffice manda sobre Adinco.
       const tocarEstado = !existente.statusChangedAt;
       if (!tocarEstado) r.estadoRespetado++;
+
+      // Dirección: la planilla del panel trae la exacta; el XML público la
+      // redondea ("Lavalle 1170" sale "Lavalle 1100") cuando el aviso tiene
+      // la dirección aproximada. Se guarda la exacta y, si la altura del XML
+      // no era la real, la ficha queda como dirección aproximada: el sitio
+      // muestra solo la calle (y el sync ya no la pisa, ver sync.ts).
+      const alturaReal = alturaDeDireccion(f.address);
+      const redondeada = !!alturaReal && !!existente.addressNumber && existente.addressNumber !== alturaReal;
+      const direccionExacta = f.address && f.address !== existente.address;
+      if (direccionExacta) r.direcciones++;
+      if (redondeada) r.aproximadas++;
+      if (!existente.code) r.codigos++;
+
       await prisma.listing.update({
         where: { id: existente.id },
         data: {
           ...(tocarEstado ? { status: f.status } : {}),
           ...(tocarEstado && f.status !== "DISPONIBLE" && f.status !== "RESERVADA" ? { isActive: false } : {}),
           ...(ownerClientId && !existente.ownerClientId ? { ownerClientId } : {}),
+          ...(!existente.code ? { code: f.code } : {}),
+          ...(direccionExacta
+            ? { address: f.address, addressSearch: normalizeForSearch(f.address!), ...(alturaReal ? { addressNumber: alturaReal } : {}) }
+            : {}),
+          ...(redondeada ? { showExactAddress: false } : {}),
         },
       });
       if (ownerClientId && !existente.ownerClientId) r.propietarios++;
@@ -143,6 +161,7 @@ async function main() {
   console.log(`  Fichas creadas: ${r.creadas} (sin publicar) — operación deducida por moneda: ${r.deducidas}`);
   console.log(`  Fichas existentes actualizadas: ${r.actualizadas} — estado respetado (cambiado en el backoffice): ${r.estadoRespetado}`);
   console.log(`  Propietarios vinculados: ${r.propietarios} — clientes nuevos: ${r.clientesNuevos}`);
+  console.log(`  Direcciones exactas tomadas de la planilla: ${r.direcciones} — marcadas como aproximadas (el XML las redondeaba): ${r.aproximadas} — códigos completados: ${r.codigos}`);
   console.log(`  Por estado: ${Object.entries(porEstado).map(([k, v]) => `${k} ${v}`).join(", ")}`);
   if (r.errores.length) console.log(`  Filas con error (${r.errores.length}):\n   - ${r.errores.join("\n   - ")}`);
   await prisma.$disconnect();

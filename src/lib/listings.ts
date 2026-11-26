@@ -277,6 +277,7 @@ const listingDetailSelect = {
   expensesApproximate: true,
   showExactAddress: true,
   addressName: true,
+  addressNumber: true,
   neighborhood: true,
   propertySubtype: true,
   aptoProfesional: true,

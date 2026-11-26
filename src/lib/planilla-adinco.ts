@@ -91,6 +91,14 @@ export function ubicacion(v: string | undefined): { neighborhood: string | null;
 // relleno, cargados para que Adinco aceptara el formulario.
 const EMAILS_NO_PROPIETARIO = [/garcia.*propiedades/i, /^nomail@/i, /^sin.?mail/i];
 
+// Altura (número de calle) de una dirección: "Lavalle 1170 1° 3" -> "1170".
+// Se usa para detectar las direcciones que el XML público de Adinco
+// redondea ("Lavalle 1100") cuando el aviso tiene la dirección aproximada:
+// la planilla del panel trae la exacta.
+export function alturaDeDireccion(direccion: string | null | undefined): string | null {
+  return direccion?.match(/\b(\d{2,5})\b/)?.[1] ?? null;
+}
+
 export interface PropietarioPlanilla {
   firstName: string;
   lastName: string;

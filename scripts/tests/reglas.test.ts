@@ -7,6 +7,7 @@ import { normalizarCodigo, codigoMaximo } from "../../src/lib/property-codes";
 import { clasificarCaracteristicas } from "../../src/lib/property-features";
 import * as P from "../../src/lib/planilla-adinco";
 import { compararDirecciones } from "../../src/lib/vinculacion";
+import { publicAddress } from "../../src/lib/format";
 
 let n = 0;
 const t = (nombre: string, fn: () => void) => { fn(); n++; console.log("OK ", nombre); };
@@ -98,6 +99,19 @@ t("planilla: fila completa y operación deducida", () => {
   const s = P.leerFila(fila("Suspendido", "U$D 90.000"));
   assert.ok(!("error" in s) && s.operationType === "For Sale" && s.operacionDeducida);
   assert.ok("error" in P.leerFila(fila("Raro", "-")));
+});
+t("planilla: altura de la dirección", () => {
+  assert.equal(P.alturaDeDireccion("Lavalle 1170 1° 3"), "1170");
+  assert.equal(P.alturaDeDireccion("Avenida Independencia 4600"), "4600");
+  assert.equal(P.alturaDeDireccion("Ruta 12 Y Avenida Libertad"), "12");
+  assert.equal(P.alturaDeDireccion("Belgrano"), null);
+});
+t("dirección pública: exacta o aproximada", () => {
+  const base = { address: "Lavalle 1170 1° 3", addressName: "Lavalle", addressNumber: "1170" };
+  assert.equal(publicAddress({ ...base, showExactAddress: true }), "Lavalle 1170 1° 3");
+  assert.equal(publicAddress({ ...base, showExactAddress: false }), "Lavalle al 1100");
+  assert.equal(publicAddress({ ...base, addressNumber: "85", showExactAddress: false }), "Lavalle");
+  assert.equal(publicAddress({ ...base, addressNumber: null, showExactAddress: false }), "Lavalle");
 });
 t("vinculación: comparar direcciones del Historial con la ficha", () => {
   assert.equal(compararDirecciones("Gdor Gallino 285", "Gobernador Gallino 285 2°"), "coincide");

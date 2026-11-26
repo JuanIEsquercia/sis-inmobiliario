@@ -25,15 +25,21 @@ export function formatArea(value: unknown, unit = "m²"): string | null {
 }
 
 // Dirección para mostrar en el sitio. Si la ficha pide no mostrar la
-// dirección exacta ("dirección aproximada"), va solo la calle, sin número
-// ni piso.
+// dirección exacta ("dirección aproximada"), va la calle con la altura
+// redondeada a la centena, sin piso ni depto: "Lavalle 1170 1° 3" se
+// publica como "Lavalle al 1100" (lo mismo que publicaba Adinco, que
+// redondeaba la altura en el XML). Sin altura cargada, solo la calle.
 export function publicAddress(listing: {
   address: string | null;
   addressName?: string | null;
+  addressNumber?: string | null;
   showExactAddress?: boolean;
 }): string | null {
-  if (listing.showExactAddress === false) return listing.addressName ?? null;
-  return listing.address;
+  if (listing.showExactAddress !== false) return listing.address;
+  const calle = listing.addressName ?? null;
+  const altura = Number.parseInt(listing.addressNumber ?? "", 10);
+  if (!calle) return null;
+  return Number.isFinite(altura) && altura >= 100 ? `${calle} al ${Math.floor(altura / 100) * 100}` : calle;
 }
 
 export function operationLabel(operationType: string): string {
