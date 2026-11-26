@@ -6,7 +6,8 @@ import { ShareButton } from "@/components/ShareButton";
 import { resolveListingParam, type ListingDetail } from "@/lib/listings";
 import { formatArea, formatDate, formatPrice, operationLabel } from "@/lib/format";
 import { AGENCY_PHONE, toWhatsAppLink } from "@/lib/whatsapp";
-import { SITE_NAME, SITE_URL, absoluteUrl, truncateDescription } from "@/lib/seo";
+import { SITE_NAME, absoluteUrl, truncateDescription } from "@/lib/seo";
+import { breadcrumbJsonLd, jsonLdScript, listingJsonLd, listingPath } from "@/lib/structured-data";
 
 interface PageProps {
   // El parámetro de la ruta es el CÓDIGO público de la propiedad (la
@@ -171,53 +172,20 @@ function PropertyDetail({ listing }: { listing: ListingDetail }) {
     .filter(Boolean)
     .join(" · ");
 
-  // RealEstateListing (tipo oficial de schema.org para esto, aunque
-  // Google todavía no le da una viñeta especial en el buscador clásico —
-  // sirve igual para el Knowledge Graph y para que buscadores con IA
-  // puedan citar precio/ubicación con la fuente correcta) + BreadcrumbList
-  // (este sí es un rich result vigente).
-  const listingJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "RealEstateListing",
-    name: displayTitle,
-    description: listing.description ?? undefined,
-    url: absoluteUrl(`/propiedades/${listing.id}`),
-    image: listing.images.map((img) => img.url),
-    datePosted: listing.sourceUpdatedAt ?? undefined,
-    address: locationText
-      ? {
-          "@type": "PostalAddress",
-          streetAddress: listing.address ?? undefined,
-          addressLocality: listing.city ?? undefined,
-          addressRegion: listing.region ?? undefined,
-          addressCountry: "AR",
-        }
-      : undefined,
-    offers:
-      listing.priceAmount !== null
-        ? {
-            "@type": "Offer",
-            price: String(listing.priceAmount),
-            priceCurrency: listing.priceCurrency ?? "ARS",
-            availability: "https://schema.org/InStock",
-          }
-        : undefined,
-  };
-
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Inicio", item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: "Propiedades", item: absoluteUrl("/propiedades") },
-      { "@type": "ListItem", position: 3, name: displayTitle, item: absoluteUrl(`/propiedades/${listing.id}`) },
-    ],
-  };
+  // Datos estructurados de la ficha (RealEstateListing + migas de pan),
+  // armados en lib/structured-data.ts con la URL por código.
+  const canonicalPath = listingPath(listing.code ?? String(listing.id));
+  const structuredListing = listingJsonLd(listing);
+  const structuredBreadcrumb = breadcrumbJsonLd([
+    { name: "Inicio", path: "/" },
+    { name: "Propiedades", path: "/propiedades" },
+    { name: displayTitle, path: canonicalPath },
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10 space-y-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(listingJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(structuredListing) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(structuredBreadcrumb) }} />
 
       {/* Botón Volver y Encabezado Hero de la Propiedad */}
       <div className="space-y-4">

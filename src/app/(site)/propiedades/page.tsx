@@ -4,6 +4,7 @@ import { FilterBar } from "@/components/FilterBar";
 import { PropertyCard } from "@/components/PropertyCard";
 import { getFilterOptions, getListings } from "@/lib/listings";
 import { operationLabel } from "@/lib/format";
+import { breadcrumbJsonLd, jsonLdScript, listingItemListJsonLd } from "@/lib/structured-data";
 
 interface PageSearchParams {
   operacion?: string;
@@ -117,9 +118,35 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
     }),
   ]);
 
+  // El título visible (h1) dice lo mismo que el <title> de la página:
+  // "Casas en Venta en Corrientes", no un "Propiedades" fijo. El h1 es
+  // de las señales más fuertes de qué búsqueda responde una página, y
+  // antes era idéntico en todas las combinaciones de filtros.
+  const { title: heading, canonical } = buildFacetedMeta(sp);
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight text-foreground">Propiedades</h1>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(listingItemListJsonLd(heading, items)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            breadcrumbJsonLd([
+              { name: "Inicio", path: "/" },
+              ...(canonical === "/propiedades"
+                ? [{ name: "Propiedades", path: "/propiedades" }]
+                : [
+                    { name: "Propiedades", path: "/propiedades" },
+                    { name: heading, path: canonical },
+                  ]),
+            ])
+          ),
+        }}
+      />
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight text-foreground">{heading}</h1>
 
       <div className="mb-8">
         <FilterBar
