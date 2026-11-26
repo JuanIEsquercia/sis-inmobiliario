@@ -20,7 +20,8 @@
     "local:dev": "node scripts/local/run.mjs next dev",
     "local:importar": "node scripts/local/run.mjs tsx scripts/local/importar-feed.ts",
     "local:copiar-fotos": "node scripts/local/run.mjs tsx scripts/local/copiar-fotos.ts",
-    "respaldo": "tsx scripts/respaldo-feed.ts"
+    "respaldo": "tsx scripts/respaldo-feed.ts",
+    "test": "tsx scripts/tests/reglas.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",

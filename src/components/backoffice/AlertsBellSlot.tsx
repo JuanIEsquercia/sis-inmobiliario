@@ -1,5 +1,6 @@
 import { requireProfile, getContractGroupScope, cajaOwnerId } from "@/lib/auth";
 import { getAlertsSummary } from "@/lib/dashboard";
+import { contarLlavesSinDevolver, puedeGestionarLlaves } from "@/lib/visitas";
 import { AlertsBell } from "./AlertsBell";
 
 // La campanita de Alertas pide ~11 consultas (indexaciones vencidas,
@@ -17,19 +18,29 @@ export async function AlertsBellSlot() {
   const profile = await requireProfile();
   const canAdmin = profile.permissions.includes("administraciones.ver");
   const canCaja = profile.permissions.includes("caja.ver");
-  if (!canAdmin && !canCaja) return null;
+  const canLlaves = profile.permissions.includes("visitas.pedir");
+  if (!canAdmin && !canCaja && !canLlaves) return null;
 
   // Mismo alcance por agente que las listas de Caja: el numerito de la
   // campanita no puede contar cobros atrasados de operaciones que quien
   // mira no puede ni ver.
-  const alerts = await getAlertsSummary(
-    await getContractGroupScope(profile),
-    canAdmin,
-    canCaja,
-    cajaOwnerId(profile)
-  );
+  const [alerts, llavesSinDevolver] = await Promise.all([
+    canAdmin || canCaja
+      ? getAlertsSummary(await getContractGroupScope(profile), canAdmin, canCaja, cajaOwnerId(profile))
+      : Promise.resolve(null),
+    // Llaves de la inmobiliaria que no volvieron el día de la visita:
+    // quien gestiona llaves ve todas; cada vendedor, las que tiene él.
+    canLlaves ? contarLlavesSinDevolver(puedeGestionarLlaves(profile) ? null : profile.id) : Promise.resolve(0),
+  ]);
 
-  return <AlertsBell alerts={alerts} canAdmin={canAdmin} canCaja={canCaja} />;
+  return (
+    <AlertsBell
+      alerts={alerts}
+      canAdmin={canAdmin}
+      canCaja={canCaja}
+      llaves={canLlaves ? { count: llavesSinDevolver, gestor: puedeGestionarLlaves(profile) } : null}
+    />
+  );
 }
 
 // Hueco del mismo tamaño que el botón real, para que el header no

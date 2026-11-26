@@ -15,6 +15,8 @@ interface AlertsBellProps {
   alerts: AlertsSummary | null;
   canAdmin: boolean;
   canCaja: boolean;
+  // Llaves de la inmobiliaria que no volvieron el día de la visita.
+  llaves?: { count: number; gestor: boolean } | null;
 }
 
 // Centro de notificaciones del header — visible en cualquier página del
@@ -23,7 +25,7 @@ interface AlertsBellProps {
 // datos (AlertsSummary ya viene filtrado por permiso desde el layout),
 // solo que acá se resumen a lo justo para no ocupar espacio: cantidad +
 // link directo a donde se resuelve cada uno.
-export function AlertsBell({ alerts, canAdmin, canCaja }: AlertsBellProps) {
+export function AlertsBell({ alerts, canAdmin, canCaja, llaves = null }: AlertsBellProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -37,22 +39,28 @@ export function AlertsBell({ alerts, canAdmin, canCaja }: AlertsBellProps) {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
-  if (!alerts || (!canAdmin && !canCaja)) return null;
+  if (!alerts && !llaves) return null;
 
   const items = [
-    canAdmin && {
+    llaves && {
+      label: "Llaves sin devolver",
+      count: llaves.count,
+      subtitle: llaves.gestor ? "No volvieron el día de la visita" : "Tenés llaves de visitas pasadas",
+      href: llaves.gestor ? "/backoffice/visitas/llaves" : "/backoffice/visitas?vista=abiertas",
+    },
+    alerts && canAdmin && {
       label: "Actualizaciones atrasadas",
       count: alerts.actualizaciones.count,
       subtitle: "Indexación vencida sin aplicar",
       href: "/backoffice/administraciones/actualizaciones#actualizaciones-atrasadas",
     },
-    canAdmin && {
+    alerts && canAdmin && {
       label: "Contratos por vencer",
       count: alerts.vencimientos.count,
       subtitle: "Vencen dentro de 60 días",
       href: "/backoffice/administraciones/actualizaciones#contratos-por-vencer",
     },
-    (canAdmin || canCaja) && {
+    alerts && (canAdmin || canCaja) && {
       label: "Cobros atrasados",
       count: alerts.cobros.count,
       subtitle: formatAmounts(alerts.cobros.amounts) ?? "Sin cobros atrasados",

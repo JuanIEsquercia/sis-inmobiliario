@@ -27,6 +27,12 @@ const icons: Record<string, (className: string) => React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 10.5 12 3l9 7.5M5 9v12h14V9M10 21v-6h4v6" />
     </svg>
   ),
+  "/backoffice/visitas": (className) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
+      <circle cx="8" cy="15" r="4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m10.8 12.2 8.7-8.7M16 6l2.5 2.5M18.5 3.5 21 6" />
+    </svg>
+  ),
   "/backoffice/administraciones": (className) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={className}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0h2M5 21H3m4 0h10M9 7h1m-1 4h1m4-4h1m-1 4h1M9 15h1m4 0h1" />

@@ -188,6 +188,17 @@ model Listing {
   unit           Unit?
   matchedPedidos Pedido[]
 
+  // --- Llave (L3: llaves y visitas). Sin keyLocation no se puede pedir
+  // una visita: el sistema no sabe a quién pedirle la llave.
+  keyLocation        KeyLocation?
+  keyNumber          String? // nro. de llavero o lugar en el tablero (llave en la inmobiliaria)
+  keyContactClientId Int? // quién tiene la llave (llave con un contacto)
+  keyContact         Client?      @relation("ListingKeyContact", fields: [keyContactClientId], references: [id], onDelete: SetNull)
+  keyContactRelation String? // propietario, encargado, portero...
+  keySets            Int?
+  keyNotes           String?      @db.Text // indicaciones de acceso (portero, alarma)
+  visits             Visit[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -227,6 +238,117 @@ model ListingImage {
 enum ListingOrigin {
   ADINCO
   PROPIA
+}
+
+// ============================================================
+// Llaves y visitas (L3). Cada pedido de llave abre una tarjeta de
+// visita (Visit) con su línea de tiempo (VisitEvent). Reglas de estado y
+// turnos en src/lib/visitas.ts.
+// ============================================================
+
+enum KeyLocation {
+  INMOBILIARIA // en el tablero de la inmobiliaria: se retira y se devuelve
+  CONTACTO // la tiene el propietario o un encargado: se coordina por WhatsApp
+}
+
+enum VisitStatus {
+  PEDIDA
+  RETIRADA // llave de la inmobiliaria en manos del vendedor
+  COORDINADA // el contacto confirmó
+  REALIZADA
+  DEVUELTA // llave de la inmobiliaria devuelta (falta o no la confirmación)
+  CANCELADA
+}
+
+enum VisitEventType {
+  PEDIDA
+  RETIRADA
+  COORDINADA
+  REALIZADA
+  DEVUELTA
+  DEVOLUCION_CONFIRMADA
+  CANCELADA
+}
+
+model Visit {
+  id Int @id @default(autoincrement())
+
+  listingId Int
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  // Quien pidió la llave (se completa solo con el usuario que la pide).
+  vendedorId String  @db.Uuid
+  vendedor   Profile @relation("VisitVendedor", fields: [vendedorId], references: [id])
+
+  // Fecha (día calendario en Argentina) + turno "HH:MM" de la lista fija
+  // 07:00..21:30. Toda visita dura 30 minutos. startsAt es el mismo
+  // instante en UTC, para ordenar y comparar con "ahora".
+  date     DateTime @db.Date
+  slot     String   @db.VarChar(5)
+  startsAt DateTime
+
+  // Dónde estaba la llave al pedirla: define el circuito (retirar y
+  // devolver, o coordinar con el contacto) aunque la ficha cambie después.
+  keyLocation KeyLocation
+  status      VisitStatus @default(PEDIDA)
+
+  // Interesado: un cliente o un pedido de búsqueda, uno de los dos
+  // (CHECK en la migración). Es lo que deja medir qué leads llegaron a
+  // visitar.
+  clientId Int?
+  client   Client? @relation(fields: [clientId], references: [id])
+  pedidoId Int?
+  pedido   Pedido? @relation(fields: [pedidoId], references: [id])
+
+  // Resultado de la visita para perfilar el lead (lista administrable).
+  outcomeId Int?
+  outcome   VisitOutcome? @relation(fields: [outcomeId], references: [id])
+
+  retiradaAt          DateTime?
+  devueltaAt          DateTime?
+  returnConfirmedAt   DateTime?
+  returnConfirmedById String?   @db.Uuid
+  returnConfirmedBy   Profile?  @relation("VisitReturnConfirmedBy", fields: [returnConfirmedById], references: [id])
+  cancelReason        String?
+
+  events VisitEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Dos visitas activas a la misma propiedad en el mismo turno no se
+  // permiten: índice único parcial (sin las canceladas) en la migración.
+  @@index([listingId, date])
+  @@index([vendedorId, date])
+  @@index([status, date])
+  @@index([clientId])
+  @@index([pedidoId])
+}
+
+model VisitEvent {
+  id      Int            @id @default(autoincrement())
+  visitId Int
+  visit   Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  type    VisitEventType
+  at      DateTime       @default(now())
+  byId    String         @db.Uuid
+  by      Profile        @relation(fields: [byId], references: [id])
+  note    String?
+
+  @@index([visitId, at])
+}
+
+// Categorías de resultado de una visita ("Le interesó", "Fuera de
+// presupuesto"...). Las administra quien gestiona el sistema, como los
+// conceptos de Presupuestos. Se desactivan, no se borran: las visitas
+// viejas siguen mostrando su resultado.
+model VisitOutcome {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  visits    Visit[]
+  createdAt DateTime @default(now())
 }
 
 enum ListingStatus {
@@ -322,6 +444,9 @@ model Profile {
   creditChecksConsultados     CreditCheck[]          @relation("CreditCheckConsultadoPor")
   listingsCaptados            Listing[]              @relation("ListingCaptador")
   listingsCreados             Listing[]              @relation("ListingCreadoPor")
+  visitsAsVendedor            Visit[]                @relation("VisitVendedor")
+  visitsReturnConfirmed       Visit[]                @relation("VisitReturnConfirmedBy")
+  visitEvents                 VisitEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -374,6 +499,8 @@ model Pedido {
   matchedListingId Int?
   matchedListing   Listing? @relation(fields: [matchedListingId], references: [id])
 
+  visits Visit[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -420,6 +547,8 @@ model Client {
   email     String?
   phone     String?
 
+  keysHeld          Listing[]           @relation("ListingKeyContact")
+  visits            Visit[]
   contractsAsTenant Contract[]          @relation("ContractTenant")
   contractsAsOwner  Contract[]          @relation("ContractOwner")
   guarantorFor      ContractGuarantor[]

@@ -6,6 +6,8 @@ import { requirePermission } from "@/lib/auth";
 import { updatePedidoEstado, tomarPedido, soltarPedido, eliminarPedido } from "../actions";
 import { ConfirmDeleteButton } from "@/components/backoffice/ConfirmDeleteButton";
 import type { PedidoEstado } from "@/generated/prisma/client";
+import { VisitasTabla } from "@/components/backoffice/VisitasTabla";
+import { alcanceVisitas, getVisitasDe } from "@/lib/visitas";
 
 const estadosDisponibles: { value: PedidoEstado; label: string }[] = [
   { value: "ABIERTO", label: "Abierto" },
@@ -26,6 +28,9 @@ export default async function PedidoDetailPage({ params }: PageProps) {
 
   const pedido = await getPedidoById(numericId);
   if (!pedido) notFound();
+  const visitas = profile.permissions.includes("visitas.pedir")
+    ? await getVisitasDe({ pedidoId: pedido.id }, alcanceVisitas(profile))
+    : null;
 
   return (
     <div className="max-w-5xl w-full mx-auto">
@@ -142,6 +147,13 @@ export default async function PedidoDetailPage({ params }: PageProps) {
               ))}
           </div>
         </div>
+      )}
+
+      {visitas && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold text-foreground">Visitas de este pedido</h2>
+          <VisitasTabla visitas={visitas} sin={["interesado"]} vacio="Todavía no visitó ninguna propiedad." />
+        </section>
       )}
     </div>
   );

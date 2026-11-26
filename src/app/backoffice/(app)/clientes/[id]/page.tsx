@@ -5,6 +5,8 @@ import { requirePermission } from "@/lib/auth";
 import { getClientById, clientLabel } from "@/lib/alquileres";
 import { actualizarCliente } from "../actions";
 import { DatePicker } from "@/components/backoffice/DatePicker";
+import { VisitasTabla } from "@/components/backoffice/VisitasTabla";
+import { alcanceVisitas, getVisitasDe } from "@/lib/visitas";
 
 const statusLabels: Record<string, string> = {
   ACTIVO: "Activo",
@@ -33,6 +35,11 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   if (!client) notFound();
 
   const canEdit = profile.permissions.includes("clientes.gestionar");
+  // Visitas como interesado: muestra si el lead llegó a visitar y con qué
+  // resultado. Cada vendedor ve las suyas; quien gestiona llaves, todas.
+  const visitas = profile.permissions.includes("visitas.pedir")
+    ? await getVisitasDe({ clientId: client.id }, alcanceVisitas(profile))
+    : null;
 
   return (
     <div className="max-w-6xl w-full mx-auto">
@@ -146,6 +153,13 @@ export default async function ClienteDetailPage({ params }: PageProps) {
           </ul>
         )}
       </section>
+
+      {visitas && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold text-foreground">Visitas como interesado</h2>
+          <VisitasTabla visitas={visitas} sin={["interesado"]} vacio="Todavía no visitó ninguna propiedad." />
+        </section>
+      )}
     </div>
   );
 }

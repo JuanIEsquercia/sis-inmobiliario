@@ -187,6 +187,18 @@ Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorn
 - Sitio: "No publicar precio" muestra "Consultar precio" (también al compartir y en los datos para buscadores); "dirección aproximada" muestra la calle sin número y el mapa no usa las coordenadas exactas. La ficha pública muestra los grupos de características y el tour virtual.
 - **Al pasar a producción:** después de aplicar la migración, correr una vez `npm run sync -- --force` para completar estos campos en las fichas que ya están cargadas.
 
+### L3 hecho en local: llaves y visitas
+- Migración `20261125210000_llaves_y_visitas`: llave en la ficha (ubicación, llavero, contacto, juegos, indicaciones), `Visit` (la tarjeta), `VisitEvent` (línea de tiempo) y `VisitOutcome` (categorías de resultado, con 7 iniciales). En la base: un solo turno activo por propiedad (índice único parcial), turno de la lista fija, nunca cliente y pedido a la vez, y RLS como el resto.
+- Permisos: `visitas.pedir` (vendedores: piden y ven sus visitas), `visitas.gestionar_llaves` (entrega y recepción en la inmobiliaria, ve todas) y `visitas.categorias`.
+- Reglas en `src/lib/visit-rules.ts` (puras, con pruebas en `npm test`): turnos 07:00 a 21:30, hora de Argentina y circuito de estados.
+  - Llave en la inmobiliaria: pedida → retirada (la entrega quien gestiona llaves) → visita hecha (con resultado) → devuelta → devolución confirmada.
+  - Llave con un contacto: pedida (botón de WhatsApp con propiedad, fecha y turno) → coordinada → visita hecha.
+  - Cancelar en cualquier paso abierto; si la llave estaba retirada, queda como devuelta pendiente de confirmar.
+- Pantallas: Tarjetas de visita (hoy, abiertas, todas, con filtros), pedido de llave desde la ficha (turnos ocupados deshabilitados), tarjeta con línea de tiempo, Llaves del día (atrasadas, para entregar, afuera, por confirmar) y Categorías de resultado.
+- La ficha de la propiedad, la del cliente y la del pedido muestran sus visitas con el resultado (perfil del lead).
+- Campanita: "Llaves sin devolver" (quien gestiona llaves, todas; cada vendedor, las suyas).
+- Prueba de punta a punta con dos usuarios (vendedor y gestor): carga de llaves, pedido, turno ocupado, entrega, visita hecha, alerta de llave atrasada, devolución y confirmación, circuito con contacto e interesado por pedido, historial en cliente y pedido, y que un vendedor no puede abrir la tarjeta de otro.
+
 ### Pendiente antes de producción
 - La imagen para compartir en redes (`opengraph-image.tsx`) sigue usando la foto de Adinco: hay que darle una versión JPEG propia antes del corte.
 - El sync de producción tiene que copiar las fotos nuevas solo (hoy la copia es un script aparte).

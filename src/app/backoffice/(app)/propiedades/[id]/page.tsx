@@ -5,6 +5,11 @@ import { getAgents } from "@/lib/caja";
 import { ESTADOS, ESTADOS_NO_PUBLICABLES, ORIGEN_LABEL, getPropiedadById } from "@/lib/propiedades";
 import { formatDate, operationLabel } from "@/lib/format";
 import { PropiedadResumen } from "@/components/backoffice/PropiedadResumen";
+import { LlaveFields } from "@/components/backoffice/LlaveFields";
+import { LlaveResumen } from "@/components/backoffice/LlaveResumen";
+import { VisitasTabla } from "@/components/backoffice/VisitasTabla";
+import { alcanceVisitas, getVisitasDe } from "@/lib/visitas";
+import { actualizarLlave } from "../../visitas/actions";
 import { MAX_FOTOS_POR_PROPIEDAD, propertyImageSrc } from "@/lib/property-images";
 import { ActionForm } from "@/components/backoffice/ActionForm";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
@@ -45,7 +50,11 @@ export default async function PropiedadPage({ params }: PageProps) {
   const canPublicar = profile.permissions.includes("propiedades.publicar");
   const canHistorial = profile.permissions.includes("historial.ver");
   const esPropia = p.origin === "PROPIA";
-  const agents = canEditar ? await getAgents() : [];
+  const canVisitas = profile.permissions.includes("visitas.pedir");
+  const [agents, visitas] = await Promise.all([
+    canEditar ? getAgents() : Promise.resolve([]),
+    canVisitas ? getVisitasDe({ listingId: p.id }, alcanceVisitas(profile)) : Promise.resolve([]),
+  ]);
   const titulo = p.contentTitle ?? p.title;
 
   // Mientras sea de Adinco se muestran solo las fotos con copia propia si
@@ -75,6 +84,11 @@ export default async function PropiedadPage({ params }: PageProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canVisitas && p.keyLocation && (
+            <Link href={`/backoffice/visitas/nueva?propiedad=${p.id}`} className={boton}>
+              Pedir llave para visita
+            </Link>
+          )}
           {p.isActive && p.code && (
             <Link href={`/propiedades/${p.code}`} target="_blank" className={botonSecundario}>
               Ver en el sitio ↗
@@ -166,6 +180,40 @@ export default async function PropiedadPage({ params }: PageProps) {
           </ActionForm>
         ) : (
           <PropiedadResumen p={p} />
+        )}
+      </section>
+
+      <section className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-xl border border-border p-4">
+          <h2 className="mb-3 text-base font-semibold text-foreground">Llave</h2>
+          {canEditar ? (
+            <ActionForm action={actualizarLlave.bind(null, p.id)} mensajeExito="Llave guardada" className="flex flex-col gap-3">
+              <LlaveFields
+                d={{
+                  keyLocation: p.keyLocation,
+                  keyNumber: p.keyNumber,
+                  keySets: p.keySets,
+                  keyNotes: p.keyNotes,
+                  keyContactRelation: p.keyContactRelation,
+                  keyContact: p.keyContact,
+                }}
+              />
+              <div>
+                <SubmitButton className={boton}>Guardar llave</SubmitButton>
+              </div>
+            </ActionForm>
+          ) : (
+            <LlaveResumen l={p} />
+          )}
+        </div>
+        {canVisitas && (
+          <div className="lg:col-span-2">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-foreground">Visitas</h2>
+              {!p.keyLocation && <span className="text-xs text-muted">Indicá dónde está la llave para poder pedirla.</span>}
+            </div>
+            <VisitasTabla visitas={visitas} sin={["propiedad"]} vacio="Todavía no tuvo visitas." />
+          </div>
         )}
       </section>
 

@@ -119,6 +119,7 @@ export async function getPropiedadById(id: number) {
       include: {
         images: { orderBy: [{ sortOrder: "asc" }] },
         videos: { select: { url: true } },
+        keyContact: { select: { id: true, firstName: true, lastName: true, docId: true, phone: true } },
         captadorAgent: { select: { id: true, username: true, firstName: true, lastName: true } },
         createdBy: { select: { username: true } },
       },

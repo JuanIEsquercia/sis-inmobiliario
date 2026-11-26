@@ -20,6 +20,16 @@ export const NAV_SECTIONS: NavSection[] = [
   { href: "/backoffice/pedidos", label: "Pedidos", permission: "pedidos.ver" },
   { href: "/backoffice/propiedades", label: "Propiedades", permission: "propiedades.ver" },
   {
+    href: "/backoffice/visitas",
+    label: "Visitas y llaves",
+    permission: "visitas.pedir",
+    children: [
+      { href: "/backoffice/visitas", label: "Tarjetas de visita" },
+      { href: "/backoffice/visitas/llaves", label: "Llaves del día", permission: "visitas.gestionar_llaves" },
+      { href: "/backoffice/visitas/categorias", label: "Categorías de resultado", permission: "visitas.categorias" },
+    ],
+  },
+  {
     href: "/backoffice/administraciones",
     label: "Administraciones",
     permission: "administraciones.ver",

@@ -47,6 +47,17 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     ],
   },
   {
+    key: "visitas",
+    label: "Llaves y visitas",
+    children: [
+      { key: "visitas.pedir", label: "Pedir llaves y registrar sus visitas (ve solo las propias)" },
+      // Quien entrega y recibe las llaves en la inmobiliaria: ve todas las
+      // visitas y puede dar cualquier paso (para cubrir a alguien).
+      { key: "visitas.gestionar_llaves", label: "Gestionar llaves: entregar, recibir y ver todas las visitas" },
+      { key: "visitas.categorias", label: "Administrar las categorías de resultado de visita" },
+    ],
+  },
+  {
     key: "administraciones",
     label: "Administraciones",
     children: [
@@ -184,6 +195,10 @@ export const PERMISSION_IMPLIES: Record<string, string[]> = {
   "historial.editar": ["historial.ver"],
   "propiedades.editar": ["propiedades.ver"],
   "propiedades.publicar": ["propiedades.ver"],
+  // Pedir una llave se hace desde la ficha de la propiedad.
+  "visitas.pedir": ["propiedades.ver"],
+  "visitas.gestionar_llaves": ["visitas.pedir"],
+  "visitas.categorias": ["visitas.pedir"],
   "administraciones.ver_todos": ["administraciones.ver"],
   "administraciones.crear": ["administraciones.ver"],
   "administraciones.pagos": ["administraciones.ver"],
@@ -242,6 +257,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     "pedidos.crear",
     "pedidos.estado",
     "propiedades.ver",
+    "visitas.pedir",
     "administraciones.ver",
     "administraciones.crear",
     "administraciones.pagos",
