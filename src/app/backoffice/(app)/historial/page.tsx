@@ -8,13 +8,20 @@ interface PageProps {
 }
 
 export default async function HistorialPage({ searchParams }: PageProps) {
-  await requirePermission("historial.ver");
+  const profile = await requirePermission("historial.ver");
   const { q } = await searchParams;
   const units = await getUnits(q);
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-foreground">Historial de propiedades</h1>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-foreground">Historial de propiedades</h1>
+        {profile.permissions.includes("historial.editar") && (
+          <Link href="/backoffice/historial/vincular" className="rounded-lg border border-border px-4 py-2 text-xs font-semibold hover:bg-surface">
+            Vincular con las fichas
+          </Link>
+        )}
+      </div>
       <p className="mb-6 text-sm text-muted">
         Trazabilidad por unidad — contratos, ventas y tasaciones a lo largo del tiempo, tenga o no una operación
         vigente hoy.

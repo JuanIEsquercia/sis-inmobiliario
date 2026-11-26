@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth";
 import { conAviso, conAvisoDato } from "@/lib/accion";
 import { optionalDecimal, optionalInt, optionalStr, requiredStr } from "@/lib/form-utils";
 import { normalizeForSearch } from "@/lib/search-text";
+import { resolveClientOptional } from "@/lib/backoffice-resolvers";
 import { PROPERTY_TYPES } from "@/lib/property-types";
 import { ESTADOS, ESTADOS_NO_PUBLICABLES, MONEDAS, OPERACIONES, siguienteCodigoPropio } from "@/lib/propiedades";
 import {
@@ -59,6 +60,27 @@ function estadoDe(formData: FormData): ListingStatus {
   return estado.value;
 }
 
+// Búsqueda de clientes para elegir el propietario de la ficha.
+export async function buscarClientesPropiedades(query: string) {
+  await requirePermission("propiedades.editar");
+  const q = query.trim();
+  if (q.length < 2) return [];
+  return withRetry(() =>
+    prisma.client.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { docId: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, firstName: true, lastName: true, docId: true },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      take: 8,
+    })
+  );
+}
+
 // --- Datos internos (cualquier origen) ---------------------------------
 
 export const actualizarDatosInternos = conAviso(async function actualizarDatosInternos(id: number, formData: FormData) {
@@ -70,19 +92,26 @@ export const actualizarDatosInternos = conAviso(async function actualizarDatosIn
   const cambiaEstado = status !== actual.status;
 
   await withRetry(() =>
-    prisma.listing.update({
-      where: { id },
-      data: {
-        status,
-        statusChangedAt: cambiaEstado ? new Date() : undefined,
-        captadorAgentId: optionalStr(formData.get("captadorAgentId")),
-        internalNotes: optionalStr(formData.get("internalNotes")),
-        // Vendida, alquilada o suspendida sale del sitio en el acto. Volver
-        // a disponible no la publica sola: en las propias se publica a
-        // mano, y en las de Adinco vuelve con el próximo sync si sigue
-        // vigente allá.
-        ...(ESTADOS_NO_PUBLICABLES.includes(status) ? { isActive: false } : {}),
-      },
+    prisma.$transaction(async (tx) => {
+      // Propietario: se busca o se crea en Clientes (vacío = sin cargar).
+      const ownerClientId = await resolveClientOptional(tx, formData, "owner", "Propietario");
+      await tx.listing.update({
+        where: { id },
+        data: {
+          status,
+          // Marca que el estado lo decidió alguien acá: desde entonces el
+          // sync de Adinco ya no lo cambia (ver sync.ts).
+          statusChangedAt: cambiaEstado ? new Date() : undefined,
+          captadorAgentId: optionalStr(formData.get("captadorAgentId")),
+          ownerClientId,
+          internalNotes: optionalStr(formData.get("internalNotes")),
+          // Vendida, alquilada o suspendida sale del sitio en el acto. Volver
+          // a disponible no la publica sola: en las propias se publica a
+          // mano, y en las de Adinco vuelve con el próximo sync si sigue
+          // vigente allá.
+          ...(ESTADOS_NO_PUBLICABLES.includes(status) ? { isActive: false } : {}),
+        },
+      });
     })
   );
   revalidarFicha(id);
@@ -222,6 +251,7 @@ export const crearPropiedad = conAvisoDato(async function crearPropiedad(formDat
     prisma.$transaction(
       async (tx) => {
         const code = await siguienteCodigoPropio(tx);
+        const ownerClientId = await resolveClientOptional(tx, formData, "owner", "Propietario");
         return tx.listing.create({
           data: {
             ...datos,
@@ -235,6 +265,7 @@ export const crearPropiedad = conAvisoDato(async function crearPropiedad(formDat
             // revisados (acción publicarPropiedad).
             isActive: false,
             captadorAgentId,
+            ownerClientId,
             internalNotes: optionalStr(formData.get("internalNotes")),
             createdById: profile.id,
             sourceUpdatedAt: new Date(),

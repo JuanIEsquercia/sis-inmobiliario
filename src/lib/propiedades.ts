@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/db-retry";
 import { normalizeForSearch } from "@/lib/search-text";
 import { codigoMaximo, normalizarCodigo } from "@/lib/property-codes";
+import { compararDirecciones } from "@/lib/vinculacion";
 import type { ListingOrigin, ListingStatus, Prisma } from "@/generated/prisma/client";
 
 // Ficha de propiedad del backoffice (sección Propiedades). La tabla es
@@ -120,6 +121,7 @@ export async function getPropiedadById(id: number) {
         images: { orderBy: [{ sortOrder: "asc" }] },
         videos: { select: { url: true } },
         keyContact: { select: { id: true, firstName: true, lastName: true, docId: true, phone: true } },
+        ownerClient: { select: { id: true, firstName: true, lastName: true, docId: true, phone: true, email: true } },
         captadorAgent: { select: { id: true, username: true, firstName: true, lastName: true } },
         createdBy: { select: { username: true } },
       },
@@ -146,20 +148,62 @@ export async function getPropiedadById(id: number) {
     (u) => u.listingId === listing.id || (codigo !== null && normalizarCodigo(u.propertyCode) === codigo)
   );
 
-  // Sugerencia de captador: el "vendedor" que Adinco tiene asignado al
-  // aviso, si su email coincide con el de un usuario del sistema. Es
-  // solo una sugerencia para la carga inicial; no se guarda sola.
-  let captadorSugerido: { id: string; username: string } | null = null;
-  if (!listing.captadorAgentId && listing.sellerEmail) {
-    captadorSugerido = await withRetry(() =>
-      prisma.profile.findFirst({
-        where: { email: { equals: listing.sellerEmail!, mode: "insensitive" }, isActive: true },
-        select: { id: true, username: true },
-      })
-    );
-  }
+  // El usuario que Adinco tiene asignado al aviso (sellerName) es el
+  // responsable, no el captador: se muestra como dato, no se sugiere.
+  return { listing, historial };
+}
 
-  return { listing, historial, captadorSugerido };
+// --- Vinculación del Historial con las fichas ----------------------------
+
+export type EstadoVinculo = "vinculada" | "para-vincular" | "conflicto" | "sin-ficha";
+
+// Cada unidad del Historial con su ficha: la ya vinculada, o la candidata
+// por código normalizado ("GARC1-359" = "359"). "conflicto": la ficha
+// candidata ya está vinculada a otra unidad (la misma propiedad cargada
+// dos veces en el Historial; se unifica desde la ficha del contrato).
+export async function getVinculacionesHistorial() {
+  const [unidades, fichas] = await withRetry(() =>
+    Promise.all([
+      prisma.unit.findMany({
+        select: {
+          id: true,
+          propertyCode: true,
+          address: true,
+          city: true,
+          listingId: true,
+          _count: { select: { contracts: true, sales: true, appraisals: true } },
+        },
+        orderBy: { propertyCode: "asc" },
+      }),
+      prisma.listing.findMany({
+        where: { code: { not: null } },
+        select: { id: true, code: true, address: true, contentTitle: true, title: true, status: true, unit: { select: { id: true } } },
+      }),
+    ])
+  );
+  const porCodigo = new Map(fichas.map((f) => [normalizarCodigo(f.code), f]));
+  const porId = new Map(fichas.map((f) => [f.id, f]));
+
+  return unidades
+    .map((u) => {
+      const codigo = normalizarCodigo(u.propertyCode);
+      const ficha = u.listingId ? porId.get(u.listingId) ?? null : codigo ? porCodigo.get(codigo) ?? null : null;
+      const estado: EstadoVinculo = u.listingId
+        ? "vinculada"
+        : !ficha
+          ? "sin-ficha"
+          : ficha.unit && ficha.unit.id !== u.id
+            ? "conflicto"
+            : "para-vincular";
+      return {
+        unidad: u,
+        codigo,
+        ficha,
+        estado,
+        coincidencia: compararDirecciones(u.address, ficha?.address ?? null),
+      };
+    })
+    .sort((a, b) => Number(a.codigo ?? 0) - Number(b.codigo ?? 0));
 }
 
 // Próximo código de propiedad propio: el último número usado + 1, sin

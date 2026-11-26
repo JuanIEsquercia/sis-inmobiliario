@@ -199,6 +199,16 @@ Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorn
 - Campanita: "Llaves sin devolver" (quien gestiona llaves, todas; cada vendedor, las suyas).
 - Prueba de punta a punta con dos usuarios (vendedor y gestor): carga de llaves, pedido, turno ocupado, entrega, visita hecha, alerta de llave atrasada, devolución y confirmación, circuito con contacto e interesado por pedido, historial en cliente y pedido, y que un vendedor no puede abrir la tarjeta de otro.
 
+### Planilla de Adinco y vinculación del Historial (2026-11-26)
+- Planilla "UNIFICADO" del panel de Adinco (367 avisos): respaldo en `respaldos/planilla/UNIFICADO-2026-11-26.json`. Trae estado, id del aviso, datos básicos, responsable y propietario.
+- Estados: Vigente → disponible; Alquilado (también "Incompleta") → alquilada; Vendido → vendida; Suspendido, "Vigente Incompleta" y Borrador → suspendida; Reservado → reservada.
+- "Usuario asignado" es el responsable, no el captador: se guarda como "Responsable en Adinco". Se sacó la sugerencia de captador de L2.
+- Migración `20261126100000_listing_propietario`: propietario de la ficha, vinculado a Clientes (en datos internos y en el alta).
+- `npm run local:importar-planilla -- <json>` (lector puro en `src/lib/planilla-adinco.ts`, con pruebas): cruza por id de aviso. Resultado local: 212 fichas nuevas sin publicar (28 con venta/alquiler deducido por la moneda, marcadas en notas internas), 155 existentes actualizadas, 17 propietarios vinculados (10 clientes). Repetirla no duplica nada.
+- Regla del sync: si una ficha viene en el XML pero acá está vendida, alquilada o suspendida, manda Adinco cuando el estado vino de Adinco (se republica como disponible) y manda el nuestro cuando alguien lo cambió en el backoffice. Probado.
+- Vinculación Historial ↔ fichas (`/backoffice/historial/vincular`, permiso `historial.editar`): por código normalizado, con comparación de direcciones (`src/lib/vinculacion.ts`). Botón para vincular de una vez las de misma dirección; las demás, una por una. Al vincular, el código del Historial queda normalizado ("GARC1-359" → "359"). En local: 48 de 48 tienen ficha, 33 con misma dirección; 15 para revisar a mano (entre ellas 4, 10, 154 y 383, que pueden ser un código mal cargado).
+- Pendiente: la ventana "todo Vigente" con todas las propiedades, más adelante, para traer descripción, fotos y amenities de las 212.
+
 ### Pendiente antes de producción
 - La imagen para compartir en redes (`opengraph-image.tsx`) sigue usando la foto de Adinco: hay que darle una versión JPEG propia antes del corte.
 - El sync de producción tiene que copiar las fotos nuevas solo (hoy la copia es un script aparte).

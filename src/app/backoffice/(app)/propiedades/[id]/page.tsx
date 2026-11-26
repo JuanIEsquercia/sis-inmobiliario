@@ -6,6 +6,7 @@ import { ESTADOS, ESTADOS_NO_PUBLICABLES, ORIGEN_LABEL, getPropiedadById } from 
 import { formatDate, operationLabel } from "@/lib/format";
 import { PropiedadResumen } from "@/components/backoffice/PropiedadResumen";
 import { LlaveFields } from "@/components/backoffice/LlaveFields";
+import { PropietarioPicker } from "@/components/backoffice/PropietarioPicker";
 import { LlaveResumen } from "@/components/backoffice/LlaveResumen";
 import { VisitasTabla } from "@/components/backoffice/VisitasTabla";
 import { alcanceVisitas, getVisitasDe } from "@/lib/visitas";
@@ -44,7 +45,7 @@ export default async function PropiedadPage({ params }: PageProps) {
 
   const data = await getPropiedadById(numericId);
   if (!data) notFound();
-  const { listing: p, historial, captadorSugerido } = data;
+  const { listing: p, historial } = data;
 
   const canEditar = profile.permissions.includes("propiedades.editar");
   const canPublicar = profile.permissions.includes("propiedades.publicar");
@@ -138,13 +139,9 @@ export default async function PropiedadPage({ params }: PageProps) {
                 name="captadorAgentId"
                 label="Captador"
                 required={false}
-                defaultValue={p.captadorAgentId ?? captadorSugerido?.id}
+                defaultValue={p.captadorAgentId ?? undefined}
               />
-              {!p.captadorAgentId && captadorSugerido && (
-                <p className="-mt-1 text-xs text-muted">
-                  Sugerido por Adinco (vendedor del aviso): @{captadorSugerido.username}. Se guarda al apretar Guardar.
-                </p>
-              )}
+              <PropietarioPicker initial={p.ownerClient} />
               <label className="flex flex-col gap-1.5">
                 <span className="text-xs text-muted">Notas internas</span>
                 <textarea name="internalNotes" rows={3} defaultValue={p.internalNotes ?? ""} className="field" />
@@ -157,13 +154,17 @@ export default async function PropiedadPage({ params }: PageProps) {
           ) : (
             <dl className="flex flex-col gap-2">
               <Dato label="Captador" value={p.captadorAgent ? `@${p.captadorAgent.username}` : "Inmobiliaria"} />
+              <Dato
+                label="Propietario"
+                value={p.ownerClient ? `${p.ownerClient.firstName} ${p.ownerClient.lastName}${p.ownerClient.phone ? ` · ${p.ownerClient.phone}` : ""}` : null}
+              />
               <Dato label="Notas internas" value={p.internalNotes} />
             </dl>
           )}
           <dl className="mt-4 flex flex-col gap-2 border-t border-border pt-3">
             <Dato label="Estado desde" value={formatDate(p.statusChangedAt)} />
             <Dato label="Cargada por" value={p.createdBy ? `@${p.createdBy.username}` : null} />
-            <Dato label="Vendedor en Adinco" value={p.sellerName} />
+            <Dato label="Responsable en Adinco" value={p.sellerName} />
             <Dato label="Última actualización del aviso" value={formatDate(p.sourceUpdatedAt)} />
           </dl>
         </section>

@@ -172,6 +172,10 @@ model Listing {
 
   internalNotes String? @db.Text
 
+  // Propietario de la propiedad (dato interno, nunca se publica).
+  ownerClientId Int?
+  ownerClient   Client? @relation("ListingOwner", fields: [ownerClientId], references: [id], onDelete: SetNull)
+
   // Solo fichas PROPIA: quién la dio de alta en el backoffice.
   createdById String?  @db.Uuid
   createdBy   Profile? @relation("ListingCreadoPor", fields: [createdById], references: [id], onDelete: SetNull)
@@ -215,6 +219,7 @@ model Listing {
   @@index([isActive, sourceUpdatedAt])
   @@index([status])
   @@index([captadorAgentId])
+  @@index([ownerClientId])
 }
 
 model ListingImage {
@@ -548,6 +553,7 @@ model Client {
   phone     String?
 
   keysHeld          Listing[]           @relation("ListingKeyContact")
+  listingsOwned     Listing[]           @relation("ListingOwner")
   visits            Visit[]
   contractsAsTenant Contract[]          @relation("ContractTenant")
   contractsAsOwner  Contract[]          @relation("ContractOwner")

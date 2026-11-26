@@ -4,6 +4,7 @@ import { getAgents } from "@/lib/caja";
 import { MAX_FOTOS_POR_PROPIEDAD } from "@/lib/property-images";
 import { AgentSelect } from "@/components/backoffice/AgentSelect";
 import { NuevaPropiedadForm } from "@/components/backoffice/NuevaPropiedadForm";
+import { PropietarioPicker } from "@/components/backoffice/PropietarioPicker";
 import { PropiedadPublicacionFields } from "@/components/backoffice/PropiedadPublicacionFields";
 
 export default async function NuevaPropiedadPage() {
@@ -28,7 +29,10 @@ export default async function NuevaPropiedadPage() {
             <legend className="px-1 text-sm font-semibold text-foreground">Datos internos</legend>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <AgentSelect agents={agents} name="captadorAgentId" label="Captador" required={false} />
-              <label className="flex flex-col gap-1.5">
+              <div className="sm:col-span-2">
+                <PropietarioPicker />
+              </div>
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
                 <span className="text-xs text-muted">Notas internas</span>
                 <textarea name="internalNotes" rows={2} className="field" />
               </label>

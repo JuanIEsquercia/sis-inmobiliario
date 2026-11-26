@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import * as R from "../../src/lib/visit-rules";
 import { normalizarCodigo, codigoMaximo } from "../../src/lib/property-codes";
 import { clasificarCaracteristicas } from "../../src/lib/property-features";
+import * as P from "../../src/lib/planilla-adinco";
+import { compararDirecciones } from "../../src/lib/vinculacion";
 
 let n = 0;
 const t = (nombre: string, fn: () => void) => { fn(); n++; console.log("OK ", nombre); };
@@ -51,5 +53,61 @@ t("clasificar características de Adinco", () => {
   assert.deepEqual(r.installations, ["Balcón terraza", "Lavadero"]);
   assert.deepEqual(r.buildingAmenities, ["Pileta", "Jardín"]);
   assert.deepEqual(r.otherData, ["Vidriera"]);
+});
+t("planilla: precios", () => {
+  assert.deepEqual(P.precioDesdeAdinco("$ 1.300.000"), { amount: 1300000, currency: "ARS" });
+  assert.deepEqual(P.precioDesdeAdinco("U$D 75.000"), { amount: 75000, currency: "USD" });
+  assert.equal(P.precioDesdeAdinco("Consultar precio"), null);
+  assert.equal(P.precioDesdeAdinco("$ 1"), null);
+});
+t("planilla: superficies, enteros y ubicación", () => {
+  assert.equal(P.superficie("35 m2"), 35);
+  assert.equal(P.superficie("2 ha"), 20000);
+  assert.equal(P.superficie("-"), null);
+  assert.equal(P.entero("+ 5"), 5);
+  assert.equal(P.entero("Monoamb."), 0);
+  assert.equal(P.entero("5 años"), 5);
+  assert.deepEqual(P.ubicacion("Centro, Corrientes, Corrientes"), { neighborhood: "Centro", city: "Corrientes", region: "Corrientes" });
+  assert.deepEqual(P.ubicacion("San Luis del Palmar, Corrientes"), { neighborhood: null, city: "San Luis del Palmar", region: "Corrientes" });
+});
+t("planilla: estados", () => {
+  assert.equal(P.estadoDesdeAdinco("Vigente"), "DISPONIBLE");
+  assert.equal(P.estadoDesdeAdinco("Alquilado Incompleta"), "ALQUILADA");
+  assert.equal(P.estadoDesdeAdinco("Vigente Incompleta"), "SUSPENDIDA");
+  assert.equal(P.estadoDesdeAdinco("Borrador"), "SUSPENDIDA");
+  assert.equal(P.estadoDesdeAdinco("Otro"), null);
+});
+t("planilla: propietario descarta emails de la inmobiliaria y de relleno", () => {
+  assert.deepEqual(P.propietario("Jorge  Lucki", "garciajpropiedades@gmail.com", "3794929092"), { firstName: "Jorge", lastName: "Lucki", email: null, phone: "3794929092" });
+  assert.equal(P.propietario("Sergio Ricer", "nomail@gmail.com", "-")?.email, null);
+  assert.equal(P.propietario("Laura Vischi", "DraVischi@yahoo.com.ar", "-")?.email, "dravischi@yahoo.com.ar");
+  assert.equal(P.propietario("-", "-", "-"), null);
+});
+t("planilla: fila completa y operación deducida", () => {
+  const fila = (estado: string, precio: string) =>
+    ["6348356", "2025-05-16 16:13:24", "garc1-084", estado, "Jose Ramon Vidal 1768", "Corrientes, Corrientes, Corrientes", "Juan  Ignacio", "Departamento", "35 m2", "-", "-", "5 años", "Monoamb.", "-", "-", "-", "-", "-", "-", precio, "-", "-", "-", "-"];
+  const a = P.leerFila(fila("Alquilado", "U$D 500"));
+  assert.ok(!("error" in a));
+  if (!("error" in a)) {
+    assert.equal(a.code, "84");
+    assert.equal(a.operationType, "For Rent");
+    assert.equal(a.operacionDeducida, false);
+    assert.equal(a.rooms, 0);
+    assert.equal(a.responsable, "Juan Ignacio");
+  }
+  const s = P.leerFila(fila("Suspendido", "U$D 90.000"));
+  assert.ok(!("error" in s) && s.operationType === "For Sale" && s.operacionDeducida);
+  assert.ok("error" in P.leerFila(fila("Raro", "-")));
+});
+t("vinculación: comparar direcciones del Historial con la ficha", () => {
+  assert.equal(compararDirecciones("Gdor Gallino 285", "Gobernador Gallino 285 2°"), "coincide");
+  assert.equal(compararDirecciones("AVENIDA INDEPENDENCIA 4159 / 4163", "Avenida Independencia 4159"), "coincide");
+  assert.equal(compararDirecciones("Junin 342 primer piso", "Junin 342 1°"), "coincide");
+  assert.equal(compararDirecciones("Cordoba 1050 EDIFICIO ALMERIA", "Cordoba 1050"), "coincide");
+  assert.equal(compararDirecciones("328 VIVIENDAS MANZANA K CASA 134", "328 Viviendas"), "coincide");
+  assert.equal(compararDirecciones("Junin 1336", "Junin 2062"), "parecida");
+  assert.equal(compararDirecciones("lavalle 1202", "Mendoza Esquina Lavalle"), "parecida");
+  assert.equal(compararDirecciones("Bonaire - amoblado", "Belgrano 1468"), "distinta");
+  assert.equal(compararDirecciones(null, "Belgrano 1468"), "distinta");
 });
 console.log(`\n${n} pruebas OK`);

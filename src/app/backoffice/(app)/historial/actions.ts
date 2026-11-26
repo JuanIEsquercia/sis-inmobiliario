@@ -7,6 +7,8 @@ import { withRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth";
 import { conAviso } from "@/lib/accion";
 import { Prisma } from "@/generated/prisma/client";
+import { normalizarCodigo } from "@/lib/property-codes";
+import { getVinculacionesHistorial } from "@/lib/propiedades";
 
 function texto(formData: FormData, campo: string): string | null {
   const v = String(formData.get(campo) ?? "").trim();
@@ -54,6 +56,58 @@ export const actualizarUnidad = conAviso(async function actualizarUnidad(unitId:
   revalidatePath("/backoffice/historial");
   revalidatePath(`/backoffice/historial/${unitId}`);
   revalidatePath("/backoffice/administraciones", "layout");
+});
+
+// --- Vinculación con las fichas de propiedad ------------------------------
+
+// Vincula una unidad del Historial con su ficha. De paso normaliza el
+// código ("GARC1-359" -> "359") si no lo tiene otra unidad: si lo tiene,
+// son la misma propiedad cargada dos veces y eso se unifica desde la
+// ficha del contrato, no acá.
+async function vincular(unitId: number, listingId: number): Promise<"ok" | "conflicto"> {
+  const ficha = await prisma.listing.findUnique({ where: { id: listingId }, select: { code: true, unit: { select: { id: true } } } });
+  if (!ficha) throw new Error("La ficha ya no existe.");
+  if (ficha.unit && ficha.unit.id !== unitId) return "conflicto";
+  const codigo = normalizarCodigo(ficha.code);
+  const otra = codigo ? await prisma.unit.findUnique({ where: { propertyCode: codigo }, select: { id: true } }) : null;
+  await prisma.unit.update({
+    where: { id: unitId },
+    data: { listingId, ...(codigo && (!otra || otra.id === unitId) ? { propertyCode: codigo } : {}) },
+  });
+  return "ok";
+}
+
+function revalidarHistorial() {
+  revalidatePath("/backoffice/historial", "layout");
+  revalidatePath("/backoffice/propiedades", "layout");
+}
+
+export const vincularUnidad = conAviso(async function vincularUnidad(unitId: number, listingId: number) {
+  await requirePermission("historial.editar");
+  const r = await withRetry(() => vincular(unitId, listingId));
+  if (r === "conflicto") {
+    throw new Error("Esa ficha ya está vinculada a otra propiedad del Historial. Si son la misma, unificalas desde la ficha del contrato.");
+  }
+  revalidarHistorial();
+});
+
+export const desvincularUnidad = conAviso(async function desvincularUnidad(unitId: number) {
+  await requirePermission("historial.editar");
+  await withRetry(() => prisma.unit.update({ where: { id: unitId }, data: { listingId: null } }));
+  revalidarHistorial();
+});
+
+// Vincula de una vez todas las que coinciden por código Y por dirección.
+// Las de dirección parecida o distinta quedan para revisar una por una.
+export const vincularCoincidentes = conAviso(async function vincularCoincidentes() {
+  await requirePermission("historial.editar");
+  const filas = await getVinculacionesHistorial();
+  for (const f of filas) {
+    if (f.estado === "para-vincular" && f.coincidencia === "coincide" && f.ficha) {
+      await withRetry(() => vincular(f.unidad.id, f.ficha!.id));
+    }
+  }
+  revalidarHistorial();
 });
 
 // Borra una unidad que quedó sin contratos, ventas ni tasaciones (pruebas

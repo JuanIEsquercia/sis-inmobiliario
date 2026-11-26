@@ -85,7 +85,7 @@ export async function runSync(
   const existingListings = await withRetry(() =>
     prisma.listing.findMany({
       where: { externalId: { in: seenExternalIds } },
-      select: { externalId: true, sourceUpdatedAt: true, origin: true, status: true },
+      select: { externalId: true, sourceUpdatedAt: true, origin: true, status: true, statusChangedAt: true },
     })
   );
   const existingByExternalId = new Map(existingListings.map((l) => [l.externalId, l]));
@@ -148,10 +148,17 @@ export async function runSync(
       addressSearch: rest.address ? normalizeForSearch(rest.address) : null,
     };
 
-    // El estado comercial es nuestro: una ficha que marcamos vendida,
-    // alquilada o suspendida no vuelve al sitio aunque Adinco la siga
-    // mandando como vigente.
-    const isActive = !(existing && ESTADOS_NO_PUBLICABLES.includes(existing.status));
+    // Estado comercial de una ficha que viene en el XML (o sea, vigente en
+    // Adinco) pero acá figura vendida, alquilada o suspendida:
+    // - Si alguien cambió el estado en el backoffice (statusChangedAt),
+    //   manda el nuestro: no vuelve al sitio aunque Adinco la siga mandando.
+    // - Si el estado vino de Adinco (la importación de la planilla, sin
+    //   statusChangedAt), manda Adinco: se desocupó y la volvieron a
+    //   publicar, así que pasa a disponible y se publica.
+    const noPublicable = !!existing && ESTADOS_NO_PUBLICABLES.includes(existing.status);
+    const estadoNuestro = !!existing?.statusChangedAt;
+    const isActive = !(noPublicable && estadoNuestro);
+    const vuelveADisponible = noPublicable && !estadoNuestro;
 
     if (existing) updated++;
     else created++;
@@ -162,7 +169,7 @@ export async function runSync(
           const listingRow = await tx.listing.upsert({
             where: { externalId: listing.externalId },
             create: { ...data, agencyId, isActive: true },
-            update: { ...data, agencyId, isActive },
+            update: { ...data, agencyId, isActive, ...(vuelveADisponible ? { status: "DISPONIBLE" as const } : {}) },
           });
 
           // Las fotos se borran y se vuelven a crear con el orden nuevo del
