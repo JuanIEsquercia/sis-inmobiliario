@@ -209,6 +209,13 @@ Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorn
 - Vinculación Historial ↔ fichas (`/backoffice/historial/vincular`, permiso `historial.editar`): por código normalizado, con comparación de direcciones (`src/lib/vinculacion.ts`). Botón para vincular de una vez las de misma dirección; las demás, una por una. Al vincular, el código del Historial queda normalizado ("GARC1-359" → "359"). En local: 48 de 48 tienen ficha, 33 con misma dirección; 15 para revisar a mano (entre ellas 4, 10, 154 y 383, que pueden ser un código mal cargado).
 - Pendiente: la ventana "todo Vigente" con todas las propiedades, más adelante, para traer descripción, fotos y amenities de las 212.
 
+### Ventana en producción con Adinco activo (preparada el 2026-11-26)
+- Decisión: llevar a producción las fichas (vigentes y no vigentes), los propietarios, la vinculación del Historial y los módulos nuevos **antes** del corte, con Adinco todavía publicando. Sin copia de fotos (no hace falta plan pago todavía).
+- Vinculación: con dirección igual o parecida, la propiedad del Historial toma la dirección de la ficha y la anterior queda en sus notas (piso, UF, manzana); con dirección distinta, se resuelve a mano eligiendo qué dirección queda.
+- Guía paso a paso, verificación y vuelta atrás: `docs/ventana-produccion.md`. Herramientas: `npm run respaldo:base`, `npm run importar-planilla` (pide `--confirmar=<host>` fuera de local), `npm run verificar:migracion`.
+- Producción tiene aplicadas 54 migraciones; faltan las 5 de esta rama. Revisadas: solo agregan.
+- `main` (SEO fase A) ya está integrado en la rama.
+
 ### Pendiente antes de producción
 - La imagen para compartir en redes (`opengraph-image.tsx`) sigue usando la foto de Adinco: hay que darle una versión JPEG propia antes del corte.
 - El sync de producción tiene que copiar las fotos nuevas solo (hoy la copia es un script aparte).

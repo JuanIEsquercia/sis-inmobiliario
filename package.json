@@ -20,8 +20,12 @@
     "local:dev": "node scripts/local/run.mjs next dev",
     "local:importar": "node scripts/local/run.mjs tsx scripts/local/importar-feed.ts",
     "local:copiar-fotos": "node scripts/local/run.mjs tsx scripts/local/copiar-fotos.ts",
-    "local:importar-planilla": "node scripts/local/run.mjs tsx scripts/local/importar-planilla.ts",
+    "local:importar-planilla": "node scripts/local/run.mjs tsx scripts/importar-planilla.ts",
+    "importar-planilla": "tsx scripts/importar-planilla.ts",
+    "verificar:migracion": "tsx scripts/verificar-migracion.ts",
+    "local:verificar:migracion": "node scripts/local/run.mjs tsx scripts/verificar-migracion.ts",
     "respaldo": "tsx scripts/respaldo-feed.ts",
+    "respaldo:base": "node scripts/respaldo-base.mjs",
     "test": "tsx scripts/tests/reglas.test.ts"
   },
   "dependencies": {

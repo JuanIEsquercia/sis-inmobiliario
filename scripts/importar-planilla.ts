@@ -1,5 +1,7 @@
 // Importa la planilla "UNIFICADO" del panel de Adinco (guardada en JSON con
-// el formato de Google Sheets: { values: [[...]] }) a la base LOCAL.
+// el formato de Google Sheets: { values: [[...]] }). Contra la base local
+// corre directo; contra producción pide --confirmar=<host> (ver
+// scripts/destino.ts).
 //
 // - Fichas que ya existen (mismo Id Aviso): se completa el estado si nadie
 //   lo cambió en el backoffice, y el propietario si no tenía.
@@ -10,19 +12,22 @@
 //   nombre; si no, se crea.
 //
 // Se puede correr más de una vez: no duplica fichas ni clientes.
-// Uso: npm run local:importar-planilla -- respaldos/planilla/UNIFICADO-2026-11-26.json
+// Uso:
+//   local:       npm run local:importar-planilla -- respaldos/planilla/UNIFICADO-2026-11-26.json
+//   producción:  npm run importar-planilla -- respaldos/planilla/UNIFICADO-2026-11-26.json --confirmar=<host>
+import "dotenv/config";
 import { readFileSync } from "node:fs";
-import { assertLocalEnvironment } from "./guard";
+import { confirmarDestino } from "./destino";
 
-assertLocalEnvironment();
+confirmarDestino();
 
 async function main() {
-  const { prisma } = await import("../../src/lib/prisma");
-  const { leerFila } = await import("../../src/lib/planilla-adinco");
-  const { normalizeForSearch } = await import("../../src/lib/search-text");
+  const { prisma } = await import("../src/lib/prisma");
+  const { leerFila } = await import("../src/lib/planilla-adinco");
+  const { normalizeForSearch } = await import("../src/lib/search-text");
   type Propietario = NonNullable<Extract<ReturnType<typeof leerFila>, { externalId: string }>["propietario"]>;
 
-  const archivo = process.argv[2];
+  const archivo = process.argv.slice(2).find((a) => !a.startsWith("--"));
   if (!archivo) throw new Error("Falta el archivo JSON de la planilla.");
   const { values } = JSON.parse(readFileSync(archivo, "utf8")) as { values: string[][] };
   const [encabezado, ...filas] = values;
