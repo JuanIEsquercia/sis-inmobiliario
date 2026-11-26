@@ -1,3 +1,4 @@
+import { jsonLdScript } from "@/lib/structured-data";
 interface FAQItem {
   question: string;
   answer: string;
@@ -66,7 +67,7 @@ function faqJsonLd() {
 export function FAQSection() {
   return (
     <section>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd()) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqJsonLd()) }} />
 
       <div className="mb-6 text-center">
         <h2 className="text-lg font-semibold text-foreground">Preguntas frecuentes</h2>
