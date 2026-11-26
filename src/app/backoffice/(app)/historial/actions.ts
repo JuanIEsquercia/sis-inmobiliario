@@ -64,15 +64,37 @@ export const actualizarUnidad = conAviso(async function actualizarUnidad(unitId:
 // código ("GARC1-359" -> "359") si no lo tiene otra unidad: si lo tiene,
 // son la misma propiedad cargada dos veces y eso se unifica desde la
 // ficha del contrato, no acá.
-async function vincular(unitId: number, listingId: number): Promise<"ok" | "conflicto"> {
-  const ficha = await prisma.listing.findUnique({ where: { id: listingId }, select: { code: true, unit: { select: { id: true } } } });
+//
+// Dirección (decisión del 2026-11-26): con `usarDireccionFicha`, la unidad
+// toma la dirección y la localidad de la ficha, y la que tenía se guarda en
+// sus notas — ahí suele estar el piso, la UF o la manzana que distingue a
+// una unidad de otra del mismo edificio, y no se puede perder.
+async function vincular(unitId: number, listingId: number, usarDireccionFicha: boolean): Promise<"ok" | "conflicto"> {
+  const [ficha, unidad] = await Promise.all([
+    prisma.listing.findUnique({ where: { id: listingId }, select: { code: true, address: true, city: true, unit: { select: { id: true } } } }),
+    prisma.unit.findUnique({ where: { id: unitId }, select: { address: true, city: true, notes: true } }),
+  ]);
   if (!ficha) throw new Error("La ficha ya no existe.");
+  if (!unidad) throw new Error("La propiedad del Historial ya no existe.");
   if (ficha.unit && ficha.unit.id !== unitId) return "conflicto";
   const codigo = normalizarCodigo(ficha.code);
   const otra = codigo ? await prisma.unit.findUnique({ where: { propertyCode: codigo }, select: { id: true } }) : null;
+
+  const cambiaDireccion = usarDireccionFicha && !!ficha.address && ficha.address !== unidad.address;
+  const anterior = `Dirección anterior en el Historial: ${unidad.address}${unidad.city ? ` (${unidad.city})` : ""}`;
   await prisma.unit.update({
     where: { id: unitId },
-    data: { listingId, ...(codigo && (!otra || otra.id === unitId) ? { propertyCode: codigo } : {}) },
+    data: {
+      listingId,
+      ...(codigo && (!otra || otra.id === unitId) ? { propertyCode: codigo } : {}),
+      ...(cambiaDireccion
+        ? {
+            address: ficha.address!,
+            city: ficha.city ?? unidad.city,
+            notes: unidad.notes ? `${unidad.notes}\n${anterior}` : anterior,
+          }
+        : {}),
+    },
   });
   return "ok";
 }
@@ -82,9 +104,9 @@ function revalidarHistorial() {
   revalidatePath("/backoffice/propiedades", "layout");
 }
 
-export const vincularUnidad = conAviso(async function vincularUnidad(unitId: number, listingId: number) {
+export const vincularUnidad = conAviso(async function vincularUnidad(unitId: number, listingId: number, usarDireccionFicha: boolean) {
   await requirePermission("historial.editar");
-  const r = await withRetry(() => vincular(unitId, listingId));
+  const r = await withRetry(() => vincular(unitId, listingId, usarDireccionFicha));
   if (r === "conflicto") {
     throw new Error("Esa ficha ya está vinculada a otra propiedad del Historial. Si son la misma, unificalas desde la ficha del contrato.");
   }
@@ -97,14 +119,16 @@ export const desvincularUnidad = conAviso(async function desvincularUnidad(unitI
   revalidarHistorial();
 });
 
-// Vincula de una vez todas las que coinciden por código Y por dirección.
-// Las de dirección parecida o distinta quedan para revisar una por una.
+// Vincula de una vez todas las que coinciden por código y cuya dirección
+// coincide o es parecida, tomando la dirección de la ficha (la anterior
+// queda en las notas). Las de dirección distinta nunca van en lote:
+// pueden ser un código mal cargado, y se resuelven una por una.
 export const vincularCoincidentes = conAviso(async function vincularCoincidentes() {
   await requirePermission("historial.editar");
   const filas = await getVinculacionesHistorial();
   for (const f of filas) {
-    if (f.estado === "para-vincular" && f.coincidencia === "coincide" && f.ficha) {
-      await withRetry(() => vincular(f.unidad.id, f.ficha!.id));
+    if (f.estado === "para-vincular" && f.coincidencia !== "distinta" && f.ficha) {
+      await withRetry(() => vincular(f.unidad.id, f.ficha!.id, true));
     }
   }
   revalidarHistorial();

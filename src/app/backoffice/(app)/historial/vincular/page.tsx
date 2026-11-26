@@ -29,7 +29,7 @@ export default async function VincularHistorialPage() {
   await requirePermission("historial.editar");
   const filas = await getVinculacionesHistorial();
   const cuenta = (e: EstadoVinculo) => filas.filter((f) => f.estado === e).length;
-  const automaticas = filas.filter((f) => f.estado === "para-vincular" && f.coincidencia === "coincide").length;
+  const automaticas = filas.filter((f) => f.estado === "para-vincular" && f.coincidencia !== "distinta").length;
   const orden: EstadoVinculo[] = ["para-vincular", "conflicto", "sin-ficha", "vinculada"];
 
   return (
@@ -40,6 +40,11 @@ export default async function VincularHistorialPage() {
         Cada propiedad del Historial se une a su ficha por código (&quot;GARC1-359&quot; es la 359). Al vincular, el código del
         Historial queda normalizado y la ficha muestra sus contratos, ventas y tasaciones.
       </p>
+      <p className="mb-4 text-sm text-muted">
+        La dirección pasa a ser la de la ficha y la que tenía el Historial se guarda en sus notas (con el piso, la UF o la
+        manzana). Las de dirección distinta pueden ser un código mal cargado: se revisan una por una y se elige qué dirección
+        queda.
+      </p>
 
       <div className="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-border p-4 text-sm">
         <span>Vinculadas: <b>{cuenta("vinculada")}</b></span>
@@ -49,7 +54,7 @@ export default async function VincularHistorialPage() {
         {automaticas > 0 && (
           <ActionForm action={vincularCoincidentes} mensajeExito="Vinculadas las que coinciden" className="ml-auto">
             <SubmitButton pendingLabel="Vinculando..." className="rounded-lg bg-accent px-4 py-2 text-xs font-bold text-accent-foreground hover:bg-accent-strong cursor-pointer">
-              Vincular las {automaticas} con misma dirección
+              Vincular las {automaticas} con dirección igual o parecida
             </SubmitButton>
           </ActionForm>
         )}
@@ -97,9 +102,18 @@ export default async function VincularHistorialPage() {
                       </td>
                       <td className="px-3 py-2 text-right">
                         {estado === "para-vincular" && ficha && (
-                          <ActionForm action={vincularUnidad.bind(null, u.id, ficha.id)} mensajeExito="Vinculada">
-                            <SubmitButton className={botonChico}>Vincular</SubmitButton>
-                          </ActionForm>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <ActionForm action={vincularUnidad.bind(null, u.id, ficha.id, true)} mensajeExito="Vinculada">
+                              <SubmitButton className={botonChico}>
+                                {coincidencia === "distinta" ? "Vincular con la dirección de la ficha" : "Vincular"}
+                              </SubmitButton>
+                            </ActionForm>
+                            {coincidencia === "distinta" && (
+                              <ActionForm action={vincularUnidad.bind(null, u.id, ficha.id, false)} mensajeExito="Vinculada">
+                                <SubmitButton className={botonChico}>Vincular y conservar la del Historial</SubmitButton>
+                              </ActionForm>
+                            )}
+                          </div>
                         )}
                         {estado === "vinculada" && (
                           <ActionForm action={desvincularUnidad.bind(null, u.id)} mensajeExito="Desvinculada">
