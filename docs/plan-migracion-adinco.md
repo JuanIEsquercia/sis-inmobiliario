@@ -216,6 +216,9 @@ Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorn
 - Producción tiene aplicadas 54 migraciones; faltan las 5 de esta rama. Revisadas: solo agregan.
 - `main` (SEO fase A) ya está integrado en la rama.
 
+### Después del corte (pedido el 2026-11-26)
+- Panel de datos del sitio: clics en cada propiedad, cuántas veces se compartió cada una y qué se busca (filtros y textos de búsqueda). El sitio hoy no tiene Vercel Web Analytics activado, así que tampoco hay datos de tráfico.
+
 ### Pendiente antes de producción
 - La imagen para compartir en redes (`opengraph-image.tsx`) sigue usando la foto de Adinco: hay que darle una versión JPEG propia antes del corte.
 - El sync de producción tiene que copiar las fotos nuevas solo (hoy la copia es un script aparte).

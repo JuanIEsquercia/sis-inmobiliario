@@ -99,11 +99,11 @@ Y a mano:
 
 ## El sábado: "todo Vigente" y corte del XML (a preparar antes)
 
-1. Apagar el sync automático antes de poner todo vigente en Adinco: con todo vigente, el sync normal volvería a publicar en el sitio las alquiladas y vendidas.
-2. Exportar la planilla de estados del día (es el registro de los estados reales).
+1. Apagar el sync automático antes de poner todo vigente en Adinco: con todo vigente, el sync de las 18:00 volvería a publicar en el sitio las alquiladas y vendidas.
+2. **Exportar la planilla de estados ANTES de tocar nada en Adinco**: es el único registro de los estados reales.
 3. Poner todo vigente en Adinco y bajar el XML con `npm run respaldo -- --fotos`.
-4. Importar ese XML en modo captura: completa descripción, fotos y amenities **sin cambiar el estado ni la publicación** de ninguna ficha. (Este modo hay que construirlo antes del sábado.)
-5. Copiar las fotos de todas (`copiar-fotos`).
-6. Volver los estados reales en Adinco.
+4. Importar ese XML (sync con el archivo): entran descripción, fotos y amenities de todas. Por un momento quedan como disponibles y publicadas.
+5. **Inmediatamente después**, importar la planilla del paso 2: devuelve cada ficha a su estado real y despublica las alquiladas, vendidas y suspendidas. Correr 4 y 5 seguidos deja la exposición en segundos. Las fichas cuyo estado alguien cambió en el backoffice no se tocan en ninguno de los dos pasos.
+6. Copiar las fotos de todas (`copiar-fotos`) y volver los estados reales en Adinco.
 7. Corte: pasar todas las fichas a origen propio, quitar el cron de `vercel.json` y el sync. Desde ahí, las altas y ediciones se hacen en nuestro sistema.
 8. Pendiente aparte: la difusión a portales (Zonaprop, Argenprop, MercadoLibre) sigue dependiendo de Adinco hasta resolver L4.
