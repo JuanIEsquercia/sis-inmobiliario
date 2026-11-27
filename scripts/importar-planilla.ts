@@ -23,6 +23,7 @@ confirmarDestino();
 
 async function main() {
   const { prisma } = await import("../src/lib/prisma");
+  const { withRetry } = await import("../src/lib/db-retry");
   const { leerFila, alturaDeDireccion } = await import("../src/lib/planilla-adinco");
   const { normalizeForSearch } = await import("../src/lib/search-text");
   type Propietario = NonNullable<Extract<ReturnType<typeof leerFila>, { externalId: string }>["propietario"]>;
@@ -40,7 +41,7 @@ async function main() {
   async function clienteDe(p: Propietario): Promise<{ id: number; nuevo: boolean }> {
     const clave = `${p.firstName} ${p.lastName}`.toLowerCase();
     if (clientes.has(clave)) return { id: clientes.get(clave)!, nuevo: false };
-    const existente = await prisma.client.findFirst({
+    const existente = await withRetry(() => prisma.client.findFirst({
       where: {
         OR: [
           ...(p.email ? [{ email: { equals: p.email, mode: "insensitive" as const } }] : []),
@@ -49,8 +50,8 @@ async function main() {
         ],
       },
       select: { id: true },
-    });
-    const id = existente?.id ?? (await prisma.client.create({ data: { ...p }, select: { id: true } })).id;
+    }));
+    const id = existente?.id ?? (await withRetry(() => prisma.client.create({ data: { ...p }, select: { id: true } }))).id;
     clientes.set(clave, id);
     return { id, nuevo: !existente };
   }
@@ -73,10 +74,10 @@ async function main() {
       if (c.nuevo) r.clientesNuevos++;
     }
 
-    const existente = await prisma.listing.findUnique({
+    const existente = await withRetry(() => prisma.listing.findUnique({
       where: { externalId: f.externalId },
       select: { id: true, code: true, address: true, addressNumber: true, statusChangedAt: true, ownerClientId: true },
-    });
+    }));
 
     if (existente) {
       // El estado que alguien cambió en el backoffice manda sobre Adinco.
@@ -95,7 +96,7 @@ async function main() {
       if (redondeada) r.aproximadas++;
       if (!existente.code) r.codigos++;
 
-      await prisma.listing.update({
+      await withRetry(() => prisma.listing.update({
         where: { id: existente.id },
         data: {
           ...(tocarEstado ? { status: f.status } : {}),
@@ -107,14 +108,14 @@ async function main() {
             : {}),
           ...(redondeada ? { showExactAddress: false } : {}),
         },
-      });
+      }));
       if (ownerClientId && !existente.ownerClientId) r.propietarios++;
       r.actualizadas++;
       continue;
     }
 
     if (f.operacionDeducida) r.deducidas++;
-    await prisma.listing.create({
+    await withRetry(() => prisma.listing.create({
       data: {
         externalId: f.externalId,
         code: f.code,
@@ -152,7 +153,7 @@ async function main() {
           : null,
         rawData: { planillaAdinco: f.original },
       },
-    });
+    }));
     if (ownerClientId) r.propietarios++;
     r.creadas++;
   }
