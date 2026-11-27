@@ -216,6 +216,15 @@ Se trabaja primero en un **entorno local** (Supabase en Docker, ver `docs/entorn
 - Producción tiene aplicadas 54 migraciones; faltan las 5 de esta rama. Revisadas: solo agregan.
 - `main` (SEO fase A) ya está integrado en la rama.
 
+### Ventana ejecutada en producción (2026-11-26)
+- Respaldo: `respaldos/base/aws-0-us-west-2-2026-11-26_1945.dump` (187 fichas, 48 unidades, 47 contratos, 623 liquidaciones antes de tocar nada).
+- 5 migraciones aplicadas; código publicado (`main` = rama `migracion-adinco`); sync forzado (155 actualizadas).
+- Fotos: 1.328 copiadas a Storage (142,8 MB, 0 errores). El sitio las sirve desde Supabase.
+- Planilla importada: 180 fichas nuevas sin publicar + 187 existentes; 17 propietarios (10 clientes nuevos); 4 códigos completados.
+- Hallazgo: el XML público de Adinco redondea la altura de los avisos con dirección aproximada. La planilla trae la exacta: 100 fichas quedaron con la dirección exacta guardada y marcadas como aproximadas; el sitio las muestra como "Calle al 1100" y el sync ya no pisa la exacta.
+- Historial: 44 de 48 vinculadas (41 con la dirección anterior en notas). Pendientes de revisión a mano: 4 (loteo el aguila / Ruta 12), 154 (Bonaire / Belgrano 1468), 162 (Cabral 1963 / 1900) y 383 (Pedro Ferré 204 / 3 de Abril 204).
+- Resultado: 367 fichas, 155 publicadas (igual que antes), 0 sin código.
+
 ### Después del corte (pedido el 2026-11-26)
 - Panel de datos del sitio: clics en cada propiedad, cuántas veces se compartió cada una y qué se busca (filtros y textos de búsqueda). El sitio hoy no tiene Vercel Web Analytics activado, así que tampoco hay datos de tráfico.
 
